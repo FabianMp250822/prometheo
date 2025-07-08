@@ -1,16 +1,16 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, doc, getDoc } from 'firebase/firestore';
-import { ProcesoCancelado } from '@/lib/data';
+import { ProcesoCancelado, Pensioner } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Gavel, Loader2, RotateCw, Download } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Gavel, Loader2, RotateCw, Download, Search, Filter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency, parsePeriodoPago, parseEmployeeName, parsePaymentDetailName, timestampToDate } from '@/lib/helpers';
-import { Pensioner } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,16 @@ export default function SentenciasPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [procesos, setProcesos] = useState<ProcesoCancelado[]>([]);
     const { toast } = useToast();
+
+    // Filter states
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedDepartment, setSelectedDepartment] = useState('all');
+    const [selectedYear, setSelectedYear] = useState('all');
+
+    // Dropdown options states
+    const [uniqueDepartments, setUniqueDepartments] = useState<string[]>([]);
+    const [uniqueYears, setUniqueYears] = useState<string[]>([]);
+
 
     const loadData = useCallback(async () => {
         setIsLoading(true);
@@ -39,6 +49,7 @@ export default function SentenciasPage() {
             const chunkSize = 30;
             for (let i = 0; i < pensionerIds.length; i += chunkSize) {
                 const chunk = pensionerIds.slice(i, i + chunkSize);
+                if (chunk.length === 0) continue; // Skip empty chunks
                 const pensionerPromises = chunk.map(id => getDoc(doc(db, PENSIONADOS_COLLECTION, id)));
                 const pensionerDocs = await Promise.all(pensionerPromises);
 
@@ -63,7 +74,7 @@ export default function SentenciasPage() {
                     } : undefined,
                     totalAmount,
                 };
-            });
+            }).filter(p => p.pensionerInfo); // Filter out processos without pensioner info
 
             // 5. Sort by 'periodoPago' descending
             enrichedProcesos.sort((a, b) => {
@@ -73,7 +84,14 @@ export default function SentenciasPage() {
             });
 
             setProcesos(enrichedProcesos);
-            toast({ title: "Datos cargados", description: `${enrichedProcesos.length} registros encontrados.` });
+
+            // 6. Extract unique values for filters
+            const depts = new Set(enrichedProcesos.map(p => p.pensionerInfo?.department).filter(Boolean) as string[]);
+            const years = new Set(enrichedProcesos.map(p => p.año).filter(Boolean));
+            setUniqueDepartments(Array.from(depts).sort());
+            setUniqueYears(Array.from(years).sort((a, b) => Number(b) - Number(a))); // Newest years first
+            
+            toast({ title: "Datos cargados", description: `${enrichedProcesos.length} registros de procesos encontrados.` });
 
         } catch (error) {
             console.error("Error fetching data:", error);
@@ -86,14 +104,31 @@ export default function SentenciasPage() {
     useEffect(() => {
         loadData();
     }, [loadData]);
+
+     const filteredProcesos = useMemo(() => {
+        return procesos.filter(p => {
+            if (!p.pensionerInfo) return false;
+
+            const searchTermLower = searchTerm.toLowerCase();
+            const searchMatch = searchTermLower === '' ||
+                p.pensionerInfo.name.toLowerCase().includes(searchTermLower) ||
+                p.pensionerInfo.document.includes(searchTermLower);
+
+            const departmentMatch = selectedDepartment === 'all' || p.pensionerInfo.department === selectedDepartment;
+            
+            const yearMatch = selectedYear === 'all' || p.año === selectedYear;
+
+            return searchMatch && departmentMatch && yearMatch;
+        });
+    }, [procesos, searchTerm, selectedDepartment, selectedYear]);
     
     const exportToExcel = () => {
-        if (procesos.length === 0) {
-            toast({ variant: 'destructive', title: "Error", description: "No hay datos para exportar." });
+        if (filteredProcesos.length === 0) {
+            toast({ variant: 'destructive', title: "Error", description: "No hay datos filtrados para exportar." });
             return;
         }
 
-        const dataToExport = procesos.flatMap(p => 
+        const dataToExport = filteredProcesos.flatMap(p => 
             p.conceptos.map(c => ({
                 "ID Pensionado": p.pensionadoId,
                 "Nombre Pensionado": p.pensionerInfo?.name || 'N/A',
@@ -136,7 +171,7 @@ export default function SentenciasPage() {
                                 <RotateCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                                 Recargar
                             </Button>
-                            <Button size="sm" onClick={exportToExcel} disabled={procesos.length === 0}>
+                            <Button size="sm" onClick={exportToExcel} disabled={filteredProcesos.length === 0}>
                                 <Download className="mr-2 h-4 w-4" />
                                 Exportar a Excel
                             </Button>
@@ -147,9 +182,50 @@ export default function SentenciasPage() {
 
             <Card>
                 <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Filter className="h-5 w-5" />
+                        Filtros de Búsqueda
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Buscar por nombre o documento..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-10"
+                                disabled={isLoading}
+                            />
+                        </div>
+                         <Select value={selectedDepartment} onValueChange={setSelectedDepartment} disabled={isLoading || uniqueDepartments.length === 0}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Filtrar por Dependencia" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Todas las Dependencias</SelectItem>
+                                {uniqueDepartments.map(dep => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                         <Select value={selectedYear} onValueChange={setSelectedYear} disabled={isLoading || uniqueYears.length === 0}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Filtrar por Año Fiscal" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Todos los Años</SelectItem>
+                                {uniqueYears.map(year => <SelectItem key={year} value={year}>{year}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
                     <CardTitle>Resultados</CardTitle>
                     <CardDescription>
-                        {procesos.length} procesos encontrados.
+                        {filteredProcesos.length} de {procesos.length} procesos encontrados.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -158,48 +234,51 @@ export default function SentenciasPage() {
                             <Loader2 className="h-10 w-10 animate-spin text-primary" />
                         </div>
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Pensionado</TableHead>
-                                    <TableHead>Periodo de Pago</TableHead>
-                                    <TableHead>Conceptos</TableHead>
-                                    <TableHead className="text-right">Monto Total</TableHead>
-                                    <TableHead>Fecha Creación</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {procesos.map(proceso => (
-                                    <TableRow key={proceso.id}>
-                                        <TableCell>
-                                            <div className="font-medium">{proceso.pensionerInfo?.name || 'N/A'}</div>
-                                            <div className="text-xs text-muted-foreground">{proceso.pensionadoId}</div>
-                                        </TableCell>
-                                        <TableCell>{proceso.periodoPago}</TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-col gap-1">
-                                                {proceso.conceptos.map(c => (
-                                                    c.ingresos > 0 &&
-                                                    <div key={c.codigo} className="text-xs flex items-center gap-2">
-                                                        <Badge variant="secondary">{parsePaymentDetailName(c.nombre)}</Badge>
-                                                        <span className="font-semibold">{formatCurrency(c.ingresos)}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-right font-bold">{formatCurrency(proceso.totalAmount)}</TableCell>
-                                        <TableCell>{timestampToDate(proceso.creadoEn)?.toLocaleDateString()}</TableCell>
-                                    </TableRow>
-                                ))}
-                                {procesos.length === 0 && !isLoading && (
+                        <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader>
                                     <TableRow>
-                                        <TableCell colSpan={5} className="text-center text-muted-foreground">
-                                            No se encontraron datos.
-                                        </TableCell>
+                                        <TableHead>Pensionado</TableHead>
+                                        <TableHead>Periodo de Pago</TableHead>
+                                        <TableHead>Conceptos</TableHead>
+                                        <TableHead className="text-right">Monto Total</TableHead>
+                                        <TableHead>Fecha Creación</TableHead>
                                     </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {filteredProcesos.map(proceso => (
+                                        <TableRow key={proceso.id}>
+                                            <TableCell>
+                                                <div className="font-medium">{proceso.pensionerInfo?.name || 'N/A'}</div>
+                                                <div className="text-xs text-muted-foreground">{proceso.pensionerInfo?.document}</div>
+                                                <Badge variant="outline" className="mt-1">{proceso.pensionerInfo?.department}</Badge>
+                                            </TableCell>
+                                            <TableCell>{proceso.periodoPago}</TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-col gap-1 max-w-xs">
+                                                    {proceso.conceptos.map(c => (
+                                                        c.ingresos > 0 &&
+                                                        <div key={c.codigo} className="text-xs flex items-center justify-between gap-2">
+                                                            <Badge variant="secondary" className="whitespace-nowrap truncate">{parsePaymentDetailName(c.nombre)}</Badge>
+                                                            <span className="font-semibold">{formatCurrency(c.ingresos)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right font-bold">{formatCurrency(proceso.totalAmount)}</TableCell>
+                                            <TableCell>{timestampToDate(proceso.creadoEn)?.toLocaleDateString()}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {filteredProcesos.length === 0 && !isLoading && (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="text-center text-muted-foreground">
+                                                No se encontraron datos con los filtros aplicados.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
                     )}
                 </CardContent>
             </Card>
