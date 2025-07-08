@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Gavel, Loader2, RotateCw, Download, Search, Filter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { formatCurrency, parsePeriodoPago, parseEmployeeName, parsePaymentDetailName, timestampToDate, parseDepartmentName } from '@/lib/helpers';
+import { formatCurrency, parsePeriodoPago, parseEmployeeName, parsePaymentDetailName, timestampToDate, parseDepartmentName, formatPeriodoToMonthYear } from '@/lib/helpers';
 import { Badge } from '@/components/ui/badge';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
@@ -256,7 +256,7 @@ export default function SentenciasPage() {
                                             <TableCell>
                                                 {parseDepartmentName(proceso.pensionerInfo?.department || 'N/A')}
                                             </TableCell>
-                                            <TableCell>{proceso.periodoPago}</TableCell>
+                                            <TableCell>{formatPeriodoToMonthYear(proceso.periodoPago)}</TableCell>
                                             <TableCell>
                                                 <div className="flex flex-col gap-1 max-w-xs">
                                                     {proceso.conceptos.map(c => (

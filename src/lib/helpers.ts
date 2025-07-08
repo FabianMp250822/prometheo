@@ -97,3 +97,27 @@ export const parseDepartmentName = (departmentName: string): string => {
   // Removes prefixes like "V1-"
   return departmentName.replace(/^V\d+-/, '').trim();
 };
+
+export const formatPeriodoToMonthYear = (periodoPago: string): string => {
+    if (!periodoPago) return 'N/A';
+
+    const fullMonthMap: { [key: string]: string } = {
+        'ene': 'Enero', 'feb': 'Febrero', 'mar': 'Marzo', 'abr': 'Abril', 
+        'may': 'Mayo', 'jun': 'Junio', 'jul': 'Julio', 'ago': 'Agosto', 
+        'sep': 'Septiembre', 'oct': 'Octubre', 'nov': 'Noviembre', 'dic': 'Diciembre'
+    };
+
+    const match = periodoPago.match(/(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\.?\s(\d{4})/i);
+    
+    if (match) {
+        const monthStr = match[1].toLowerCase();
+        const year = match[2];
+        const fullMonth = fullMonthMap[monthStr as keyof typeof fullMonthMap];
+        
+        if (fullMonth) {
+            return `${fullMonth} ${year}`;
+        }
+    }
+
+    return periodoPago; // Return original if format is unexpected
+};
