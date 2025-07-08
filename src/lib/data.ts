@@ -43,3 +43,28 @@ export interface UserPayment {
 export const dependencies: string[] = ["Dependencia A", "Dependencia B", "Dependencia C"];
 export const legalConcepts: LegalConcept[] = ["Costas Procesales", "Retro Mesada Adicional", "Procesos y Sentencia Judiciales"];
 export const statuses: PaymentStatus[] = ["Analizado", "Pendiente", "Pagado"];
+
+
+// New types for Pagos section
+export interface Pensioner {
+  id: string; // document id which is the same as documento
+  documento: string;
+  empleado: string;
+  dependencia1: string;
+  centroCosto: string;
+}
+
+export interface PaymentDetail {
+  codigo: string | null;
+  nombre: string;
+  ingresos: number;
+  egresos: number;
+}
+
+export interface Payment {
+  id: string;
+  año: string;
+  periodoPago: string;
+  fechaProcesado: Timestamp;
+  detalles: PaymentDetail[];
+}

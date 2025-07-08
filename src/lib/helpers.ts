@@ -1,6 +1,9 @@
 import { Sentence } from "./data";
+import type { Timestamp } from 'firebase/firestore';
+
 
 export const formatCurrency = (amount: number) => {
+    if (typeof amount !== 'number') return '$0';
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
       currency: 'COP',
@@ -66,10 +69,25 @@ export const getLatestYear = (sentencias: Sentence[]): number => {
     return endDate ? endDate.getFullYear() : 0;
 }
 
-// These functions from the spec are not used in this implementation
-// as they were very specific to a particular data format.
-// The logic has been simplified and adapted in the components.
-//
-// export const parsePeriodoFromPagoId = (pagoId: string) => { ... }
-// export const calculateProximityToToday = (periodoPago: string) => { ... }
-// export const matchesPeriodoFilter = (periodoPago: string, filter: string) => { ... }
+export const parseEmployeeName = (employeeName: string): string => {
+  if (!employeeName) return 'N/A';
+  return employeeName.split(' (C.C.')[0].trim();
+};
+
+export const parsePaymentDetailName = (detailName: string): string => {
+  if (!detailName) return '';
+  // Removes numeric prefixes like "1001-"
+  const parts = detailName.split('-');
+  if (parts.length > 1 && /^\d+$/.test(parts[0])) {
+    return parts.slice(1).join('-').trim();
+  }
+  return detailName;
+};
+
+// Helper to convert Firestore Timestamps to JS Date
+export const timestampToDate = (timestamp: Timestamp | null | undefined): Date | null => {
+  if (timestamp && typeof timestamp.toDate === 'function') {
+    return timestamp.toDate();
+  }
+  return null;
+};
