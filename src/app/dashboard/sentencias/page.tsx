@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useTransition } from 'react';
-import { db } from '@/lib/firebase';
+import { db, app } from '@/lib/firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { collection, getDocs, query, doc, getDoc } from 'firebase/firestore';
 import { ProcesoCancelado, Pensioner } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +14,6 @@ import { useToast } from '@/hooks/use-toast';
 import { formatCurrency, parsePeriodoPago, parseEmployeeName, parsePaymentDetailName, parseDepartmentName, formatPeriodoToMonthYear } from '@/lib/helpers';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
-import { syncNewProcesses } from '@/app/actions/sync-processes';
 
 const PROCESOS_CANCELADOS_COLLECTION = "procesoscancelados";
 const PENSIONADOS_COLLECTION = "pensionados";
@@ -123,22 +123,29 @@ export default function SentenciasPage() {
 
     const handleSync = () => {
         startSyncTransition(async () => {
-            toast({ title: 'Sincronizando...', description: 'Buscando nuevos pagos de sentencias. Esto puede tardar unos minutos.' });
-            const result = await syncNewProcesses();
+            toast({ title: 'Sincronizando...', description: 'Buscando nuevos pagos de sentencias. Esto puede tardar.' });
+            
+            try {
+                const functions = getFunctions(app);
+                const syncNewProcessesFn = httpsCallable(functions, 'syncNewProcesses');
+                const result = await syncNewProcessesFn();
+                const data = result.data as { success: boolean; count?: number };
 
-            if (result.success) {
-                toast({
-                    title: 'Sincronización Completa',
-                    description: `Se encontraron y guardaron ${result.count || 0} nuevos procesos.`,
-                });
-                if (result.count && result.count > 0) {
-                    loadData(); // Reload data to show new processes
+                if (data.success) {
+                    toast({
+                        title: 'Sincronización Completa',
+                        description: `Se encontraron y guardaron ${data.count || 0} nuevos procesos.`,
+                    });
+                    if (data.count && data.count > 0) {
+                        loadData(); // Reload data to show new processes
+                    }
                 }
-            } else {
+            } catch (error: any) {
+                console.error("Error calling sync function:", error);
                 toast({
                     variant: 'destructive',
                     title: 'Error de Sincronización',
-                    description: result.error || 'Ocurrió un error desconocido.',
+                    description: error.message || 'No se pudo conectar con el servicio de sincronización.',
                 });
             }
         });
