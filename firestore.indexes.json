@@ -1,0 +1,75 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "extractedText",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "documentoUsuario",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "pagos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "`año`",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "fechaProcesado",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "pensionados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "apellidos",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "nombres",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "pensionados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "pnlDependencia",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "empleado",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "pagos",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "año",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
