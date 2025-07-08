@@ -138,7 +138,6 @@ export default function SentenciasPage() {
                 "Ingresos": c.ingresos,
                 "Egresos": c.egresos,
                 "Año": p.año,
-                "Fecha de Creación": timestampToDate(p.creadoEn)?.toLocaleString() ?? 'N/A',
             }))
         );
 
@@ -243,7 +242,6 @@ export default function SentenciasPage() {
                                         <TableHead>Periodo de Pago</TableHead>
                                         <TableHead>Conceptos</TableHead>
                                         <TableHead className="text-right">Monto Total</TableHead>
-                                        <TableHead>Fecha Creación</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -269,12 +267,11 @@ export default function SentenciasPage() {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-right font-bold">{formatCurrency(proceso.totalAmount)}</TableCell>
-                                            <TableCell>{timestampToDate(proceso.creadoEn)?.toLocaleDateString()}</TableCell>
                                         </TableRow>
                                     ))}
                                     {filteredProcesos.length === 0 && !isLoading && (
                                         <TableRow>
-                                            <TableCell colSpan={6} className="text-center text-muted-foreground">
+                                            <TableCell colSpan={5} className="text-center text-muted-foreground">
                                                 No se encontraron datos con los filtros aplicados.
                                             </TableCell>
                                         </TableRow>
