@@ -63,6 +63,7 @@ export interface PaymentDetail {
 
 export interface Payment {
   id: string;
+  pagoId: string;
   año: string;
   periodoPago: string;
   fechaProcesado: Timestamp;

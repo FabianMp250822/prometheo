@@ -25,16 +25,19 @@ export async function syncNewProcesses(): Promise<{ success: boolean; count?: nu
     const existingProcesosSnapshot = await db.collection('procesoscancelados').get();
     const existingPagoIds = new Set(existingProcesosSnapshot.docs.map(d => d.data().pagoId));
 
-    // 2. Use a collection group query to efficiently fetch all payments from all pensioners.
+    // 2. Use a collection group query to efficiently fetch all payments.
     const allPagosSnapshot = await db.collectionGroup('pagos').get();
     
     let batch = db.batch();
     let newProcessesCount = 0;
     let batchCounter = 0;
-    const MAX_BATCH_SIZE = 499; // Firestore batches are limited to 500 operations
+    let docsScannedCounter = 0;
+    const MAX_BATCH_SIZE = 499; // Firestore batches are limited to 500 operations.
+    const SCAN_COMMIT_INTERVAL = 5000; // Commit after scanning this many docs to keep the function alive.
 
     // 3. Iterate through all found payments
     for (const pagoDoc of allPagosSnapshot.docs) {
+        docsScannedCounter++;
         const pago = { id: pagoDoc.id, ...pagoDoc.data() } as Payment;
         const pensionerId = pagoDoc.ref.parent.parent!.id; // Get the parent 'pensionado' ID
 
@@ -74,13 +77,14 @@ export async function syncNewProcesses(): Promise<{ success: boolean; count?: nu
           newProcessesCount++;
           batchCounter++;
           existingPagoIds.add(pago.pagoId); // Add to set to avoid processing duplicates in the same run
+        }
 
-          // 7. Commit the batch periodically to avoid exceeding size limits
-          if (batchCounter >= MAX_BATCH_SIZE) {
+        // 7. Commit batch if full, or periodically after scanning a certain number of documents.
+        // This prevents the function from timing out on very large datasets.
+        if (batchCounter >= MAX_BATCH_SIZE || (docsScannedCounter % SCAN_COMMIT_INTERVAL === 0 && batchCounter > 0)) {
             await batch.commit();
             batch = db.batch();
             batchCounter = 0;
-          }
         }
     }
 
