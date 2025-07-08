@@ -1,16 +1,16 @@
 'use server';
 
 /**
- * @fileOverview Server action to synchronize sentence payments.
+ * @fileOverview Server action to synchronize sentence payments using Firebase Admin SDK.
  *
  * This action scans through all pensioners and their payments, identifies payments
  * related to legal sentences that have not yet been processed, and saves them
- * to the 'procesoscancelados' collection in Firestore.
+ * to the 'procesoscancelados' collection in Firestore. It uses the Admin SDK
+ * to bypass security rules for server-side execution.
  */
 
-import { collection, getDocs, query, writeBatch, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import type { Payment, ProcesoCancelado, ProcesoCanceladoConcepto } from '@/lib/data';
+import { adminDb as db } from '@/lib/firebase-admin';
+import type { Payment, ProcesoCanceladoConcepto } from '@/lib/data';
 
 const SENTENCE_CONCEPT_PREFIXES = ['470-', '785-', '475-'];
 
@@ -21,16 +21,14 @@ const SENTENCE_CONCEPT_PREFIXES = ['470-', '785-', '475-'];
 export async function syncNewProcesses(): Promise<{ success: boolean; count?: number; error?: string }> {
   try {
     // 1. Get all existing pagoIds from procesoscancelados to avoid duplicates.
-    const existingProcesosQuery = query(collection(db, 'procesoscancelados'));
-    const existingProcesosSnapshot = await getDocs(existingProcesosQuery);
+    const existingProcesosSnapshot = await db.collection('procesoscancelados').get();
     const existingPagoIds = new Set(existingProcesosSnapshot.docs.map(d => d.data().pagoId));
 
     // 2. Get all pensioners
-    const pensionersQuery = query(collection(db, 'pensionados'));
-    const pensionersSnapshot = await getDocs(pensionersQuery);
+    const pensionersSnapshot = await db.collection('pensionados').get();
     const allPensioners = pensionersSnapshot.docs;
 
-    let batch = writeBatch(db);
+    let batch = db.batch();
     let newProcessesCount = 0;
     let batchCounter = 0;
     const MAX_BATCH_SIZE = 499; // Firestore batches are limited to 500 operations
@@ -38,8 +36,7 @@ export async function syncNewProcesses(): Promise<{ success: boolean; count?: nu
     // 3. Iterate through each pensioner
     for (const pensionerDoc of allPensioners) {
       // 4. Get all payments for the current pensioner
-      const pagosQuery = query(collection(db, 'pensionados', pensionerDoc.id, 'pagos'));
-      const pagosSnapshot = await getDocs(pagosQuery);
+      const pagosSnapshot = await pensionerDoc.ref.collection('pagos').get();
 
       for (const pagoDoc of pagosSnapshot.docs) {
         const pago = { id: pagoDoc.id, ...pagoDoc.data() } as Payment;
@@ -56,18 +53,21 @@ export async function syncNewProcesses(): Promise<{ success: boolean; count?: nu
 
         // 7. If sentence concepts are found, create a new 'proceso cancelado' document
         if (sentenceConceptsInPayment.length > 0) {
-          const newProcessDocRef = doc(collection(db, 'procesoscancelados'));
+          const newProcessDocRef = db.collection('procesoscancelados').doc();
 
-          const newProcessData: Omit<ProcesoCancelado, 'id' | 'pensionerInfo' | 'totalAmount'> = {
+          // Firestore admin SDK's Timestamp has a `toDate` method, same as client.
+          const fechaLiquidacionDate = pago.fechaProcesado?.toDate ? pago.fechaProcesado.toDate() : new Date();
+
+          const newProcessData = {
             año: pago.año,
-            conceptos: sentenceConceptsInPayment.map(c => ({
+            conceptos: sentenceConceptsInPayment.map((c): ProcesoCanceladoConcepto => ({
               codigo: c.codigo || c.nombre?.split('-')[0] || '',
               nombre: c.nombre,
               ingresos: c.ingresos,
               egresos: c.egresos,
             })),
-            creadoEn: new Date(), // Firestore converts JS Date to Timestamp
-            fechaLiquidacion: pago.fechaProcesado?.toDate().toISOString() || new Date().toISOString(),
+            creadoEn: new Date(), // Admin SDK converts JS Date to Timestamp
+            fechaLiquidacion: fechaLiquidacionDate.toISOString(),
             pagoId: pago.pagoId,
             pensionadoId: pensionerDoc.id,
             periodoPago: pago.periodoPago,
@@ -81,7 +81,7 @@ export async function syncNewProcesses(): Promise<{ success: boolean; count?: nu
           // 8. Commit the batch periodically to avoid exceeding size limits
           if (batchCounter >= MAX_BATCH_SIZE) {
             await batch.commit();
-            batch = writeBatch(db);
+            batch = db.batch();
             batchCounter = 0;
           }
         }
