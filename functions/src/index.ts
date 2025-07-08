@@ -13,6 +13,14 @@ const db = getFirestore();
 // Define the prefixes for the legal concepts we're interested in.
 const SENTENCE_CONCEPT_PREFIXES = ["470-", "785-", "475-"];
 
+// Define a type for payment details to avoid using 'any'.
+interface PaymentDetail {
+  nombre?: string;
+  codigo?: string | null;
+  ingresos?: number;
+  egresos?: number;
+}
+
 /**
  * A Cloud Function that triggers when a new payment is created.
  * It checks for specific legal concepts within the payment details and,
@@ -33,20 +41,21 @@ export const onNewPaymentCreate = functions.firestore
     }
 
     // Filter for details that match our sentence concepts.
-    const sentenceConcepts = paymentData.detalles.filter((detail: any) =>
-      SENTENCE_CONCEPT_PREFIXES.some((prefix) =>
-        detail.nombre?.startsWith(prefix),
-      ),
+    const sentenceConcepts = paymentData.detalles.filter(
+      (detail: PaymentDetail) =>
+        SENTENCE_CONCEPT_PREFIXES.some((prefix) =>
+          detail.nombre?.startsWith(prefix)
+        )
     );
 
     // If no sentence-related concepts are found, do nothing.
     if (sentenceConcepts.length === 0) {
-      logger.info(`No sentence concepts in payment ${snap.id}. Exiting.`);
+      logger.info(`No sentence concepts in pmt ${snap.id}. Skipping.`);
       return null;
     }
 
     logger.info(
-      `Found ${sentenceConcepts.length} sentence concepts in payment ${snap.id}.`
+      `Found ${sentenceConcepts.length} concepts in pmt ${snap.id}.`
     );
 
     const newProcessDocRef = db.collection("procesoscancelados").doc();
@@ -57,7 +66,7 @@ export const onNewPaymentCreate = functions.firestore
 
     const newProcessData = {
       año: paymentData.año,
-      conceptos: sentenceConcepts.map((c: any) => ({
+      conceptos: sentenceConcepts.map((c: PaymentDetail) => ({
         codigo: c.codigo || c.nombre?.split("-")[0] || "",
         nombre: c.nombre,
         ingresos: c.ingresos || 0,
@@ -73,13 +82,13 @@ export const onNewPaymentCreate = functions.firestore
     try {
       await newProcessDocRef.set(newProcessData);
       logger.info(
-        `Created 'procesocancelado' doc ${newProcessDocRef.id} for pmt ${snap.id}.`
+        `Created proc doc ${newProcessDocRef.id} for pmt ${snap.id}.`
       );
       return {success: true, newDocId: newProcessDocRef.id};
     } catch (error) {
       logger.error(
-        `Error creating 'procesocancelado' doc for pmt ${snap.id}:`,
-        error,
+        `Error creating proc doc for pmt ${snap.id}:`,
+        error
       );
       return Promise.reject(error);
     }
