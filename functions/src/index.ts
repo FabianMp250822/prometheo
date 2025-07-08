@@ -54,7 +54,7 @@ export const syncNewProcesses = onCall(async (request) => {
     throw new Error("The user must be logged in to perform this action.");
   }
 
-  logger.info("Starting chunked process synchronization...");
+  logger.info("Starting chunked process synchronization for year 2025...");
 
   try {
     const existingProcesosSnapshot = await db
@@ -73,6 +73,7 @@ export const syncNewProcesses = onCall(async (request) => {
     while (true) {
       logger.info(`Processing chunk #${chunksProcessed + 1}...`);
       let query = db.collectionGroup("pagos")
+        .where("año", "==", "2025")
         .orderBy(FieldPath.documentId())
         .limit(READ_CHUNK_SIZE);
 
@@ -83,7 +84,7 @@ export const syncNewProcesses = onCall(async (request) => {
       const pagosChunkSnapshot = await query.get();
 
       if (pagosChunkSnapshot.empty) {
-        logger.info("No more payment documents to process.");
+        logger.info("No more payment documents to process for 2025.");
         break; // Exit loop when no more documents are found
       }
 
@@ -163,6 +164,12 @@ export const syncNewProcesses = onCall(async (request) => {
     return {success: true, count: totalNewProcessesCount};
   } catch (error) {
     logger.error("Error during chunked process synchronization:", error);
+    if (error instanceof Error && error.message.includes("indexes")) {
+        throw new Error(
+          "The query requires a Firestore index. " +
+          "Please check the Firebase console logs for a link to create it."
+        );
+    }
     throw new Error("An unexpected error occurred during synchronization.");
   }
 });
