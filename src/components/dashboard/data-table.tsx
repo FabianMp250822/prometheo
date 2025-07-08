@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -62,18 +62,24 @@ export function PaymentDataTable({ data }: { data: UserPayment[] }) {
   const [sortConfig, setSortConfig] = useState<SortConfig | null>({ key: 'paymentPeriod.end', direction: 'descending' });
   const [selectedUser, setSelectedUser] = useState<UserPayment | null>(null);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
+  const [currentYear, setCurrentYear] = useState<number | null>(null);
+
+  useEffect(() => {
+    setCurrentYear(new Date().getFullYear());
+  }, []);
 
   const filteredData = useMemo(() => {
     return data.filter(item => {
         const searchLower = filters.search.toLowerCase();
+        const itemEndDate = new Date(item.paymentPeriod.end.replace(/-/g, '/'));
         return (
           (item.user.name.toLowerCase().includes(searchLower) || item.user.document.toLowerCase().includes(searchLower)) &&
           (filters.dependency === 'all' || item.department === filters.dependency) &&
           (filters.concept === 'all' || Object.keys(item.concepts).includes(filters.concept)) &&
           (filters.year === 'all' || item.fiscalYear === parseInt(filters.year)) &&
           (filters.status === 'all' || item.status === filters.status) &&
-          (!filters.period?.from || new Date(item.paymentPeriod.end) >= filters.period.from) &&
-          (!filters.period?.to || new Date(item.paymentPeriod.end) <= filters.period.to)
+          (!filters.period?.from || itemEndDate >= filters.period.from) &&
+          (!filters.period?.to || itemEndDate <= filters.period.to)
         );
       });
   }, [data, filters]);
@@ -190,7 +196,7 @@ export function PaymentDataTable({ data }: { data: UserPayment[] }) {
               <TableRow
                 key={item.id}
                 onClick={() => setSelectedUser(item)}
-                className={cn("cursor-pointer", item.fiscalYear === new Date().getFullYear() ? 'bg-amber-100/50 hover:bg-amber-100' : '')}
+                className={cn("cursor-pointer", currentYear && item.fiscalYear === currentYear ? 'bg-amber-100/50 hover:bg-amber-100' : '')}
               >
                 <TableCell>
                   <div className="font-medium">{item.user.name}</div>
@@ -207,7 +213,7 @@ export function PaymentDataTable({ data }: { data: UserPayment[] }) {
                         ))}
                     </div>
                 </TableCell>
-                <TableCell>{format(new Date(item.paymentPeriod.start), 'dd/MM/yy')} - {format(new Date(item.paymentPeriod.end), 'dd/MM/yy')}</TableCell>
+                <TableCell>{format(new Date(item.paymentPeriod.start.replace(/-/g, '/')), 'dd/MM/yy')} - {format(new Date(item.paymentPeriod.end.replace(/-/g, '/')), 'dd/MM/yy')}</TableCell>
                 <TableCell>
                   <Badge variant="outline" className={cn('text-xs', getStatusClass(item.status))}>{item.status}</Badge>
                 </TableCell>
@@ -221,7 +227,7 @@ export function PaymentDataTable({ data }: { data: UserPayment[] }) {
       {/* Mobile Cards */}
       <div className="grid gap-4 md:hidden">
           {paginatedData.map(item => (
-              <Card key={item.id} onClick={() => setSelectedUser(item)} className={cn("cursor-pointer", item.fiscalYear === new Date().getFullYear() ? 'bg-amber-100/50' : '')}>
+              <Card key={item.id} onClick={() => setSelectedUser(item)} className={cn("cursor-pointer", currentYear && item.fiscalYear === currentYear ? 'bg-amber-100/50' : '')}>
                   <CardHeader>
                       <div className="flex justify-between items-start">
                           <div>
@@ -238,7 +244,7 @@ export function PaymentDataTable({ data }: { data: UserPayment[] }) {
                       </div>
                       <div className="flex justify-between">
                           <span className="text-muted-foreground">Periodo:</span>
-                          <span className="font-medium">{format(new Date(item.paymentPeriod.start), 'dd/MM/yy')} - {format(new Date(item.paymentPeriod.end), 'dd/MM/yy')}</span>
+                          <span className="font-medium">{format(new Date(item.paymentPeriod.start.replace(/-/g, '/')), 'dd/MM/yy')} - {format(new Date(item.paymentPeriod.end.replace(/-/g, '/')), 'dd/MM/yy')}</span>
                       </div>
                       <div className="flex justify-between">
                           <span className="text-muted-foreground">Monto Total:</span>
