@@ -1,14 +1,20 @@
-import * as admin from 'firebase-admin';
+import { initializeApp, getApps } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
-if (!admin.apps.length) {
+// This ensures we initialize the app only once, which is crucial in a
+// server environment where modules can be re-evaluated.
+if (getApps().length === 0) {
   try {
     // When running in a Google Cloud environment, Application Default Credentials
     // are automatically discovered. When called with no arguments, the Admin SDK
     // will automatically use the project's service account.
-    admin.initializeApp();
+    initializeApp();
   } catch (error) {
     console.error('Firebase admin initialization error', error);
   }
 }
 
-export const adminDb = admin.firestore();
+// getFirestore() will use the default app that has been initialized.
+const adminDb = getFirestore();
+
+export { adminDb };
