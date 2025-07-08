@@ -29,7 +29,7 @@ const SENTENCE_CODES = Object.keys(SENTENCE_CONCEPTS);
 interface SentencePayment {
     paymentId: string;
     concept: string;
-    date: Date | null;
+    periodoPago: string;
     amount: number;
 }
 
@@ -91,7 +91,7 @@ export function PaymentDetailsSheet({ pensioner, isOpen, onOpenChange }: Payment
                     foundPayments.push({
                         paymentId: payment.id,
                         concept: parsePaymentDetailName(detail.nombre), // Use helper to clean up the name
-                        date: timestampToDate(payment.fechaProcesado),
+                        periodoPago: payment.periodoPago,
                         amount: detail.ingresos,
                     });
                 }
@@ -163,7 +163,7 @@ export function PaymentDetailsSheet({ pensioner, isOpen, onOpenChange }: Payment
                                                 {sentencePayments.map((p, index) => (
                                                     <TableRow key={index} onClick={() => handleSentenceClick(p.paymentId)} className="cursor-pointer hover:bg-background">
                                                         <TableCell className="font-medium">{p.concept}</TableCell>
-                                                        <TableCell>{p.date?.toLocaleDateString() || 'N/A'}</TableCell>
+                                                        <TableCell>{p.periodoPago || 'N/A'}</TableCell>
                                                         <TableCell className="text-right font-semibold text-primary">{formatCurrency(p.amount)}</TableCell>
                                                     </TableRow>
                                                 ))}
@@ -196,7 +196,6 @@ export function PaymentDetailsSheet({ pensioner, isOpen, onOpenChange }: Payment
                                                         <CardContent className="pt-6">
                                                             <div className="flex justify-between items-center mb-4">
                                                                 <h3 className="font-semibold">Periodo: {payment.periodoPago}</h3>
-                                                                <Badge variant="secondary">{timestampToDate(payment.fechaProcesado)?.toLocaleDateString()}</Badge>
                                                             </div>
                                                             <Table>
                                                                 <TableHeader>
