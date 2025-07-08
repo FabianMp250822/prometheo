@@ -1,4 +1,4 @@
-'use server';
+"use server";
 import {onCall} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {initializeApp, getApps} from "firebase-admin/app";
@@ -38,7 +38,7 @@ interface ProcesoCanceladoConcepto {
 }
 
 const SENTENCE_CONCEPT_PREFIXES = ["470-", "785-", "475-"];
-const READ_CHUNK_SIZE = 1000; // How many payments to read from DB at a time
+const READ_CHUNK_SIZE = 100; // How many payments to read from DB at a time
 const MAX_BATCH_SIZE = 499; // Max items in a Firestore batch write
 
 /**
