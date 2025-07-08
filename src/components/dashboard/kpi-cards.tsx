@@ -1,52 +1,38 @@
 "use client";
 
-import React, { useMemo, useState, useTransition } from 'react';
-import { UserPayment } from '@/lib/data';
+import React, { useState, useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Users, BarChart, CircleDollarSign, AlertCircle, Sparkles, Loader2 } from 'lucide-react';
+import { Users, BarChart, CircleDollarSign, AlertCircle, Sparkles, Loader2, CheckCircle, Clock } from 'lucide-react';
 import { summarizeLegalConceptAnalysis } from '@/ai/flows/summarize-legal-concept-analysis';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
+import { UserPayment } from '@/lib/data';
+import { formatCurrency } from '@/lib/helpers';
 
 interface KpiCardsProps {
-  data: UserPayment[];
+  stats: {
+    totalUsuarios: number;
+    totalAnalizados: number;
+    totalPendientes: number;
+    montoTotalCostas: number;
+    montoTotalRetro: number;
+    montoTotalProcesos: number;
+  } | null;
+  data?: UserPayment[]; // Data is optional, only needed for AI summary
 }
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-};
-
-export function KpiCards({ data }: KpiCardsProps) {
+export function KpiCards({ stats, data }: KpiCardsProps) {
   const { toast } = useToast();
   const [isPending, startTransition] = useTransition();
   const [summary, setSummary] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const stats = useMemo(() => {
-    const totalUsers = data.length;
-    const statusCounts = data.reduce((acc, item) => {
-      acc[item.status] = (acc[item.status] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
-    const conceptTotals = data.reduce((acc, item) => {
-      for (const concept in item.concepts) {
-        const key = concept as keyof typeof item.concepts;
-        acc[key] = (acc[key] || 0) + (item.concepts[key] || 0);
-      }
-      return acc;
-    }, {} as Record<string, number>);
-
-    return { totalUsers, statusCounts, conceptTotals };
-  }, [data]);
-
   const handleGenerateSummary = () => {
+    if (!data) {
+        setError('No hay datos disponibles para generar el resumen.');
+        return;
+    }
     startTransition(async () => {
       setError(null);
       setSummary(null);
@@ -70,43 +56,66 @@ export function KpiCards({ data }: KpiCardsProps) {
     });
   };
 
+  if (!stats) {
+    return (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {[...Array(4)].map((_, i) => <Card key={i}><CardHeader><CardTitle>Cargando...</CardTitle></CardHeader><CardContent><div className="h-10"></div></CardContent></Card>)}
+        </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Usuarios Totales</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalUsers}</div>
-            <p className="text-xs text-muted-foreground">Usuarios con sentencias</p>
+            <div className="text-2xl font-bold">{stats.totalUsuarios}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Estado de Procesos</CardTitle>
-            <BarChart className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Analizados</CardTitle>
+            <CheckCircle className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.statusCounts['Pendiente'] || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.statusCounts['Analizado'] || 0} analizados de {stats.totalUsers}
-            </p>
+            <div className="text-2xl font-bold">{stats.totalAnalizados}</div>
           </CardContent>
         </Card>
-        <Card className="lg:col-span-2">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Montos por Concepto</CardTitle>
-            <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Pendientes</CardTitle>
+            <Clock className="h-4 w-4 text-amber-500" />
           </CardHeader>
-          <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {Object.entries(stats.conceptTotals).map(([concept, total]) => (
-              <div key={concept}>
-                <p className="text-xs text-muted-foreground">{concept}</p>
-                <p className="text-lg font-bold">{formatCurrency(total)}</p>
-              </div>
-            ))}
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalPendientes}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Monto Costas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold">{formatCurrency(stats.montoTotalCostas)}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Monto Retroactivas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold">{formatCurrency(stats.montoTotalRetro)}</div>
+          </CardContent>
+        </Card>
+         <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Monto Procesos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold">{formatCurrency(stats.montoTotalProcesos)}</div>
           </CardContent>
         </Card>
       </div>
@@ -144,7 +153,7 @@ export function KpiCards({ data }: KpiCardsProps) {
           )}
         </CardContent>
         <CardFooter>
-            <Button onClick={handleGenerateSummary} disabled={isPending}>
+            <Button onClick={handleGenerateSummary} disabled={isPending || !data}>
                 {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                 Generar Resumen
             </Button>

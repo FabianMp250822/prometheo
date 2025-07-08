@@ -1,27 +1,22 @@
 "use client";
 
 import { UserPayment, LegalConcept } from '@/lib/data';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { PaymentSuggestions } from './payment-suggestions';
+import { formatCurrency } from '@/lib/helpers';
+import { Button } from '../ui/button';
+import { Check } from 'lucide-react';
 
 interface UserDetailSheetProps {
   user: UserPayment | null;
   onOpenChange: (open: boolean) => void;
+  onMarkAsAnalyzed: (userId: string) => void;
 }
-
-const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-};
   
 const getConceptColor = (concept: LegalConcept) => {
     switch (concept) {
@@ -32,8 +27,13 @@ const getConceptColor = (concept: LegalConcept) => {
     }
 };
 
-export function UserDetailSheet({ user, onOpenChange }: UserDetailSheetProps) {
+export function UserDetailSheet({ user, onOpenChange, onMarkAsAnalyzed }: UserDetailSheetProps) {
   if (!user) return null;
+
+  const handleMarkAsAnalyzed = () => {
+    onMarkAsAnalyzed(user.id);
+    onOpenChange(false);
+  }
 
   return (
     <Sheet open={!!user} onOpenChange={onOpenChange}>
@@ -131,6 +131,14 @@ export function UserDetailSheet({ user, onOpenChange }: UserDetailSheetProps) {
             </CardContent>
           </Card>
         </div>
+         <SheetFooter className="pr-6">
+            {!user.analyzedAt && (
+              <Button onClick={handleMarkAsAnalyzed}>
+                <Check className="mr-2 h-4 w-4" />
+                Marcar como Analizado
+              </Button>
+            )}
+        </SheetFooter>
       </SheetContent>
     </Sheet>
   );

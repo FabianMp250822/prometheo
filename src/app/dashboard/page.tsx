@@ -1,61 +1,78 @@
-import { payments, UserPayment } from '@/lib/data';
-import { KpiCards } from '@/components/dashboard/kpi-cards';
-import { PaymentDataTable } from '@/components/dashboard/data-table';
-import { Download, MoreVertical } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Gavel, TrendingUp, Banknote } from "lucide-react";
 
 export default async function DashboardPage() {
-  // In a real app, you'd fetch this data from an API
-  const data: UserPayment[] = payments;
-
   return (
-    <div className="flex flex-col h-screen bg-gray-50/50">
-       <header className="bg-background border-b p-4 sticky top-0 z-10">
-        <div className="flex items-center justify-between container mx-auto">
-          <h1 className="text-2xl md:text-3xl font-headline text-foreground">
-            Análisis de Pagos Judiciales
-          </h1>
-          <div className="flex items-center space-x-2">
-            <div className="hidden sm:flex items-center space-x-2">
-                <Button variant="outline" size="sm">
-                    <Download className="mr-2 h-4 w-4" />
-                    Exportar Vista
-                </Button>
-                <Button size="sm">
-                    <Download className="mr-2 h-4 w-4" />
-                    Exportar Todo
-                </Button>
+    <div className="p-4 md:p-8">
+      <div className="mb-8">
+        <h1 className="text-3xl md:text-4xl font-headline text-foreground mb-2">
+          Bienvenido a Prometeo
+        </h1>
+        <p className="text-muted-foreground">
+          Su asistente inteligente para el análisis y gestión de pagos judiciales.
+        </p>
+      </div>
+      
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <Card className="flex flex-col">
+          <CardHeader>
+            <div className="flex items-center gap-4">
+              <div className="bg-accent/20 p-3 rounded-full">
+                <Gavel className="h-6 w-6 text-accent" />
+              </div>
+              <div>
+                <CardTitle className="text-xl font-headline">Análisis de Sentencias</CardTitle>
+                <CardDescription>Visualice, filtre y gestione todas las sentencias.</CardDescription>
+              </div>
             </div>
-            <div className="sm:hidden">
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-5 w-5" />
-                            <span className="sr-only">Más opciones</span>
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
-                            <Download className="mr-2 h-4 w-4" />
-                            <span>Exportar Vista</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                            <Download className="mr-2 h-4 w-4" />
-                            <span>Exportar Todo</span>
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+          </CardHeader>
+          <CardContent className="flex-grow flex items-end">
+            <Button asChild className="w-full">
+              <Link href="/dashboard/sentencias">Ir a Sentencias</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="flex flex-col">
+          <CardHeader>
+            <div className="flex items-center gap-4">
+              <div className="bg-primary/10 p-3 rounded-full">
+                <TrendingUp className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-xl font-headline">Liquidaciones</CardTitle>
+                <CardDescription>Genere y consulte liquidaciones de pagos.</CardDescription>
+              </div>
             </div>
-          </div>
-        </div>
-      </header>
-      <main className="flex-1 space-y-4 p-4 md:p-8 pt-6 overflow-y-auto">
-        <div className="container mx-auto">
-          <KpiCards data={data} />
-          <PaymentDataTable data={data} />
-        </div>
-      </main>
+          </CardHeader>
+          <CardContent className="flex-grow flex items-end">
+            <Button asChild className="w-full" variant="outline">
+              <Link href="/dashboard/liquidaciones">Ir a Liquidaciones</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="flex flex-col">
+          <CardHeader>
+            <div className="flex items-center gap-4">
+               <div className="bg-emerald-500/10 p-3 rounded-full">
+                <Banknote className="h-6 w-6 text-emerald-600" />
+              </div>
+              <div>
+                <CardTitle className="text-xl font-headline">Gestión de Pagos</CardTitle>
+                <CardDescription>Realice seguimiento al historial de pagos.</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="flex-grow flex items-end">
+             <Button asChild className="w-full" variant="outline">
+              <Link href="/dashboard/pagos">Ir a Pagos</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
