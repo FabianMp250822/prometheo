@@ -61,7 +61,7 @@
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         {
-          "fieldPath": "año",
+          "fieldPath": "`año`",
           "order": "ASCENDING"
         },
         {
