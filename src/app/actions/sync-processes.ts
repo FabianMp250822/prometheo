@@ -67,6 +67,12 @@ export async function syncNewProcesses(): Promise<{ success: boolean; count: num
                     continue;
                 }
 
+                // Defensive check to prevent crashes on inconsistent data
+                if (!pago.detalles || !Array.isArray(pago.detalles)) {
+                    console.warn(`Skipping payment ${pagoDoc.id} due to missing or invalid 'detalles' field.`);
+                    continue;
+                }
+
                 const pensionerDocRef = pagoDoc.ref.parent.parent;
                 if (!pensionerDocRef) {
                     console.warn(`Could not find parent for pagoDoc ${pagoDoc.id}`);
