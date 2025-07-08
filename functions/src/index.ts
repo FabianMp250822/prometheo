@@ -72,8 +72,10 @@ export const syncNewProcesses = onCall(async (request) => {
     // eslint-disable-next-line no-constant-condition
     while (true) {
       logger.info(`Processing chunk #${chunksProcessed + 1}...`);
+      // NOTE: Removed .where('año', '==', '2025') to avoid needing a composite
+      // index, which was causing FAILED_PRECONDITION errors.
+      // Filtering is now done in the code.
       let query = db.collectionGroup('pagos')
-          .where('año', '==', '2025')
           .orderBy(FieldPath.documentId())
           .limit(READ_CHUNK_SIZE);
 
@@ -84,7 +86,7 @@ export const syncNewProcesses = onCall(async (request) => {
       const pagosChunkSnapshot = await query.get();
 
       if (pagosChunkSnapshot.empty) {
-        logger.info('No more payment documents to process for 2025.');
+        logger.info('No more payment documents to process.');
         break; // Exit loop when no more documents are found
       }
 
@@ -97,6 +99,11 @@ export const syncNewProcesses = onCall(async (request) => {
 
       for (const pagoDoc of docs) {
         const pago = {id: pagoDoc.id, ...pagoDoc.data()} as Payment;
+
+        // Manually filter for year 2025 to avoid the need for a composite index
+        if (pago.año !== '2025') {
+          continue;
+        }
 
         if (!pago.pagoId || existingPagoIds.has(pago.pagoId)) {
           continue;
