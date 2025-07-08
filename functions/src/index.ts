@@ -1,13 +1,13 @@
-"use server";
-import {onCall} from "firebase-functions/v2/https";
-import * as logger from "firebase-functions/logger";
-import {initializeApp, getApps} from "firebase-admin/app";
+'use server';
+import {onCall} from 'firebase-functions/v2/https';
+import * as logger from 'firebase-functions/logger';
+import {initializeApp, getApps} from 'firebase-admin/app';
 import {
   getFirestore,
   Timestamp,
   FieldPath,
   DocumentSnapshot,
-} from "firebase-admin/firestore";
+} from 'firebase-admin/firestore';
 
 // Initialize admin SDK if not already initialized
 if (getApps().length === 0) {
@@ -37,7 +37,7 @@ interface ProcesoCanceladoConcepto {
   nombre: string;
 }
 
-const SENTENCE_CONCEPT_PREFIXES = ["470-", "785-", "475-"];
+const SENTENCE_CONCEPT_PREFIXES = ['470-', '785-', '475-'];
 const READ_CHUNK_SIZE = 100; // How many payments to read from DB at a time
 const MAX_BATCH_SIZE = 499; // Max items in a Firestore batch write
 
@@ -49,19 +49,19 @@ const MAX_BATCH_SIZE = 499; // Max items in a Firestore batch write
 export const syncNewProcesses = onCall(async (request) => {
   if (!request.auth) {
     logger.error(
-      "Unauthenticated call to syncNewProcesses. User must be logged in."
+        'Unauthenticated call to syncNewProcesses. User must be logged in.'
     );
-    throw new Error("The user must be logged in to perform this action.");
+    throw new Error('The user must be logged in to perform this action.');
   }
 
-  logger.info("Starting chunked process synchronization for year 2025...");
+  logger.info('Starting chunked process synchronization for year 2025...');
 
   try {
     const existingProcesosSnapshot = await db
-      .collection("procesoscancelados")
-      .get();
+        .collection('procesoscancelados')
+        .get();
     const existingPagoIds = new Set(
-      existingProcesosSnapshot.docs.map((d) => d.data().pagoId)
+        existingProcesosSnapshot.docs.map((d) => d.data().pagoId)
     );
     logger.info(`Found ${existingPagoIds.size} existing processed payments.`);
 
@@ -72,10 +72,10 @@ export const syncNewProcesses = onCall(async (request) => {
     // eslint-disable-next-line no-constant-condition
     while (true) {
       logger.info(`Processing chunk #${chunksProcessed + 1}...`);
-      let query = db.collectionGroup("pagos")
-        .where("año", "==", "2025")
-        .orderBy(FieldPath.documentId())
-        .limit(READ_CHUNK_SIZE);
+      let query = db.collectionGroup('pagos')
+          .where('año', '==', '2025')
+          .orderBy(FieldPath.documentId())
+          .limit(READ_CHUNK_SIZE);
 
       if (lastVisible) {
         query = query.startAfter(lastVisible);
@@ -84,7 +84,7 @@ export const syncNewProcesses = onCall(async (request) => {
       const pagosChunkSnapshot = await query.get();
 
       if (pagosChunkSnapshot.empty) {
-        logger.info("No more payment documents to process for 2025.");
+        logger.info('No more payment documents to process for 2025.');
         break; // Exit loop when no more documents are found
       }
 
@@ -116,7 +116,7 @@ export const syncNewProcesses = onCall(async (request) => {
         );
 
         if (sentenceConcepts.length > 0) {
-          const newProcessDocRef = db.collection("procesoscancelados").doc();
+          const newProcessDocRef = db.collection('procesoscancelados').doc();
           const fechaLiquidacionDate = pago.fechaProcesado?.toDate ?
             pago.fechaProcesado.toDate() :
             new Date();
@@ -124,7 +124,7 @@ export const syncNewProcesses = onCall(async (request) => {
           const newProcessData = {
             año: pago.año,
             conceptos: sentenceConcepts.map((c): ProcesoCanceladoConcepto => ({
-              codigo: c.codigo || c.nombre?.split("-")[0] || "",
+              codigo: c.codigo || c.nombre?.split('-')[0] || '',
               nombre: c.nombre,
               ingresos: c.ingresos,
               egresos: c.egresos,
@@ -163,13 +163,13 @@ export const syncNewProcesses = onCall(async (request) => {
     logger.info(finalMsg);
     return {success: true, count: totalNewProcessesCount};
   } catch (error) {
-    logger.error("Error during chunked process synchronization:", error);
-    if (error instanceof Error && error.message.includes("indexes")) {
-        throw new Error(
-          "The query requires a Firestore index. " +
-          "Please check the Firebase console logs for a link to create it."
-        );
+    logger.error('Error during chunked process synchronization:', error);
+    if (error instanceof Error && error.message.includes('FAILED_PRECONDITION')) {
+      throw new Error(
+          'The query requires a Firestore index. ' +
+          'Please check the Firebase console logs for a link to create it.',
+      );
     }
-    throw new Error("An unexpected error occurred during synchronization.");
+    throw new Error('An unexpected error occurred during synchronization.');
   }
 });
