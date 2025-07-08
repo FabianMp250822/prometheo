@@ -1,7 +1,8 @@
+
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import { collection, getDocs, query } from 'firebase/firestore';
+import { useState, useEffect, useCallback } from 'react';
+import { collection, getDocs, query, orderBy, limit, startAfter, where, QueryDocumentSnapshot, DocumentData, getCountFromServer } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -18,58 +19,120 @@ const ITEMS_PER_PAGE = 20;
 export default function PagosPage() {
     const [pensioners, setPensioners] = useState<Pensioner[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [dependenciaFilter, setDependenciaFilter] = useState('all');
-    const [centroCostoFilter, setCentroCostoFilter] = useState('all');
+    const [isOptionsLoading, setIsOptionsLoading] = useState(true);
+
+    const [uniqueDependencias, setUniqueDependencias] = useState<string[]>([]);
+    const [uniqueCentrosCosto, setUniqueCentrosCosto] = useState<string[]>([]);
+
+    const [filters, setFilters] = useState({
+        searchTerm: '',
+        dependencia: 'all',
+        centroCosto: 'all',
+    });
+    
+    // pagination state
     const [currentPage, setCurrentPage] = useState(0);
+    const [pageCount, setPageCount] = useState(0);
+    const [pageCursors, setPageCursors] = useState<(QueryDocumentSnapshot<DocumentData> | null)[]>([null]);
+    
     const [selectedPensioner, setSelectedPensioner] = useState<Pensioner | null>(null);
 
+    // Fetch unique options for filters.
     useEffect(() => {
-        const fetchPensioners = async () => {
-            setIsLoading(true);
+        const fetchOptions = async () => {
+            setIsOptionsLoading(true);
             try {
-                const q = query(collection(db, "pensionados"));
-                const querySnapshot = await getDocs(q);
-                const pensionersData = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                } as Pensioner));
-                setPensioners(pensionersData);
+                // NOTE: For performance on large datasets, this list should be stored
+                // in a separate 'metadata' document in Firestore.
+                const querySnapshot = await getDocs(collection(db, "pensionados"));
+                const deps = new Set<string>();
+                const centros = new Set<string>();
+                querySnapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.dependencia1) deps.add(data.dependencia1);
+                    if (data.centroCosto) centros.add(data.centroCosto);
+                });
+                setUniqueDependencias(Array.from(deps).sort());
+                setUniqueCentrosCosto(Array.from(centros).sort());
             } catch (error) {
-                console.error("Error fetching pensioners from Firestore:", error);
+                console.error("Error fetching filter options:", error);
             } finally {
-                setIsLoading(false);
+                setIsOptionsLoading(false);
             }
         };
 
-        fetchPensioners();
+        fetchOptions();
     }, []);
 
-    const uniqueDependencias = useMemo(() => {
-        const deps = new Set(pensioners.map(p => p.dependencia1).filter(Boolean));
-        return Array.from(deps).sort();
-    }, [pensioners]);
+    const fetchPensioners = useCallback(async (page: number) => {
+        setIsLoading(true);
+        try {
+            const pensionersCollection = collection(db, "pensionados");
+            
+            let baseQuery;
+            if (filters.searchTerm) {
+                baseQuery = query(pensionersCollection, where("documento", "==", filters.searchTerm));
+            } else {
+                // The base order is by 'documento' for consistent pagination.
+                baseQuery = query(pensionersCollection, orderBy("documento"));
+                if (filters.dependencia !== 'all') {
+                    baseQuery = query(baseQuery, where("dependencia1", "==", filters.dependencia));
+                }
+                if (filters.centroCosto !== 'all') {
+                    // NOTE: Combining this with other 'where' clauses requires a composite index in Firestore.
+                    // e.g., on (dependencia1, centroCosto, documento).
+                    baseQuery = query(baseQuery, where("centroCosto", "==", filters.centroCosto));
+                }
+            }
 
-    const uniqueCentrosCosto = useMemo(() => {
-        const centros = new Set(pensioners.map(p => p.centroCosto).filter(Boolean));
-        return Array.from(centros).sort();
-    }, [pensioners]);
+            // Only fetch total count when filters change (on the first page)
+            if (page === 0) {
+                const countSnapshot = await getCountFromServer(baseQuery);
+                const total = countSnapshot.data().count;
+                setPageCount(Math.ceil(total / ITEMS_PER_PAGE));
+            }
+            
+            let pageQuery = baseQuery;
+            const cursor = pageCursors[page];
+            if (page > 0 && cursor) {
+                pageQuery = query(pageQuery, startAfter(cursor), limit(ITEMS_PER_PAGE));
+            } else {
+                pageQuery = query(pageQuery, limit(ITEMS_PER_PAGE));
+            }
 
-    const filteredPensioners = useMemo(() => {
-        return pensioners.filter(p => {
-            const nameMatch = searchTerm ? parseEmployeeName(p.empleado).toLowerCase().includes(searchTerm.toLowerCase()) || p.documento.includes(searchTerm) : true;
-            const depMatch = dependenciaFilter === 'all' || p.dependencia1 === dependenciaFilter;
-            const centroMatch = centroCostoFilter === 'all' || p.centroCosto === centroCostoFilter;
-            return nameMatch && depMatch && centroMatch;
-        });
-    }, [pensioners, searchTerm, dependenciaFilter, centroCostoFilter]);
+            const documentSnapshots = await getDocs(pageQuery);
 
-    const paginatedPensioners = useMemo(() => {
-        const start = currentPage * ITEMS_PER_PAGE;
-        return filteredPensioners.slice(start, start + ITEMS_PER_PAGE);
-    }, [filteredPensioners, currentPage]);
+            const pensionersData = documentSnapshots.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
+            setPensioners(pensionersData);
 
-    const totalPages = Math.ceil(filteredPensioners.length / ITEMS_PER_PAGE);
+            const newLastVisible = documentSnapshots.docs[documentSnapshots.docs.length - 1] || null;
+            if (newLastVisible) {
+                setPageCursors(prev => {
+                    const newCursors = [...prev];
+                    newCursors[page + 1] = newLastVisible;
+                    return newCursors;
+                });
+            }
+            setCurrentPage(page);
+
+        } catch (error) {
+            console.error("Error fetching pensioners:", error);
+            setPensioners([]);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [filters, pageCursors]);
+
+    // Effect to reset and fetch data when filters change
+    useEffect(() => {
+        setPageCursors([null]);
+        fetchPensioners(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filters]);
+
+    const handleFilterChange = (filterType: keyof typeof filters, value: string) => {
+        setFilters(prev => ({ ...prev, [filterType]: value }));
+    };
 
     return (
         <div className="p-4 md:p-8 space-y-6">
@@ -80,7 +143,7 @@ export default function PagosPage() {
                         Gestión de Pagos
                     </CardTitle>
                     <CardDescription>
-                        Consulte los registros de pagos de los pensionados.
+                        Consulte los registros de pagos de los pensionados con filtros y paginación optimizada.
                     </CardDescription>
                 </CardHeader>
             </Card>
@@ -90,17 +153,14 @@ export default function PagosPage() {
                     <div className="relative w-full md:w-1/2">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                         <Input 
-                            placeholder="Buscar por nombre o documento..."
-                            value={searchTerm}
-                            onChange={(e) => {
-                                setSearchTerm(e.target.value);
-                                setCurrentPage(0);
-                            }}
+                            placeholder="Buscar por documento exacto..."
+                            value={filters.searchTerm}
+                            onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
                             className="pl-10"
                         />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Select value={dependenciaFilter} onValueChange={value => { setDependenciaFilter(value); setCurrentPage(0); }}>
+                        <Select value={filters.dependencia} onValueChange={value => handleFilterChange('dependencia', value)} disabled={isOptionsLoading || !!filters.searchTerm}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Filtrar por Dependencia" />
                             </SelectTrigger>
@@ -109,7 +169,7 @@ export default function PagosPage() {
                                 {uniqueDependencias.map(dep => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
                             </SelectContent>
                         </Select>
-                         <Select value={centroCostoFilter} onValueChange={value => { setCentroCostoFilter(value); setCurrentPage(0); }}>
+                         <Select value={filters.centroCosto} onValueChange={value => handleFilterChange('centroCosto', value)} disabled={isOptionsLoading || !!filters.searchTerm}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Filtrar por Centro de Costo" />
                             </SelectTrigger>
@@ -138,7 +198,7 @@ export default function PagosPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {paginatedPensioners.map(pensioner => (
+                                {pensioners.map(pensioner => (
                                     <TableRow key={pensioner.id}>
                                         <TableCell className="font-medium">{parseEmployeeName(pensioner.empleado)}</TableCell>
                                         <TableCell>{pensioner.documento}</TableCell>
@@ -151,7 +211,7 @@ export default function PagosPage() {
                                         </TableCell>
                                     </TableRow>
                                 ))}
-                                {filteredPensioners.length === 0 && (
+                                {pensioners.length === 0 && (
                                     <TableRow>
                                         <TableCell colSpan={5} className="text-center text-muted-foreground">
                                             No se encontraron pensionados con los criterios de búsqueda.
@@ -162,19 +222,19 @@ export default function PagosPage() {
                         </Table>
                          <div className="flex items-center justify-between p-2 mt-4">
                             <div className="text-sm text-muted-foreground">
-                                Página {currentPage + 1} de {totalPages}
+                                Página {currentPage + 1} de {pageCount}
                             </div>
                             <div className="flex items-center space-x-2">
-                                <Button variant="outline" size="icon" onClick={() => setCurrentPage(0)} disabled={currentPage === 0}>
+                                <Button variant="outline" size="icon" onClick={() => fetchPensioners(0)} disabled={currentPage === 0}>
                                     <ChevronsLeft className="h-4 w-4" />
                                 </Button>
-                                <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 0}>
+                                <Button variant="outline" size="icon" onClick={() => fetchPensioners(currentPage - 1)} disabled={currentPage === 0}>
                                     <ChevronLeft className="h-4 w-4" />
                                 </Button>
-                                <Button variant="outline" size="icon" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage >= totalPages - 1}>
+                                <Button variant="outline" size="icon" onClick={() => fetchPensioners(currentPage + 1)} disabled={currentPage >= pageCount - 1}>
                                     <ChevronRight className="h-4 w-4" />
                                 </Button>
-                                <Button variant="outline" size="icon" onClick={() => setCurrentPage(totalPages - 1)} disabled={currentPage >= totalPages - 1}>
+                                <Button variant="outline" size="icon" onClick={() => fetchPensioners(pageCount - 1)} disabled={currentPage >= pageCount - 1}>
                                     <ChevronsRight className="h-4 w-4" />
                                 </Button>
                             </div>
@@ -194,3 +254,4 @@ export default function PagosPage() {
         </div>
     );
 }
+
