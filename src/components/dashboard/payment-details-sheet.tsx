@@ -57,8 +57,7 @@ export function PaymentDetailsSheet({ pensioner, isOpen, onOpenChange }: Payment
                     ...doc.data(),
                 } as Payment));
                 setPayments(paymentsData);
-            } catch (error)
- {
+            } catch (error) {
                 console.error("Error fetching payments:", error);
                 setPayments([]);
             } finally {
