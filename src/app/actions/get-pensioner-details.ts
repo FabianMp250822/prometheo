@@ -49,8 +49,14 @@ export async function getPensionerDetails(pensionadoId: string): Promise<Pension
         lastPayment: lastPayment as any, // Cast to any to avoid complex typing for now
     };
 
-  } catch (error) {
+  } catch (error: any) {
     console.error(`Error fetching details for pensioner ${pensionadoId}:`, error);
+    if (error.code === 9 || (error.code === 5 && error.message.includes('index'))) {
+        throw new Error(
+            'Error de base de datos: Falta un índice en Firestore. ' +
+            'Por favor, revise los logs de Firebase para encontrar el enlace y crearlo.'
+        );
+    }
     throw new Error('Failed to fetch pensioner details.');
   }
 }
