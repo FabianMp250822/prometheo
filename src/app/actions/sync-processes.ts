@@ -12,21 +12,14 @@ const MAX_BATCH_SIZE = 499;
  * Scans for new sentence-related payments for the year 2025 and saves them
  * to the 'procesoscancelados' collection. This server action processes
  * payments in chunks to avoid memory limits and timeouts.
+ * This version uses idempotent writes to avoid pre-loading existing IDs.
  */
 export async function syncNewProcesses(): Promise<{ success: boolean; count: number; error?: string }> {
-    console.log("Starting chunked process synchronization for year 2025 from server action...");
+    console.log("Starting idempotent process synchronization for year 2025 from server action...");
 
     try {
-        const existingProcesosSnapshot = await adminDb
-            .collection("procesoscancelados")
-            .get();
-        const existingPagoIds = new Set(
-            existingProcesosSnapshot.docs.map((d) => d.data().pagoId)
-        );
-        console.log(`Found ${existingPagoIds.size} existing processed payments.`);
-
         let lastVisible: FirebaseFirestore.DocumentSnapshot | null = null;
-        let totalNewProcessesCount = 0;
+        let totalProcessesProcessedCount = 0;
         let chunksProcessed = 0;
 
         // eslint-disable-next-line no-constant-condition
@@ -63,7 +56,7 @@ export async function syncNewProcesses(): Promise<{ success: boolean; count: num
                     continue;
                 }
 
-                if (!pago.pagoId || existingPagoIds.has(pago.pagoId)) {
+                if (!pago.pagoId) {
                     continue;
                 }
 
@@ -87,7 +80,9 @@ export async function syncNewProcesses(): Promise<{ success: boolean; count: num
                 );
 
                 if (sentenceConcepts.length > 0) {
-                    const newProcessDocRef = adminDb.collection("procesoscancelados").doc();
+                    // Use pago.pagoId as the document ID for idempotency.
+                    const newProcessDocRef = adminDb.collection("procesoscancelados").doc(pago.pagoId);
+                    
                     const fechaLiquidacionDate = pago.fechaProcesado?.toDate ?
                         pago.fechaProcesado.toDate() :
                         new Date();
@@ -107,14 +102,13 @@ export async function syncNewProcesses(): Promise<{ success: boolean; count: num
                         periodoPago: pago.periodoPago,
                     };
 
-                    batch.set(newProcessDocRef, newProcessData);
+                    batch.set(newProcessDocRef, newProcessData, { merge: true });
                     batchCounter++;
-                    totalNewProcessesCount++;
-                    existingPagoIds.add(pago.pagoId);
+                    totalProcessesProcessedCount++;
 
                     if (batchCounter >= MAX_BATCH_SIZE) {
                         await batch.commit();
-                        console.log(`Committed batch of ${batchCounter} new processes.`);
+                        console.log(`Committed batch of ${batchCounter} processes.`);
                         batch = adminDb.batch();
                         batchCounter = 0;
                     }
@@ -127,9 +121,9 @@ export async function syncNewProcesses(): Promise<{ success: boolean; count: num
             }
         }
 
-        const finalMsg = `Sync complete. Found ${totalNewProcessesCount} new processes.`;
+        const finalMsg = `Sync complete. Processed ${totalProcessesProcessedCount} sentence payments for 2025.`;
         console.log(finalMsg);
-        return { success: true, count: totalNewProcessesCount };
+        return { success: true, count: totalProcessesProcessedCount };
     } catch (error: any) {
         console.error("Error during server action process synchronization:", error);
         return { success: false, count: 0, error: "An unexpected error occurred during synchronization." };

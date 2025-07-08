@@ -131,7 +131,7 @@ export default function SentenciasPage() {
                 if (result.success) {
                     toast({
                         title: 'Sincronización Completa',
-                        description: `Se encontraron y guardaron ${result.count || 0} nuevos procesos.`,
+                        description: `Se procesaron ${result.count || 0} pagos de sentencias para 2025.`,
                     });
                     if (result.count && result.count > 0) {
                         loadData(); // Reload data to show new processes
