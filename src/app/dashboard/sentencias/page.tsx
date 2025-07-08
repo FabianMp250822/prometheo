@@ -120,17 +120,6 @@ export default function SentenciasPage() {
         });
     }, [procesos, searchTerm, selectedDepartment, selectedYear]);
 
-    const displayData = useMemo(() => {
-        return filteredProcesos.flatMap(p => 
-            p.conceptos.map(c => ({
-                procesoId: p.id,
-                pensionerInfo: p.pensionerInfo,
-                periodoPago: p.periodoPago,
-                concepto: c,
-            }))
-        );
-    }, [filteredProcesos]);
-    
     const exportToExcel = () => {
         if (filteredProcesos.length === 0) {
             toast({ variant: 'destructive', title: "Error", description: "No hay datos filtrados para exportar." });
@@ -233,7 +222,7 @@ export default function SentenciasPage() {
                 <CardHeader>
                     <CardTitle>Resultados</CardTitle>
                     <CardDescription>
-                        {`${displayData.length} conceptos encontrados en ${filteredProcesos.length} procesos.`}
+                        {`${filteredProcesos.length} procesos encontrados.`}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -250,29 +239,40 @@ export default function SentenciasPage() {
                                         <TableHead>Dependencia</TableHead>
                                         <TableHead>Periodo de Pago</TableHead>
                                         <TableHead>Concepto</TableHead>
-                                        <TableHead className="text-right">Ingresos</TableHead>
-                                        <TableHead className="text-right">Egresos</TableHead>
+                                        <TableHead className="text-right">Valor</TableHead>
+                                        <TableHead className="text-right">Total Proceso</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {displayData.map((item, index) => (
-                                        <TableRow key={`${item.procesoId}-${item.concepto.codigo}-${index}`}>
-                                            <TableCell>
-                                                <div className="font-medium">{item.pensionerInfo?.name || 'N/A'}</div>
-                                                <div className="text-xs text-muted-foreground">{item.pensionerInfo?.document}</div>
-                                            </TableCell>
-                                            <TableCell>
-                                                {parseDepartmentName(item.pensionerInfo?.department || 'N/A')}
-                                            </TableCell>
-                                            <TableCell>{formatPeriodoToMonthYear(item.periodoPago)}</TableCell>
-                                            <TableCell>
-                                                {parsePaymentDetailName(item.concepto.nombre)}
-                                            </TableCell>
-                                            <TableCell className="text-right font-medium">{formatCurrency(item.concepto.ingresos)}</TableCell>
-                                            <TableCell className="text-right font-medium text-destructive">{formatCurrency(item.concepto.egresos)}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                    {displayData.length === 0 && !isLoading && (
+                                    {filteredProcesos.map((p) => {
+                                        const totalProceso = p.conceptos.reduce((acc, c) => acc + c.ingresos, 0);
+                                        return (
+                                            <TableRow key={p.id}>
+                                                <TableCell>
+                                                    <div className="font-medium">{p.pensionerInfo?.name || 'N/A'}</div>
+                                                    <div className="text-xs text-muted-foreground">{p.pensionerInfo?.document}</div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    {parseDepartmentName(p.pensionerInfo?.department || 'N/A')}
+                                                </TableCell>
+                                                <TableCell>{formatPeriodoToMonthYear(p.periodoPago)}</TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-col gap-1">
+                                                        {p.conceptos.map(c => <div key={c.codigo}>{parsePaymentDetailName(c.nombre)}</div>)}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex flex-col gap-1 font-medium">
+                                                        {p.conceptos.map(c => <div key={c.codigo}>{formatCurrency(c.ingresos)}</div>)}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-right font-bold">
+                                                    {formatCurrency(totalProceso)}
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                    {filteredProcesos.length === 0 && !isLoading && (
                                         <TableRow>
                                             <TableCell colSpan={6} className="text-center text-muted-foreground">
                                                 No se encontraron datos con los filtros aplicados.
