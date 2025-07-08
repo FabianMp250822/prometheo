@@ -64,7 +64,6 @@ export default function SentenciasPage() {
             // 4. Enrich 'procesos' with pensioner info and calculate total amount
             let enrichedProcesos = procesosData.map(proceso => {
                 const pensioner = pensionersData[proceso.pensionadoId];
-                const totalAmount = proceso.conceptos.reduce((sum, c) => sum + c.ingresos, 0);
                 return {
                     ...proceso,
                     pensionerInfo: pensioner ? {
@@ -72,7 +71,6 @@ export default function SentenciasPage() {
                         document: pensioner.documento,
                         department: pensioner.dependencia1
                     } : undefined,
-                    totalAmount,
                 };
             }).filter(p => p.pensionerInfo); // Filter out processos without pensioner info
 
@@ -121,6 +119,17 @@ export default function SentenciasPage() {
             return searchMatch && departmentMatch && yearMatch;
         });
     }, [procesos, searchTerm, selectedDepartment, selectedYear]);
+
+    const displayData = useMemo(() => {
+        return filteredProcesos.flatMap(p => 
+            p.conceptos.map(c => ({
+                procesoId: p.id,
+                pensionerInfo: p.pensionerInfo,
+                periodoPago: p.periodoPago,
+                concepto: c,
+            }))
+        );
+    }, [filteredProcesos]);
     
     const exportToExcel = () => {
         if (filteredProcesos.length === 0) {
@@ -133,7 +142,7 @@ export default function SentenciasPage() {
                 "ID Pensionado": p.pensionadoId,
                 "Nombre Pensionado": p.pensionerInfo?.name || 'N/A',
                 "Dependencia": p.pensionerInfo?.department || 'N/A',
-                "Periodo de Pago": p.periodoPago,
+                "Periodo de Pago": formatPeriodoToMonthYear(p.periodoPago),
                 "Concepto": parsePaymentDetailName(c.nombre),
                 "Ingresos": c.ingresos,
                 "Egresos": c.egresos,
@@ -224,7 +233,7 @@ export default function SentenciasPage() {
                 <CardHeader>
                     <CardTitle>Resultados</CardTitle>
                     <CardDescription>
-                        {filteredProcesos.length} de {procesos.length} procesos encontrados.
+                        {`${displayData.length} conceptos encontrados en ${filteredProcesos.length} procesos.`}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -240,34 +249,32 @@ export default function SentenciasPage() {
                                         <TableHead>Pensionado</TableHead>
                                         <TableHead>Dependencia</TableHead>
                                         <TableHead>Periodo de Pago</TableHead>
-                                        <TableHead>Conceptos</TableHead>
-                                        <TableHead className="text-right">Monto Total</TableHead>
+                                        <TableHead>Concepto</TableHead>
+                                        <TableHead className="text-right">Ingresos</TableHead>
+                                        <TableHead className="text-right">Egresos</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {filteredProcesos.map(proceso => (
-                                        <TableRow key={proceso.id}>
+                                    {displayData.map((item, index) => (
+                                        <TableRow key={`${item.procesoId}-${item.concepto.codigo}-${index}`}>
                                             <TableCell>
-                                                <div className="font-medium">{proceso.pensionerInfo?.name || 'N/A'}</div>
-                                                <div className="text-xs text-muted-foreground">{proceso.pensionerInfo?.document}</div>
+                                                <div className="font-medium">{item.pensionerInfo?.name || 'N/A'}</div>
+                                                <div className="text-xs text-muted-foreground">{item.pensionerInfo?.document}</div>
                                             </TableCell>
                                             <TableCell>
-                                                {parseDepartmentName(proceso.pensionerInfo?.department || 'N/A')}
+                                                {parseDepartmentName(item.pensionerInfo?.department || 'N/A')}
                                             </TableCell>
-                                            <TableCell>{formatPeriodoToMonthYear(proceso.periodoPago)}</TableCell>
+                                            <TableCell>{formatPeriodoToMonthYear(item.periodoPago)}</TableCell>
                                             <TableCell>
-                                                {proceso.conceptos.map(c => (
-                                                    <Badge key={c.codigo} variant="outline" className="mr-1 mb-1">
-                                                        {parsePaymentDetailName(c.nombre)}: {formatCurrency(c.ingresos)}
-                                                    </Badge>
-                                                ))}
+                                                {parsePaymentDetailName(item.concepto.nombre)}
                                             </TableCell>
-                                            <TableCell className="text-right font-bold">{formatCurrency(proceso.totalAmount)}</TableCell>
+                                            <TableCell className="text-right font-medium">{formatCurrency(item.concepto.ingresos)}</TableCell>
+                                            <TableCell className="text-right font-medium text-destructive">{formatCurrency(item.concepto.egresos)}</TableCell>
                                         </TableRow>
                                     ))}
-                                    {filteredProcesos.length === 0 && !isLoading && (
+                                    {displayData.length === 0 && !isLoading && (
                                         <TableRow>
-                                            <TableCell colSpan={5} className="text-center text-muted-foreground">
+                                            <TableCell colSpan={6} className="text-center text-muted-foreground">
                                                 No se encontraron datos con los filtros aplicados.
                                             </TableCell>
                                         </TableRow>
