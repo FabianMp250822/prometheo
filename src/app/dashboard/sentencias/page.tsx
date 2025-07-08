@@ -256,12 +256,12 @@ export default function SentenciasPage() {
                                             </TableCell>
                                             <TableCell>{formatPeriodoToMonthYear(proceso.periodoPago)}</TableCell>
                                             <TableCell>
-                                                <div className="flex flex-col gap-1 max-w-xs">
+                                                <div className="flex flex-col gap-1">
                                                     {proceso.conceptos.map(c => (
                                                         c.ingresos > 0 &&
-                                                        <div key={c.codigo} className="text-xs flex items-center justify-between gap-2">
-                                                            <Badge variant="secondary" className="whitespace-nowrap truncate">{parsePaymentDetailName(c.nombre)}</Badge>
-                                                            <span className="font-semibold">{formatCurrency(c.ingresos)}</span>
+                                                        <div key={c.codigo} className="text-xs flex items-center justify-between gap-2 w-full">
+                                                            <span className="truncate text-muted-foreground">{parsePaymentDetailName(c.nombre)}</span>
+                                                            <span className="font-semibold whitespace-nowrap">{formatCurrency(c.ingresos)}</span>
                                                         </div>
                                                     ))}
                                                 </div>
