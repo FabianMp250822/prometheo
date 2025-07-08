@@ -256,17 +256,17 @@ export default function SentenciasPage() {
                                                     {parseDepartmentName(p.pensionerInfo?.department || 'N/A')}
                                                 </TableCell>
                                                 <TableCell>{formatPeriodoToMonthYear(p.periodoPago)}</TableCell>
-                                                <TableCell>
-                                                    <div className="flex flex-col gap-1">
-                                                        {p.conceptos.map(c => <div key={c.codigo}>{parsePaymentDetailName(c.nombre)}</div>)}
+                                                <TableCell className="p-0 align-middle">
+                                                    <div className="divide-y">
+                                                        {p.conceptos.map(c => <div className="px-4 py-3" key={c.codigo}>{parsePaymentDetailName(c.nombre)}</div>)}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="text-right">
-                                                    <div className="flex flex-col gap-1 font-medium">
-                                                        {p.conceptos.map(c => <div key={c.codigo}>{formatCurrency(c.ingresos)}</div>)}
+                                                <TableCell className="p-0 align-middle text-right">
+                                                    <div className="divide-y font-medium">
+                                                        {p.conceptos.map(c => <div className="px-4 py-3" key={c.codigo}>{formatCurrency(c.ingresos)}</div>)}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="text-right font-bold">
+                                                <TableCell className="text-right font-bold align-middle">
                                                     {formatCurrency(totalProceso)}
                                                 </TableCell>
                                             </TableRow>
