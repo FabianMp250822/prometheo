@@ -9,6 +9,7 @@ import { Scale, LayoutGrid, TrendingUp, Banknote, BarChart2, Settings, LogOut, U
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { GlobalHeader } from '@/components/dashboard/global-header';
 
 export default function DashboardLayout({
   children,
@@ -162,6 +163,7 @@ export default function DashboardLayout({
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
+        <GlobalHeader />
         {children}
       </SidebarInset>
     </SidebarProvider>

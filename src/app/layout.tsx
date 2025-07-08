@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Toaster } from "@/components/ui/toaster"
 import { AuthProvider } from '@/context/auth-provider';
 import './globals.css';
+import { PensionerProvider } from '@/context/pensioner-provider';
 
 export const metadata: Metadata = {
   title: 'Prometeo',
@@ -22,8 +23,10 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <AuthProvider>
+          <PensionerProvider>
             {children}
             <Toaster />
+          </PensionerProvider>
         </AuthProvider>
       </body>
     </html>
