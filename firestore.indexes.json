@@ -83,16 +83,6 @@
           "order": "DESCENDING"
         }
       ]
-    },
-    {
-      "collectionGroup": "pagos",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        {
-          "fieldPath": "fechaProcesado",
-          "order": "DESCENDING"
-        }
-      ]
     }
   ],
   "fieldOverrides": []
