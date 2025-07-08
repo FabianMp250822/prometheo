@@ -79,7 +79,7 @@ export function PaymentDetailsSheet({ pensioner, isOpen, onOpenChange }: Payment
                         <div className="text-center text-muted-foreground py-10">No se encontraron pagos para este pensionado.</div>
                     ) : (
                         <Tabs defaultValue={years[0]} className="w-full">
-                            <TabsList>
+                            <TabsList className="h-auto flex-wrap justify-start">
                                 {years.map(year => (
                                     <TabsTrigger key={year} value={year}>
                                         <Calendar className="mr-2 h-4 w-4" /> {year}
