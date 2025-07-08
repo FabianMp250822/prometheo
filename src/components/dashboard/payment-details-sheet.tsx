@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { collection, getDocs, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Pensioner, Payment } from '@/lib/data';
-import { parsePaymentDetailName, formatCurrency, timestampToDate, parseEmployeeName } from '@/lib/helpers';
+import { parsePaymentDetailName, formatCurrency, timestampToDate, parseEmployeeName, parsePeriodoPago } from '@/lib/helpers';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -58,10 +58,10 @@ export function PaymentDetailsSheet({ pensioner, isOpen, onOpenChange }: Payment
                     ...doc.data(),
                 } as Payment));
 
-                // Sort client-side to ensure newest payments are first.
+                // Sort client-side to ensure newest payments are first, based on payment period.
                 paymentsData.sort((a, b) => {
-                    const dateA = timestampToDate(a.fechaProcesado) || new Date(0);
-                    const dateB = timestampToDate(b.fechaProcesado) || new Date(0);
+                    const dateA = parsePeriodoPago(a.periodoPago)?.endDate || new Date(0);
+                    const dateB = parsePeriodoPago(b.periodoPago)?.endDate || new Date(0);
                     return dateB.getTime() - dateA.getTime();
                 });
                 
