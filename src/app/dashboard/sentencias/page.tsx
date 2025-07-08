@@ -2,18 +2,23 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { payments as initialPayments, dependencies, legalConcepts, UserPayment, PaymentStatus, LegalConcept } from '@/lib/data';
+import { db } from '@/lib/firebase';
+import { collection, getDocs, query, orderBy, doc, updateDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { dependencies, legalConcepts, UserPayment } from '@/lib/data';
 import { KpiCards } from '@/components/dashboard/kpi-cards';
 import { PaymentDataTable } from '@/components/dashboard/data-table';
 import { UserDetailSheet } from '@/components/dashboard/user-detail-sheet';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Download, Loader2, RotateCw, Scale, Search, SlidersHorizontal } from 'lucide-react';
+import { Download, Loader2, RotateCw, Scale, Search, SlidersHorizontal, ChevronDown, MoreHorizontal } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { getLatestYear, formatCurrency, getLatestPeriod, parsePeriodoPago } from '@/lib/helpers';
 import * as XLSX from 'xlsx';
+import { useIsMobile } from '@/hooks/use-mobile';
+
 
 type SortByType = 'totalAmount' | 'user.name' | 'paymentPeriod.end' | 'fiscalYear';
 
@@ -26,7 +31,10 @@ type Stats = {
     montoTotalProcesos: number;
 };
 
+const USUARIOS_SENTENCIAS_COLLECTION = "USUARIOS_SENTENCIAS_COLLECTION";
+
 export default function SentenciasPage() {
+  const isMobile = useIsMobile();
   // Estados de Carga y Control
   const [isLoading, setIsLoading] = useState(true);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -42,7 +50,7 @@ export default function SentenciasPage() {
   // Estados de Filtros
   const [filterNombre, setFilterNombre] = useState('');
   const [filterDependencia, setFilterDependencia] = useState('all');
-  const [filterConcepto, setFilterConcepto] = useState<LegalConcept | 'all'>('all');
+  const [filterConcepto, setFilterConcepto] = useState<keyof UserPayment['concepts'] | 'all'>('all');
   const [filterAnalyzed, setFilterAnalyzed] = useState('all');
   const [filterYear, setFilterYear] = useState('all');
   const [filterPeriodo, setFilterPeriodo] = useState('');
@@ -50,24 +58,24 @@ export default function SentenciasPage() {
 
   const { toast } = useToast();
 
-  // Funciones de Carga de Datos
   const loadSentenciasData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      // Simulación de carga desde Firestore
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setUsuarios(initialPayments);
-      toast({ title: "Datos cargados", description: `${initialPayments.length} registros de sentencias encontrados.` });
+        const q = query(collection(db, USUARIOS_SENTENCIAS_COLLECTION), orderBy("totalAmount", "desc"));
+        const querySnapshot = await getDocs(q);
+        const usuariosData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserPayment));
+        setUsuarios(usuariosData);
+        toast({ title: "Datos cargados", description: `${usuariosData.length} registros de sentencias encontrados desde Firebase.` });
     } catch (e) {
-      setError("Error al cargar los datos de sentencias.");
-      toast({ variant: 'destructive', title: "Error", description: "No se pudieron cargar los datos." });
+        console.error("Error fetching from Firebase: ", e);
+        setError("Error al cargar los datos de sentencias desde Firebase. Verifique la conexión y la configuración.");
+        toast({ variant: 'destructive', title: "Error de Conexión", description: "No se pudieron cargar los datos." });
     } finally {
-      setIsLoading(false);
+        setIsLoading(false);
     }
   }, [toast]);
 
-  // Efecto de carga inicial
   useEffect(() => {
     loadSentenciasData();
   }, [loadSentenciasData]);
@@ -115,13 +123,11 @@ export default function SentenciasPage() {
         const conceptoMatch = filterConcepto === 'all' || (u.concepts[filterConcepto] ?? 0) > 0;
         const analyzedMatch = filterAnalyzed === 'all' || (filterAnalyzed === 'ANALYZED' ? !!u.analyzedAt : !u.analyzedAt);
         const yearMatch = filterYear === 'all' || u.sentences.some(s => getLatestYear([s]) === parseInt(filterYear));
-        // Simplified period filter for this implementation
         const periodoMatch = filterPeriodo ? getLatestPeriod(u.sentences).toLowerCase().includes(filterPeriodo.toLowerCase()) : true;
 
         return nombreMatch && dependenciaMatch && conceptoMatch && analyzedMatch && yearMatch && periodoMatch;
       });
 
-    // Ordenamiento
     filtered.sort((a, b) => {
       if (sortBy === 'totalAmount') return b.totalAmount - a.totalAmount;
       if (sortBy === 'user.name') return a.user.name.localeCompare(b.user.name);
@@ -137,27 +143,47 @@ export default function SentenciasPage() {
     return filtered;
   }, [usuarios, filterNombre, filterDependencia, filterConcepto, filterAnalyzed, filterYear, filterPeriodo, sortBy]);
   
-  // Funciones de Gestión de Estado
-  const markAsAnalyzed = useCallback((usuarioId: string) => {
-    setUsuarios(prev => prev.map(u => u.id === usuarioId ? { ...u, analyzedAt: new Date().toISOString() } : u));
-    toast({ title: "Usuario actualizado", description: "El usuario ha sido marcado como analizado." });
+  const markAsAnalyzed = useCallback(async (usuarioId: string) => {
+    try {
+        const userDocRef = doc(db, USUARIOS_SENTENCIAS_COLLECTION, usuarioId);
+        await updateDoc(userDocRef, {
+            analyzedAt: serverTimestamp(),
+            status: 'Analizado' // Keep status consistent if used elsewhere
+        });
+        
+        // Optimistically update UI
+        const now = new Date();
+        setUsuarios(prev => prev.map(u => u.id === usuarioId ? { ...u, analyzedAt: now.toISOString(), status: 'Analizado' } : u));
+        
+        toast({ title: "Usuario actualizado", description: "El usuario ha sido marcado como analizado en Firebase." });
+    } catch (e) {
+        console.error("Error updating document: ", e);
+        toast({ variant: 'destructive', title: "Error", description: "No se pudo actualizar el usuario en la base de datos." });
+    }
   }, [toast]);
   
+  // TODO: Implement analyzePagosForSentencias based on full DB schema
   const handleReanalyze = () => {
     setIsAnalyzing(true);
-    toast({ title: "Iniciando análisis...", description: "Este proceso puede tardar varios minutos." });
+    toast({ title: "Iniciando análisis...", description: "Esta función requiere una implementación completa con la estructura de la base de datos." });
     setTimeout(() => {
         setIsAnalyzing(false);
-        toast({ title: "Análisis completado", description: "El proceso de análisis masivo ha finalizado." });
+        toast({ variant: 'destructive', title: "Análisis no implementado", description: "La lógica de re-análisis masivo aún no está conectada." });
     }, 3000); // Simulación
   }
 
-  // Funciones de Exportación
   const exportToExcel = (filtered: boolean) => {
     const dataToExport = filtered ? filteredUsuarios : usuarios;
     if(dataToExport.length === 0) {
         toast({ variant: 'destructive', title: "Error", description: "No hay datos para exportar." });
         return;
+    }
+
+    const formatDate = (date: Timestamp | string | null): string => {
+        if (!date) return 'N/A';
+        if (typeof date === 'string') return new Date(date).toLocaleString();
+        if (date.toDate) return date.toDate().toLocaleString();
+        return 'Fecha inválida';
     }
 
     const summaryData = dataToExport.map(u => ({
@@ -169,7 +195,7 @@ export default function SentenciasPage() {
         "Último Periodo": getLatestPeriod(u.sentences),
         "Monto Total": u.totalAmount,
         "Estado": u.analyzedAt ? 'Analizado' : 'Pendiente',
-        "Fecha Análisis": u.analyzedAt ? new Date(u.analyzedAt).toLocaleString() : 'N/A'
+        "Fecha Análisis": formatDate(u.analyzedAt)
     }));
     const detailData = dataToExport.flatMap(u => u.sentences.map(s => ({
         "ID Usuario": u.id,
@@ -189,14 +215,14 @@ export default function SentenciasPage() {
         XLSX.utils.book_append_sheet(workbook, detailSheet, "Detalle Sentencias");
     }
 
-    // Auto-fit columns
     const fitToColumn = (data: any[]) => {
         const columnWidths = [];
         for (const row of data) {
             for (const key in row) {
                 const colIndex = Object.keys(row).indexOf(key);
                 if (!columnWidths[colIndex]) columnWidths[colIndex] = { wch: 0 };
-                const len = row[key]?.toString().length ?? 4;
+                const value = row[key];
+                const len = value === null || value === undefined ? 4 : value.toString().length;
                 if (columnWidths[colIndex].wch < len) columnWidths[colIndex].wch = len;
             }
         }
@@ -208,6 +234,19 @@ export default function SentenciasPage() {
     XLSX.writeFile(workbook, `Reporte_Sentencias_${new Date().toISOString().split('T')[0]}.xlsx`);
     toast({ title: "Exportación exitosa", description: "El archivo de Excel ha sido generado." });
   }
+
+  const ExportButtons = () => (
+    <>
+      <Button variant="outline" size="sm" onClick={() => exportToExcel(true)} disabled={filteredUsuarios.length === 0}>
+        <Download className="mr-2 h-4 w-4" />
+        Exportar Vista
+      </Button>
+      <Button size="sm" onClick={() => exportToExcel(false)} disabled={usuarios.length === 0}>
+        <Download className="mr-2 h-4 w-4" />
+        Exportar Todo
+      </Button>
+    </>
+  )
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -245,12 +284,12 @@ export default function SentenciasPage() {
         </div>
       ) : error ? (
         <Card className="bg-destructive/10 border-destructive">
-            <CardHeader><CardTitle>Error</CardTitle></CardHeader>
+            <CardHeader><CardTitle>Error de Conexión a Firebase</CardTitle></CardHeader>
             <CardContent><p>{error}</p></CardContent>
         </Card>
       ) : (
         <>
-          {stats && <KpiCards stats={stats} />}
+          {stats && <KpiCards stats={stats} data={usuarios} />}
 
           <Card>
             <CardHeader>
@@ -300,24 +339,35 @@ export default function SentenciasPage() {
           
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Resultados</CardTitle>
-                  <CardDescription>
-                    {filteredUsuarios.length} de {usuarios.length} sentencias encontradas.
-                  </CardDescription>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <CardTitle>Resultados</CardTitle>
+                    <CardDescription>
+                      {filteredUsuarios.length} de {usuarios.length} sentencias encontradas.
+                    </CardDescription>
+                  </div>
+                  {isMobile ? (
+                     <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" className="w-full md:w-auto">
+                          <MoreHorizontal className="mr-2 h-4 w-4" /> Exportar
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => exportToExcel(true)} disabled={filteredUsuarios.length === 0}>
+                           <Download className="mr-2 h-4 w-4" /> Exportar Vista
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => exportToExcel(false)} disabled={usuarios.length === 0}>
+                           <Download className="mr-2 h-4 w-4" /> Exportar Todo
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                       <ExportButtons />
+                    </div>
+                  )}
                 </div>
-                 <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => exportToExcel(true)}>
-                        <Download className="mr-2 h-4 w-4" />
-                        Exportar Vista
-                    </Button>
-                    <Button size="sm" onClick={() => exportToExcel(false)}>
-                        <Download className="mr-2 h-4 w-4" />
-                        Exportar Todo
-                    </Button>
-                </div>
-              </div>
             </CardHeader>
             <CardContent>
                 <PaymentDataTable 
