@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Gavel, Loader2, RotateCw, Download, Search, Filter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { formatCurrency, parsePeriodoPago, parseEmployeeName, parsePaymentDetailName, formatPeriodoToMonthYear } from '@/lib/helpers';
+import { formatCurrency, parsePeriodoPago, parseEmployeeName, parsePaymentDetailName, formatPeriodoToMonthYear, parseDepartmentName } from '@/lib/helpers';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 
