@@ -1,4 +1,4 @@
-import * as functions from "firebase-functions";
+import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import {initializeApp, getApps} from "firebase-admin/app";
 import {getFirestore, Timestamp} from "firebase-admin/firestore";
@@ -27,17 +27,23 @@ interface PaymentDetail {
  * if found, creates a corresponding document in the 'procesoscancelados'
  * collection.
  */
-export const onNewPaymentCreate = functions.firestore
-  .document("pensionados/{pensionadoId}/pagos/{pagoId}")
-  .onCreate(async (snap, context) => {
-    const paymentData = snap.data();
-    const {pensionadoId} = context.params;
+export const onNewPaymentCreate = onDocumentCreated(
+  "pensionados/{pensionadoId}/pagos/{pagoId}",
+  async (event) => {
+    const snap = event.data;
+    if (!snap) {
+      logger.info("No data associated with the event. Exiting.");
+      return;
+    }
 
-    if (!paymentData || !paymentData.detalles) {
+    const paymentData = snap.data();
+    const {pagoId, pensionadoId} = event.params;
+
+    if (!paymentData || !Array.isArray(paymentData.detalles)) {
       logger.info(
-        `Payment ${snap.id} has no data or 'detalles' field. Exiting.`
+        `Payment ${pagoId} has no data or 'detalles' field. Exiting.`
       );
-      return null;
+      return;
     }
 
     // Filter for details that match our sentence concepts.
@@ -50,12 +56,12 @@ export const onNewPaymentCreate = functions.firestore
 
     // If no sentence-related concepts are found, do nothing.
     if (sentenceConcepts.length === 0) {
-      logger.info(`No sentence concepts in pmt ${snap.id}. Skipping.`);
-      return null;
+      logger.info(`No sentence concepts in pmt ${pagoId}. Skipping.`);
+      return;
     }
 
     logger.info(
-      `Found ${sentenceConcepts.length} concepts in pmt ${snap.id}.`
+      `Found ${sentenceConcepts.length} concepts in pmt ${pagoId}.`
     );
 
     const newProcessDocRef = db.collection("procesoscancelados").doc();
@@ -74,7 +80,7 @@ export const onNewPaymentCreate = functions.firestore
       })),
       creadoEn: Timestamp.now(),
       fechaLiquidacion: fechaLiquidacionDate.toISOString(),
-      pagoId: paymentData.pagoId || snap.id,
+      pagoId: paymentData.pagoId || pagoId,
       pensionadoId: pensionadoId,
       periodoPago: paymentData.periodoPago,
     };
@@ -82,14 +88,15 @@ export const onNewPaymentCreate = functions.firestore
     try {
       await newProcessDocRef.set(newProcessData);
       logger.info(
-        `Created proc doc ${newProcessDocRef.id} for pmt ${snap.id}.`
+        `Created proc doc ${newProcessDocRef.id} for pmt ${pagoId}.`
       );
-      return {success: true, newDocId: newProcessDocRef.id};
     } catch (error) {
       logger.error(
-        `Error creating proc doc for pmt ${snap.id}:`,
+        `Error creating proc doc for pmt ${pagoId}:`,
         error
       );
-      return Promise.reject(error);
+      // Let the function fail to indicate an error, which can trigger retries.
+      throw error;
     }
-  });
+  }
+);
