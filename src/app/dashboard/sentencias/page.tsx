@@ -1,15 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback, useTransition } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, getDocs, query, doc, getDoc } from 'firebase/firestore';
-import { syncNewProcesses } from '@/app/actions/sync-processes';
+import { collection, getDocs, query, doc, getDoc, onSnapshot, orderBy } from 'firebase/firestore';
 import { ProcesoCancelado, Pensioner } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Gavel, Loader2, RotateCw, Download, Search, Filter } from 'lucide-react';
+import { Gavel, Loader2, Download, Search, Filter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency, parsePeriodoPago, parseEmployeeName, parsePaymentDetailName, formatPeriodoToMonthYear, parseDepartmentName } from '@/lib/helpers';
 import * as XLSX from 'xlsx';
@@ -20,37 +19,37 @@ const PENSIONADOS_COLLECTION = "pensionados";
 
 export default function SentenciasPage() {
     const [isLoading, setIsLoading] = useState(true);
-    const [isSyncing, startSyncTransition] = useTransition();
     const [procesos, setProcesos] = useState<ProcesoCancelado[]>([]);
     const { toast } = useToast();
 
-    // Filter states
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedDepartment, setSelectedDepartment] = useState('all');
     const [selectedYear, setSelectedYear] = useState('all');
 
-    // Dropdown options states
     const [uniqueDepartments, setUniqueDepartments] = useState<string[]>([]);
     const [uniqueYears, setUniqueYears] = useState<string[]>([]);
 
-
-    const loadData = useCallback(async () => {
+    useEffect(() => {
         setIsLoading(true);
-        try {
-            // 1. Fetch all 'procesoscancelados'
-            const procesosQuery = query(collection(db, PROCESOS_CANCELADOS_COLLECTION));
-            const procesosSnapshot = await getDocs(procesosQuery);
+        const q = query(collection(db, PROCESOS_CANCELADOS_COLLECTION), orderBy("creadoEn", "desc"));
+
+        const unsubscribe = onSnapshot(q, async (procesosSnapshot) => {
             let procesosData = procesosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcesoCancelado));
 
-            // 2. Get all unique pensioner IDs
-            const pensionerIds = [...new Set(procesosData.map(p => p.pensionadoId))];
+            if (procesosData.length === 0) {
+                setProcesos([]);
+                setIsLoading(false);
+                return;
+            }
+
+            const pensionerIds = [...new Set(procesosData.map(p => p.pensionadoId).filter(Boolean))];
             
-            // 3. Fetch all corresponding pensioners in chunks
             const pensionersData: { [key: string]: Pensioner } = {};
             const chunkSize = 30;
             for (let i = 0; i < pensionerIds.length; i += chunkSize) {
                 const chunk = pensionerIds.slice(i, i + chunkSize);
                 if (chunk.length === 0) continue;
+                
                 const pensionerPromises = chunk.map(id => getDoc(doc(db, PENSIONADOS_COLLECTION, id)));
                 const pensionerDocs = await Promise.all(pensionerPromises);
 
@@ -62,7 +61,6 @@ export default function SentenciasPage() {
                 });
             }
 
-            // 4. Enrich 'procesos' with pensioner info and calculate total amount
             let enrichedProcesos = procesosData.map(proceso => {
                 const pensioner = pensionersData[proceso.pensionadoId];
                 return {
@@ -75,7 +73,6 @@ export default function SentenciasPage() {
                 };
             }).filter(p => p.pensionerInfo);
 
-            // 5. Sort by 'periodoPago' descending
             enrichedProcesos.sort((a, b) => {
                 const dateA = parsePeriodoPago(a.periodoPago)?.endDate || new Date(0);
                 const dateB = parsePeriodoPago(b.periodoPago)?.endDate || new Date(0);
@@ -84,25 +81,20 @@ export default function SentenciasPage() {
 
             setProcesos(enrichedProcesos);
 
-            // 6. Extract unique values for filters
             const depts = new Set(enrichedProcesos.map(p => p.pensionerInfo?.department).filter(Boolean) as string[]);
             const years = new Set(enrichedProcesos.map(p => p.año).filter(Boolean));
             setUniqueDepartments(Array.from(depts).sort());
             setUniqueYears(Array.from(years).sort((a, b) => Number(b) - Number(a)));
             
-            toast({ title: "Datos cargados", description: `${enrichedProcesos.length} registros de procesos encontrados.` });
-
-        } catch (error) {
-            console.error("Error fetching data:", error);
-            toast({ variant: 'destructive', title: "Error", description: "No se pudieron cargar los datos." });
-        } finally {
             setIsLoading(false);
-        }
-    }, [toast]);
+        }, (error) => {
+            console.error("Error fetching data with listener:", error);
+            toast({ variant: 'destructive', title: "Error", description: "No se pudieron cargar los datos." });
+            setIsLoading(false);
+        });
 
-    useEffect(() => {
-        loadData();
-    }, [loadData]);
+        return () => unsubscribe();
+    }, [toast]);
 
      const filteredProcesos = useMemo(() => {
         return procesos.filter(p => {
@@ -120,40 +112,6 @@ export default function SentenciasPage() {
             return searchMatch && departmentMatch && yearMatch;
         });
     }, [procesos, searchTerm, selectedDepartment, selectedYear]);
-
-    const handleSync = () => {
-        startSyncTransition(async () => {
-            toast({ title: 'Sincronizando...', description: 'Buscando nuevos pagos de sentencias para 2025. Esto puede tardar.' });
-            
-            try {
-                const result = await syncNewProcesses();
-
-                if (result.success) {
-                    toast({
-                        title: 'Sincronización Completa',
-                        description: `Se procesaron ${result.count || 0} pagos de sentencias para 2025.`,
-                    });
-                    if (result.count && result.count > 0) {
-                        loadData(); // Reload data to show new processes
-                    }
-                } else {
-                    toast({
-                        variant: 'destructive',
-                        title: 'Error de Sincronización',
-                        description: result.error || 'Ocurrió un error inesperado.',
-                        duration: 15000,
-                    });
-                }
-            } catch (error: any) {
-                console.error("Error calling sync server action:", error);
-                toast({
-                    variant: 'destructive',
-                    title: 'Error de Sincronización',
-                    description: 'No se pudo conectar con el servidor para la sincronización.',
-                });
-            }
-        });
-    };
 
     const exportToExcel = () => {
         if (filteredProcesos.length === 0) {
@@ -200,10 +158,6 @@ export default function SentenciasPage() {
                             </div>
                         </div>
                          <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" onClick={handleSync} disabled={isSyncing}>
-                                <RotateCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                                {isSyncing ? 'Sincronizando...' : 'Recargar'}
-                            </Button>
                             <Button size="sm" onClick={exportToExcel} disabled={filteredProcesos.length === 0}>
                                 <Download className="mr-2 h-4 w-4" />
                                 Exportar a Excel
@@ -229,10 +183,10 @@ export default function SentenciasPage() {
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-10"
-                                disabled={isLoading || isSyncing}
+                                disabled={isLoading}
                             />
                         </div>
-                         <Select value={selectedDepartment} onValueChange={setSelectedDepartment} disabled={isLoading || isSyncing || uniqueDepartments.length === 0}>
+                         <Select value={selectedDepartment} onValueChange={setSelectedDepartment} disabled={isLoading || uniqueDepartments.length === 0}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Filtrar por Dependencia" />
                             </SelectTrigger>
@@ -241,7 +195,7 @@ export default function SentenciasPage() {
                                 {uniqueDepartments.map(dep => <SelectItem key={dep} value={dep}>{parseDepartmentName(dep)}</SelectItem>)}
                             </SelectContent>
                         </Select>
-                         <Select value={selectedYear} onValueChange={setSelectedYear} disabled={isLoading || isSyncing || uniqueYears.length === 0}>
+                         <Select value={selectedYear} onValueChange={setSelectedYear} disabled={isLoading || uniqueYears.length === 0}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Filtrar por Año Fiscal" />
                             </SelectTrigger>
