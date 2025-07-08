@@ -1,7 +1,7 @@
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
-import type { Pensioner, Parris1, Causante, ProcesoCancelado, PensionerProfile } from '@/lib/data';
+import type { Pensioner, Parris1, Causante, ProcesoCancelado, PensionerProfile, Payment } from '@/lib/data';
 
 // Define collection names
 const PENSIONADOS_COLLECTION = "pensionados";
@@ -35,18 +35,29 @@ export async function getPensionerDetails(pensionadoId: string): Promise<Pension
     const causanteData = causanteSnap.exists ? { id: causanteSnap.id, ...causanteSnap.data() } as Causante : null;
     const procesosCancelados = procesosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcesoCancelado));
 
-    // Get the latest payment for the summary
-    const lastPaymentQuery = adminDb.collection('pensionados').doc(pensionadoId).collection('pagos').orderBy('fechaProcesado', 'desc').limit(1);
-    const lastPaymentSnap = await lastPaymentQuery.get();
-    const lastPayment = lastPaymentSnap.empty ? null : { id: lastPaymentSnap.docs[0].id, ...lastPaymentSnap.docs[0].data() };
+    // Get all payments and find the latest one in code to be more resilient
+    const allPaymentsQuery = adminDb.collection('pensionados').doc(pensionadoId).collection('pagos');
+    const allPaymentsSnap = await allPaymentsQuery.get();
 
+    let lastPayment: Payment | null = null;
+    if (!allPaymentsSnap.empty) {
+        const allPayments = allPaymentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
+        
+        // Sort client-side to find the latest payment, safely handling potential data issues
+        allPayments.sort((a, b) => {
+            const dateA = a.fechaProcesado?.toDate ? a.fechaProcesado.toDate().getTime() : 0;
+            const dateB = b.fechaProcesado?.toDate ? b.fechaProcesado.toDate().getTime() : 0;
+            return dateB - dateA;
+        });
+        lastPayment = allPayments.length > 0 ? allPayments[0] : null;
+    }
 
     return {
         pensioner,
         parris1Data,
         causanteData,
         procesosCancelados,
-        lastPayment: lastPayment as any, // Cast to any to avoid complex typing for now
+        lastPayment,
     };
 
   } catch (error: any) {
