@@ -1,17 +1,20 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import { collection, getDocs, query } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { BarChart2, DollarSign, Users, TrendingUp } from 'lucide-react';
+import { BarChart2, DollarSign, Users, TrendingUp, Loader2 } from 'lucide-react';
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
 } from '@/components/ui/chart';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { payments } from '@/lib/data';
+import { UserPayment } from '@/lib/data';
 import { formatCurrency } from '@/lib/helpers';
 import type { ChartConfig } from '@/components/ui/chart';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const chartConfig = {
   totalAmount: {
@@ -21,6 +24,26 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export default function ReportesPage() {
+    const [payments, setPayments] = useState<UserPayment[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+     useEffect(() => {
+        const fetchPayments = async () => {
+            setIsLoading(true);
+            try {
+                const q = query(collection(db, "USUARIOS_SENTENCIAS_COLLECTION"));
+                const querySnapshot = await getDocs(q);
+                const paymentsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserPayment));
+                setPayments(paymentsData);
+            } catch (error) {
+                console.error("Error fetching reports data from Firestore:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchPayments();
+    }, []);
 
     const dataByDepartment = useMemo(() => {
         const departments: { [key: string]: { totalAmount: number, userCount: number } } = {};
@@ -32,7 +55,7 @@ export default function ReportesPage() {
             departments[p.department].userCount += 1;
         });
         return Object.entries(departments).map(([name, values]) => ({ name, ...values }));
-    }, []);
+    }, [payments]);
     
     const totalStats = useMemo(() => {
         const totalAmount = payments.reduce((acc, p) => acc + p.totalAmount, 0);
@@ -42,7 +65,63 @@ export default function ReportesPage() {
             totalUsers,
             avgAmount: totalUsers > 0 ? totalAmount / totalUsers : 0,
         }
-    }, []);
+    }, [payments]);
+
+    if (isLoading) {
+      return (
+        <div className="p-4 md:p-8 space-y-6">
+           <Card>
+                <CardHeader>
+                    <CardTitle className="text-2xl font-headline flex items-center gap-2">
+                        <BarChart2 className="h-6 w-6" />
+                        Reportes y Estadísticas
+                    </CardTitle>
+                    <CardDescription>
+                       Cargando datos para los reportes...
+                    </CardDescription>
+                </CardHeader>
+            </Card>
+            <div className="grid gap-4 md:grid-cols-3">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Monto Total en Sentencias</CardTitle>
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                    <Skeleton className="h-8 w-3/4" />
+                </CardContent>
+              </Card>
+               <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Usuarios con Sentencias</CardTitle>
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                       <Skeleton className="h-8 w-1/4" />
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Promedio por Usuario</CardTitle>
+                        <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                       <Skeleton className="h-8 w-3/4" />
+                    </CardContent>
+                </Card>
+            </div>
+             <Card>
+                <CardHeader>
+                    <CardTitle>Totales por Dependencia</CardTitle>
+                    <CardDescription>Monto total sentenciado por cada dependencia.</CardDescription>
+                </CardHeader>
+                <CardContent className="min-h-[300px] flex justify-center items-center">
+                   <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                </CardContent>
+            </Card>
+        </div>
+      )
+    }
 
     return (
         <div className="p-4 md:p-8 space-y-6">

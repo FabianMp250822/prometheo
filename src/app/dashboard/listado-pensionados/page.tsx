@@ -1,24 +1,53 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { collection, getDocs, query } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import { Users, Search } from 'lucide-react';
-import { payments } from '@/lib/data';
+import { Users, Search, Loader2 } from 'lucide-react';
+import { UserPayment } from '@/lib/data';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 
+type Pensioner = {
+    name: string;
+    document: string;
+    avatarUrl: string;
+    department: string;
+    status: 'Analizado' | 'Pendiente';
+}
+
 export default function ListadoPensionadosPage() {
     const [searchTerm, setSearchTerm] = useState('');
+    const [pensioners, setPensioners] = useState<Pensioner[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
-    const pensioners = useMemo(() => {
-        return payments.map(p => ({
-            ...p.user,
-            department: p.department,
-            status: p.analyzedAt ? 'Analizado' : 'Pendiente'
-        }));
+    useEffect(() => {
+        const fetchPensioners = async () => {
+            setIsLoading(true);
+            try {
+                const q = query(collection(db, "USUARIOS_SENTENCIAS_COLLECTION"));
+                const querySnapshot = await getDocs(q);
+                const pensionersData = querySnapshot.docs.map(doc => {
+                    const data = doc.data() as UserPayment;
+                    return {
+                        ...data.user,
+                        department: data.department,
+                        status: data.analyzedAt ? 'Analizado' : 'Pendiente'
+                    };
+                });
+                setPensioners(pensionersData);
+            } catch (error) {
+                console.error("Error fetching pensioners from Firestore:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchPensioners();
     }, []);
 
     const filteredPensioners = useMemo(() => {
@@ -62,6 +91,11 @@ export default function ListadoPensionadosPage() {
                     </div>
                 </CardHeader>
                 <CardContent>
+                     {isLoading ? (
+                        <div className="flex justify-center items-center p-10">
+                            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                        </div>
+                    ) : (
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -101,6 +135,7 @@ export default function ListadoPensionadosPage() {
                             )}
                         </TableBody>
                     </Table>
+                    )}
                 </CardContent>
             </Card>
         </div>

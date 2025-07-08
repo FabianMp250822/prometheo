@@ -6,21 +6,42 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { TrendingUp, PlusCircle } from 'lucide-react';
-import { useMemo } from 'react';
-import { payments, legalConcepts } from '@/lib/data';
+import { TrendingUp, PlusCircle, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { collection, getDocs, query } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { legalConcepts, UserPayment } from '@/lib/data';
 import { formatCurrency } from '@/lib/helpers';
 import { Badge } from '@/components/ui/badge';
 
 const liquidations = [
-    { id: 'LIQ-001', userId: 'usr_001', amount: 4500, date: '2023-10-16', status: 'Pagada' },
-    { id: 'LIQ-002', userId: 'usr_003', amount: 3000, date: '2023-11-02', status: 'Pagada' },
-    { id: 'LIQ-003', userId: 'usr_004', amount: 12000, date: '2024-03-02', status: 'En Proceso' },
-    { id: 'LIQ-004', userId: 'usr_002', amount: 5000, date: '2024-05-10', status: 'Pendiente' },
+    { id: 'LIQ-001', userId: 'FzP6XftfysbK6n4yS4yO', amount: 4500, date: '2023-10-16', status: 'Pagada' },
+    { id: 'LIQ-002', userId: 'N4TjbfT1Fl0A4RcaQ0jN', amount: 3000, date: '2023-11-02', status: 'Pagada' },
+    { id: 'LIQ-003', userId: 'O3n7m9wM2rVbF2gP1sYt', amount: 12000, date: '2024-03-02', status: 'En Proceso' },
+    { id: 'LIQ-004', userId: 'Q5o1p0aZ9wVbF3gP2sYu', amount: 5000, date: '2024-05-10', status: 'Pendiente' },
 ];
 
 export default function LiquidacionesPage() {
-    const users = useMemo(() => payments.map(p => p.user), []);
+    const [users, setUsers] = useState<UserPayment[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchUsers = async () => {
+            setIsLoading(true);
+            try {
+                const q = query(collection(db, "USUARIOS_SENTENCIAS_COLLECTION"));
+                const querySnapshot = await getDocs(q);
+                const usersData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserPayment));
+                setUsers(usersData);
+            } catch (error) {
+                console.error("Error fetching users from Firestore:", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchUsers();
+    }, []);
 
     const getStatusBadge = (status: string) => {
         switch (status) {
@@ -62,7 +83,11 @@ export default function LiquidacionesPage() {
                                         <SelectValue placeholder="Seleccione un usuario" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {users.map(u => <SelectItem key={u.document} value={u.document}>{u.name}</SelectItem>)}
+                                        {isLoading ? (
+                                            <div className="flex justify-center p-2"><Loader2 className="h-4 w-4 animate-spin"/></div>
+                                        ) : (
+                                            users.map(u => <SelectItem key={u.user.document} value={u.user.document}>{u.user.name}</SelectItem>)
+                                        )}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -91,33 +116,39 @@ export default function LiquidacionesPage() {
                         <CardTitle className="text-xl">Historial de Liquidaciones</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>ID</TableHead>
-                                    <TableHead>Usuario</TableHead>
-                                    <TableHead className="text-right">Monto</TableHead>
-                                    <TableHead>Fecha</TableHead>
-                                    <TableHead>Estado</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {liquidations.map(liq => {
-                                    const user = payments.find(p => p.id === liq.userId)?.user;
-                                    return (
-                                        <TableRow key={liq.id}>
-                                            <TableCell className="font-medium">{liq.id}</TableCell>
-                                            <TableCell>{user?.name || 'N/A'}</TableCell>
-                                            <TableCell className="text-right">{formatCurrency(liq.amount)}</TableCell>
-                                            <TableCell>{liq.date}</TableCell>
-                                            <TableCell>
-                                                <Badge className={getStatusBadge(liq.status)}>{liq.status}</Badge>
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
+                         {isLoading ? (
+                            <div className="flex justify-center items-center p-10">
+                                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                            </div>
+                        ) : (
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>ID</TableHead>
+                                        <TableHead>Usuario</TableHead>
+                                        <TableHead className="text-right">Monto</TableHead>
+                                        <TableHead>Fecha</TableHead>
+                                        <TableHead>Estado</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {liquidations.map(liq => {
+                                        const user = users.find(u => u.id === liq.userId)?.user;
+                                        return (
+                                            <TableRow key={liq.id}>
+                                                <TableCell className="font-medium">{liq.id}</TableCell>
+                                                <TableCell>{user?.name || 'N/A'}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(liq.amount)}</TableCell>
+                                                <TableCell>{liq.date}</TableCell>
+                                                <TableCell>
+                                                    <Badge className={getStatusBadge(liq.status)}>{liq.status}</Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })}
+                                </TableBody>
+                            </Table>
+                        )}
                     </CardContent>
                 </Card>
             </div>
