@@ -21,6 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { DateRange } from 'react-day-picker';
 import { format } from 'date-fns';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 type SortConfig = {
   key: keyof UserPayment | `user.${'name' | 'document'}` | `paymentPeriod.${'start' | 'end'}`;
@@ -170,7 +171,9 @@ export function PaymentDataTable({ data }: { data: UserPayment[] }) {
           </Popover>
         </div>
       </div>
-      <div className="rounded-lg border overflow-hidden bg-card">
+      
+      {/* Desktop Table */}
+      <div className="hidden md:block rounded-lg border overflow-hidden bg-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -214,6 +217,49 @@ export function PaymentDataTable({ data }: { data: UserPayment[] }) {
           </TableBody>
         </Table>
       </div>
+
+      {/* Mobile Cards */}
+      <div className="grid gap-4 md:hidden">
+          {paginatedData.map(item => (
+              <Card key={item.id} onClick={() => setSelectedUser(item)} className={cn("cursor-pointer", item.fiscalYear === new Date().getFullYear() ? 'bg-amber-100/50' : '')}>
+                  <CardHeader>
+                      <div className="flex justify-between items-start">
+                          <div>
+                              <CardTitle className="text-lg">{item.user.name}</CardTitle>
+                              <CardDescription>{item.user.document}</CardDescription>
+                          </div>
+                          <Badge variant="outline" className={cn('text-xs', getStatusClass(item.status))}>{item.status}</Badge>
+                      </div>
+                  </CardHeader>
+                  <CardContent className="text-sm space-y-2">
+                      <div className="flex justify-between">
+                          <span className="text-muted-foreground">Dependencia:</span>
+                          <span className="font-medium">{item.department}</span>
+                      </div>
+                      <div className="flex justify-between">
+                          <span className="text-muted-foreground">Periodo:</span>
+                          <span className="font-medium">{format(new Date(item.paymentPeriod.start), 'dd/MM/yy')} - {format(new Date(item.paymentPeriod.end), 'dd/MM/yy')}</span>
+                      </div>
+                      <div className="flex justify-between">
+                          <span className="text-muted-foreground">Monto Total:</span>
+                          <span className="font-bold text-primary">{formatCurrency(item.totalAmount)}</span>
+                      </div>
+                        <div className="pt-2">
+                          <h4 className="text-xs font-semibold text-muted-foreground mb-1">Conceptos</h4>
+                          <div className="flex flex-col gap-1">
+                              {Object.entries(item.concepts).map(([key, value]) => (
+                                  <div key={key} className="flex justify-between text-xs">
+                                      <span>{key}: </span>
+                                      <span className="font-medium">{formatCurrency(value || 0)}</span>
+                                  </div>
+                              ))}
+                          </div>
+                      </div>
+                  </CardContent>
+              </Card>
+          ))}
+      </div>
+
        <div className="flex items-center justify-between p-2">
         <div className="text-sm text-muted-foreground">
             Página {pagination.pageIndex + 1} de {totalPages}
