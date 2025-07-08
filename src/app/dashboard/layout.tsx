@@ -25,7 +25,7 @@ export default function DashboardLayout({
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton href="#" isDisabled tooltip="Reportes">
+              <SidebarMenuButton href="#" disabled tooltip="Reportes">
                 <FileText />
                 <span className="group-data-[collapsible=icon]:hidden">Reportes</span>
               </SidebarMenuButton>
