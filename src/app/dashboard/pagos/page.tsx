@@ -30,7 +30,9 @@ export default function PagosPage() {
     });
     
     const [currentPage, setCurrentPage] = useState(0);
-    const { selectedPensioner, setSelectedPensioner } = usePensioner();
+    const { setSelectedPensioner } = usePensioner();
+    const [sheetPensioner, setSheetPensioner] = useState<Pensioner | null>(null);
+
 
     // Fetch all data on initial load
     useEffect(() => {
@@ -92,6 +94,11 @@ export default function PagosPage() {
 
     const handleFilterChange = (filterType: keyof typeof filters, value: string) => {
         setFilters(prev => ({ ...prev, [filterType]: value }));
+    };
+
+    const handleViewPayments = (pensioner: Pensioner) => {
+        setSelectedPensioner(pensioner); // Update global context
+        setSheetPensioner(pensioner); // Set local state to open sheet
     };
 
     return (
@@ -168,7 +175,7 @@ export default function PagosPage() {
                                         <TableCell>{pensioner.dependencia1}</TableCell>
                                         <TableCell>{pensioner.centroCosto}</TableCell>
                                         <TableCell className="text-right">
-                                            <Button variant="outline" size="sm" onClick={() => setSelectedPensioner(pensioner)}>
+                                            <Button variant="outline" size="sm" onClick={() => handleViewPayments(pensioner)}>
                                                 Ver Pagos
                                             </Button>
                                         </TableCell>
@@ -207,13 +214,15 @@ export default function PagosPage() {
                 </CardContent>
             </Card>
 
-            {selectedPensioner && (
-                <PaymentDetailsSheet
-                    pensioner={selectedPensioner}
-                    isOpen={!!selectedPensioner}
-                    onOpenChange={(isOpen) => !isOpen && setSelectedPensioner(null)}
-                />
-            )}
+            <PaymentDetailsSheet
+                pensioner={sheetPensioner}
+                isOpen={!!sheetPensioner}
+                onOpenChange={(isOpen) => {
+                    if (!isOpen) {
+                        setSheetPensioner(null);
+                    }
+                }}
+            />
         </div>
     );
 }
