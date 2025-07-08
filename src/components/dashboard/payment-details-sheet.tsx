@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Pensioner, Payment } from '@/lib/data';
 import { parsePaymentDetailName, formatCurrency, timestampToDate, parseEmployeeName } from '@/lib/helpers';
@@ -42,20 +42,29 @@ export function PaymentDetailsSheet({ pensioner, isOpen, onOpenChange }: Payment
         if (!pensioner) {
             setPayments([]); // Clear payments if pensioner is null
             return;
-        };
+        }
 
         const fetchPayments = async () => {
             setIsLoading(true);
             try {
+                // Query without server-side ordering to prevent potential index issues.
                 const paymentsQuery = query(
-                    collection(db, 'pensionados', pensioner.id, 'pagos'),
-                    orderBy('fechaProcesado', 'desc')
+                    collection(db, 'pensionados', pensioner.id, 'pagos')
                 );
                 const querySnapshot = await getDocs(paymentsQuery);
-                const paymentsData = querySnapshot.docs.map(doc => ({
+                
+                let paymentsData = querySnapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data(),
                 } as Payment));
+
+                // Sort client-side to ensure newest payments are first.
+                paymentsData.sort((a, b) => {
+                    const dateA = timestampToDate(a.fechaProcesado) || new Date(0);
+                    const dateB = timestampToDate(b.fechaProcesado) || new Date(0);
+                    return dateB.getTime() - dateA.getTime();
+                });
+                
                 setPayments(paymentsData);
             } catch (error) {
                 console.error("Error fetching payments:", error);
@@ -199,7 +208,7 @@ export function PaymentDetailsSheet({ pensioner, isOpen, onOpenChange }: Payment
                                                                 </TableHeader>
                                                                 <TableBody>
                                                                     {payment.detalles.map((detail, index) => (
-                                                                        <TableRow key={index} className={detail.nombre.includes('Totales') ? 'font-bold bg-muted/50' : ''}>
+                                                                        <TableRow key={index} className={detail.nombre?.includes('Totales') ? 'font-bold bg-muted/50' : ''}>
                                                                             <TableCell>{parsePaymentDetailName(detail.nombre)}</TableCell>
                                                                             <TableCell className="text-right">{formatCurrency(detail.ingresos)}</TableCell>
                                                                             <TableCell className="text-right text-destructive">{formatCurrency(detail.egresos)}</TableCell>
