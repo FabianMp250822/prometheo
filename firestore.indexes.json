@@ -77,6 +77,10 @@
         {
           "fieldPath": "pensionadoId",
           "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "DESCENDING"
         }
       ]
     },

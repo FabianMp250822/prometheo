@@ -16,7 +16,10 @@ export async function getPensionerDetails(pensionadoId: string): Promise<Pension
     const pensionerDocRef = adminDb.collection(PENSIONADOS_COLLECTION).doc(pensionadoId);
     const parris1DocRef = adminDb.collection(PARRIS1_COLLECTION).doc(pensionadoId);
     const causanteDocRef = adminDb.collection(CAUSANTE_COLLECTION).doc(pensionadoId);
-    const procesosQuery = adminDb.collection(PROCESOS_CANCELADOS_COLLECTION).where('pensionadoId', '==', pensionadoId);
+    const procesosQuery = adminDb
+      .collection(PROCESOS_CANCELADOS_COLLECTION)
+      .where('pensionadoId', '==', pensionadoId)
+      .orderBy('creadoEn', 'desc');
     
     const [pensionerSnap, parris1Snap, causanteSnap, procesosSnap] = await Promise.all([
         pensionerDocRef.get(),
