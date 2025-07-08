@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useTransition } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, getDocs, query, doc, getDoc } from 'firebase/firestore';
 import { ProcesoCancelado, Pensioner } from '@/lib/data';
@@ -10,16 +10,17 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Gavel, Loader2, RotateCw, Download, Search, Filter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { formatCurrency, parsePeriodoPago, parseEmployeeName, parsePaymentDetailName, timestampToDate, parseDepartmentName, formatPeriodoToMonthYear } from '@/lib/helpers';
-import { Badge } from '@/components/ui/badge';
+import { formatCurrency, parsePeriodoPago, parseEmployeeName, parsePaymentDetailName, parseDepartmentName, formatPeriodoToMonthYear } from '@/lib/helpers';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
+import { syncNewProcesses } from '@/app/actions/sync-processes';
 
 const PROCESOS_CANCELADOS_COLLECTION = "procesoscancelados";
 const PENSIONADOS_COLLECTION = "pensionados";
 
 export default function SentenciasPage() {
     const [isLoading, setIsLoading] = useState(true);
+    const [isSyncing, startSyncTransition] = useTransition();
     const [procesos, setProcesos] = useState<ProcesoCancelado[]>([]);
     const { toast } = useToast();
 
@@ -49,7 +50,7 @@ export default function SentenciasPage() {
             const chunkSize = 30;
             for (let i = 0; i < pensionerIds.length; i += chunkSize) {
                 const chunk = pensionerIds.slice(i, i + chunkSize);
-                if (chunk.length === 0) continue; // Skip empty chunks
+                if (chunk.length === 0) continue;
                 const pensionerPromises = chunk.map(id => getDoc(doc(db, PENSIONADOS_COLLECTION, id)));
                 const pensionerDocs = await Promise.all(pensionerPromises);
 
@@ -72,7 +73,7 @@ export default function SentenciasPage() {
                         department: pensioner.dependencia1
                     } : undefined,
                 };
-            }).filter(p => p.pensionerInfo); // Filter out processos without pensioner info
+            }).filter(p => p.pensionerInfo);
 
             // 5. Sort by 'periodoPago' descending
             enrichedProcesos.sort((a, b) => {
@@ -87,7 +88,7 @@ export default function SentenciasPage() {
             const depts = new Set(enrichedProcesos.map(p => p.pensionerInfo?.department).filter(Boolean) as string[]);
             const years = new Set(enrichedProcesos.map(p => p.año).filter(Boolean));
             setUniqueDepartments(Array.from(depts).sort());
-            setUniqueYears(Array.from(years).sort((a, b) => Number(b) - Number(a))); // Newest years first
+            setUniqueYears(Array.from(years).sort((a, b) => Number(b) - Number(a)));
             
             toast({ title: "Datos cargados", description: `${enrichedProcesos.length} registros de procesos encontrados.` });
 
@@ -120,6 +121,29 @@ export default function SentenciasPage() {
         });
     }, [procesos, searchTerm, selectedDepartment, selectedYear]);
 
+    const handleSync = () => {
+        startSyncTransition(async () => {
+            toast({ title: 'Sincronizando...', description: 'Buscando nuevos pagos de sentencias. Esto puede tardar unos minutos.' });
+            const result = await syncNewProcesses();
+
+            if (result.success) {
+                toast({
+                    title: 'Sincronización Completa',
+                    description: `Se encontraron y guardaron ${result.count || 0} nuevos procesos.`,
+                });
+                if (result.count && result.count > 0) {
+                    loadData(); // Reload data to show new processes
+                }
+            } else {
+                toast({
+                    variant: 'destructive',
+                    title: 'Error de Sincronización',
+                    description: result.error || 'Ocurrió un error desconocido.',
+                });
+            }
+        });
+    };
+
     const exportToExcel = () => {
         if (filteredProcesos.length === 0) {
             toast({ variant: 'destructive', title: "Error", description: "No hay datos filtrados para exportar." });
@@ -130,7 +154,8 @@ export default function SentenciasPage() {
             p.conceptos.map(c => ({
                 "ID Pensionado": p.pensionadoId,
                 "Nombre Pensionado": p.pensionerInfo?.name || 'N/A',
-                "Dependencia": p.pensionerInfo?.department || 'N/A',
+                "Documento": p.pensionerInfo?.document || 'N/A',
+                "Dependencia": p.pensionerInfo?.department ? parseDepartmentName(p.pensionerInfo.department) : 'N/A',
                 "Periodo de Pago": formatPeriodoToMonthYear(p.periodoPago),
                 "Concepto": parsePaymentDetailName(c.nombre),
                 "Ingresos": c.ingresos,
@@ -164,9 +189,9 @@ export default function SentenciasPage() {
                             </div>
                         </div>
                          <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" onClick={loadData} disabled={isLoading}>
-                                <RotateCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                                Recargar
+                            <Button variant="outline" size="sm" onClick={handleSync} disabled={isSyncing}>
+                                <RotateCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                                {isSyncing ? 'Sincronizando...' : 'Recargar'}
                             </Button>
                             <Button size="sm" onClick={exportToExcel} disabled={filteredProcesos.length === 0}>
                                 <Download className="mr-2 h-4 w-4" />
@@ -193,10 +218,10 @@ export default function SentenciasPage() {
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-10"
-                                disabled={isLoading}
+                                disabled={isLoading || isSyncing}
                             />
                         </div>
-                         <Select value={selectedDepartment} onValueChange={setSelectedDepartment} disabled={isLoading || uniqueDepartments.length === 0}>
+                         <Select value={selectedDepartment} onValueChange={setSelectedDepartment} disabled={isLoading || isSyncing || uniqueDepartments.length === 0}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Filtrar por Dependencia" />
                             </SelectTrigger>
@@ -205,7 +230,7 @@ export default function SentenciasPage() {
                                 {uniqueDepartments.map(dep => <SelectItem key={dep} value={dep}>{parseDepartmentName(dep)}</SelectItem>)}
                             </SelectContent>
                         </Select>
-                         <Select value={selectedYear} onValueChange={setSelectedYear} disabled={isLoading || uniqueYears.length === 0}>
+                         <Select value={selectedYear} onValueChange={setSelectedYear} disabled={isLoading || isSyncing || uniqueYears.length === 0}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Filtrar por Año Fiscal" />
                             </SelectTrigger>
@@ -238,8 +263,8 @@ export default function SentenciasPage() {
                                         <TableHead>Pensionado</TableHead>
                                         <TableHead>Dependencia</TableHead>
                                         <TableHead>Periodo de Pago</TableHead>
-                                        <TableHead>Concepto</TableHead>
-                                        <TableHead className="text-right">Valor</TableHead>
+                                        <TableHead>Conceptos</TableHead>
+                                        <TableHead className="text-right">Valores</TableHead>
                                         <TableHead className="text-right">Total Proceso</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -248,21 +273,21 @@ export default function SentenciasPage() {
                                         const totalProceso = p.conceptos.reduce((acc, c) => acc + c.ingresos, 0);
                                         return (
                                             <TableRow key={p.id}>
-                                                <TableCell>
+                                                <TableCell className="align-middle">
                                                     <div className="font-medium">{p.pensionerInfo?.name || 'N/A'}</div>
                                                     <div className="text-xs text-muted-foreground">{p.pensionerInfo?.document}</div>
                                                 </TableCell>
-                                                <TableCell>
+                                                <TableCell className="align-middle">
                                                     {parseDepartmentName(p.pensionerInfo?.department || 'N/A')}
                                                 </TableCell>
-                                                <TableCell>{formatPeriodoToMonthYear(p.periodoPago)}</TableCell>
+                                                <TableCell className="align-middle">{formatPeriodoToMonthYear(p.periodoPago)}</TableCell>
                                                 <TableCell className="p-0 align-middle">
-                                                    <div className="divide-y">
+                                                    <div className="divide-y divide-border">
                                                         {p.conceptos.map(c => <div className="px-4 py-3" key={c.codigo}>{parsePaymentDetailName(c.nombre)}</div>)}
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="p-0 align-middle text-right">
-                                                    <div className="divide-y font-medium">
+                                                    <div className="divide-y divide-border font-medium">
                                                         {p.conceptos.map(c => <div className="px-4 py-3" key={c.codigo}>{formatCurrency(c.ingresos)}</div>)}
                                                     </div>
                                                 </TableCell>
