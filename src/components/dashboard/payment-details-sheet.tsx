@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { collection, getDocs, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Pensioner, Payment } from '@/lib/data';
-import { parsePaymentDetailName, formatCurrency, timestampToDate, parseEmployeeName, parsePeriodoPago } from '@/lib/helpers';
+import { parsePaymentDetailName, formatCurrency, parseEmployeeName, parsePeriodoPago } from '@/lib/helpers';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -104,7 +104,7 @@ export function PaymentDetailsSheet({ pensioner, isOpen, onOpenChange }: Payment
 
     const paymentsByYear = useMemo(() => {
         return payments.reduce((acc, payment) => {
-            const year = payment.año || new Date(timestampToDate(payment.fechaProcesado) || Date.now()).getFullYear().toString();
+            const year = payment.año || (payment.fechaProcesado ? new Date(payment.fechaProcesado).getFullYear().toString() : new Date().getFullYear().toString());
             if (!acc[year]) {
                 acc[year] = [];
             }

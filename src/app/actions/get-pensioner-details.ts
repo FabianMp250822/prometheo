@@ -9,6 +9,23 @@ const PARRIS1_COLLECTION = "parris1";
 const CAUSANTE_COLLECTION = "causante";
 const PROCESOS_CANCELADOS_COLLECTION = "procesoscancelados";
 
+// Helper to recursively convert Firestore Timestamps to ISO strings
+const serializeTimestamps = (data: any): any => {
+    if (!data) return data;
+    if (Array.isArray(data)) return data.map(serializeTimestamps);
+    if (typeof data === 'object') {
+        if (typeof data.toDate === 'function') {
+            return data.toDate().toISOString();
+        }
+        const res: { [key: string]: any } = {};
+        for (const key in data) {
+            res[key] = serializeTimestamps(data[key]);
+        }
+        return res;
+    }
+    return data;
+};
+
 export async function getPensionerDetails(pensionadoId: string): Promise<PensionerProfile | null> {
   if (!pensionadoId) return null;
 
@@ -33,18 +50,18 @@ export async function getPensionerDetails(pensionadoId: string): Promise<Pension
         return null;
     }
 
-    const pensioner = { id: pensionerSnap.id, ...pensionerSnap.data() } as Pensioner;
-    const parris1Data = parris1Snap.exists ? { id: parris1Snap.id, ...parris1Snap.data() } as Parris1 : null;
-    const causanteData = causanteSnap.exists ? { id: causanteSnap.id, ...causanteSnap.data() } as Causante : null;
-    const procesosCancelados = procesosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcesoCancelado));
+    const pensioner = { id: pensionerSnap.id, ...pensionerSnap.data() };
+    const parris1Data = parris1Snap.exists ? { id: parris1Snap.id, ...parris1Snap.data() } : null;
+    const causanteData = causanteSnap.exists ? { id: causanteSnap.id, ...causanteSnap.data() } : null;
+    const procesosCancelados = procesosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
     // Get all payments and find the latest one in code to be more resilient
     const allPaymentsQuery = adminDb.collection('pensionados').doc(pensionadoId).collection('pagos');
     const allPaymentsSnap = await allPaymentsQuery.get();
 
-    let lastPayment: Payment | null = null;
+    let lastPayment: any | null = null;
     if (!allPaymentsSnap.empty) {
-        const allPayments = allPaymentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
+        const allPayments = allPaymentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
         // Sort client-side to find the latest payment, safely handling potential data issues
         allPayments.sort((a, b) => {
@@ -55,13 +72,16 @@ export async function getPensionerDetails(pensionadoId: string): Promise<Pension
         lastPayment = allPayments.length > 0 ? allPayments[0] : null;
     }
 
-    return {
+    const profileData = {
         pensioner,
         parris1Data,
         causanteData,
         procesosCancelados,
         lastPayment,
     };
+
+    // The key step: serialize all data before returning from the server action
+    return serializeTimestamps(profileData) as PensionerProfile;
 
   } catch (error: any) {
     console.error(`Error fetching details for pensioner ${pensionadoId}:`, error);

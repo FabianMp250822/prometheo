@@ -1,5 +1,4 @@
 import { Sentence } from "./data";
-import type { Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -86,14 +85,6 @@ export const parsePaymentDetailName = (detailName: string): string => {
   return detailName;
 };
 
-// Helper to convert Firestore Timestamps to JS Date
-export const timestampToDate = (timestamp: Timestamp | null | undefined): Date | null => {
-  if (timestamp && typeof timestamp.toDate === 'function') {
-    return timestamp.toDate();
-  }
-  return null;
-};
-
 export const parseDepartmentName = (departmentName: string): string => {
   if (!departmentName) return 'N/A';
   // Removes prefixes like "V1-"
@@ -135,12 +126,13 @@ export const formatPeriodoToMonthYear = (periodoPago: string): string => {
     return periodoPago; // Return original if format is unexpected
 };
 
-export const formatFirebaseTimestamp = (timestamp: Timestamp | null | undefined, dateFormat = 'd MMMM yyyy'): string => {
-  if (!timestamp || typeof timestamp.toDate !== 'function') {
+export const formatFirebaseTimestamp = (timestamp: string | null | undefined, dateFormat = 'd MMMM yyyy'): string => {
+  if (!timestamp) {
     return 'N/A';
   }
   try {
-    const date = timestamp.toDate();
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return 'Fecha inválida';
     return format(date, dateFormat, { locale: es });
   } catch (error) {
     console.error("Error formatting timestamp:", error);

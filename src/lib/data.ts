@@ -66,7 +66,7 @@ export interface Payment {
   pagoId: string;
   año: string;
   periodoPago: string;
-  fechaProcesado: Timestamp;
+  fechaProcesado: string; // Changed from Timestamp
   detalles: PaymentDetail[];
 }
 
@@ -82,7 +82,7 @@ export interface ProcesoCancelado {
     id: string;
     año: string;
     conceptos: ProcesoCanceladoConcepto[];
-    creadoEn: Timestamp;
+    creadoEn: string; // Changed from Timestamp
     fechaLiquidacion: string;
     pagoId: string;
     pensionadoId: string;
@@ -98,11 +98,11 @@ export interface ProcesoCancelado {
 // Types for Pensioner Profile Page
 export interface Parris1 {
   id: string;
-  fe_adquiere: Timestamp;
-  fe_causa: Timestamp;
-  fe_ingreso: Timestamp;
-  fe_nacido: Timestamp;
-  fe_vinculado: Timestamp;
+  fe_adquiere: string; // Changed from Timestamp
+  fe_causa: string; // Changed from Timestamp
+  fe_ingreso: string; // Changed from Timestamp
+  fe_nacido: string; // Changed from Timestamp
+  fe_vinculado: string; // Changed from Timestamp
   semanas: number;
   res_nro: string;
   res_ano: number;
@@ -110,8 +110,8 @@ export interface Parris1 {
 
 export interface CausanteRecord {
   cedula_beneficiario: string;
-  fecha_desde: Timestamp;
-  fecha_hasta: Timestamp;
+  fecha_desde: string; // Changed from Timestamp
+  fecha_hasta: string; // Changed from Timestamp
   observacion: string;
   tipo_aum: string;
   valor_empresa: number;
