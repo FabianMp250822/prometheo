@@ -1,7 +1,13 @@
+'use server';
 import {onCall} from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import {initializeApp, getApps} from "firebase-admin/app";
-import {getFirestore, Timestamp} from "firebase-admin/firestore";
+import {
+  getFirestore,
+  Timestamp,
+  FieldPath,
+  DocumentSnapshot,
+} from "firebase-admin/firestore";
 
 // Initialize admin SDK if not already initialized
 if (getApps().length === 0) {
@@ -9,7 +15,7 @@ if (getApps().length === 0) {
 }
 const db = getFirestore();
 
-// Type definitions to avoid import path issues in Firebase Functions
+// Type definitions for clarity
 interface PaymentDetail {
   codigo: string | null;
   nombre: string;
@@ -32,23 +38,24 @@ interface ProcesoCanceladoConcepto {
 }
 
 const SENTENCE_CONCEPT_PREFIXES = ["470-", "785-", "475-"];
+const READ_CHUNK_SIZE = 1000; // How many payments to read from DB at a time
+const MAX_BATCH_SIZE = 499; // Max items in a Firestore batch write
 
 /**
  * Scans for new sentence-related payments and saves them to the
- * 'procesoscancelados' collection.
+ * 'procesoscancelados' collection by processing payments in chunks
+ * to avoid memory limits.
  */
 export const syncNewProcesses = onCall(async (request) => {
   if (!request.auth) {
     logger.error(
       "Unauthenticated call to syncNewProcesses. User must be logged in."
     );
-    throw new Error(
-      "unauthenticated",
-      "The user must be logged in to perform this action."
-    );
+    throw new Error("The user must be logged in to perform this action.");
   }
 
-  logger.info("Starting process synchronization for authenticated user...");
+  logger.info("Starting chunked process synchronization...");
+
   try {
     const existingProcesosSnapshot = await db
       .collection("procesoscancelados")
@@ -58,81 +65,104 @@ export const syncNewProcesses = onCall(async (request) => {
     );
     logger.info(`Found ${existingPagoIds.size} existing processed payments.`);
 
-    const allPagosSnapshot = await db.collectionGroup("pagos").get();
-    logger.info(`Scanning ${allPagosSnapshot.size} total payment documents.`);
+    let lastVisible: DocumentSnapshot | null = null;
+    let totalNewProcessesCount = 0;
+    let chunksProcessed = 0;
 
-    let batch = db.batch();
-    let newProcessesCount = 0;
-    let batchCounter = 0;
-    const MAX_BATCH_SIZE = 499;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      logger.info(`Processing chunk #${chunksProcessed + 1}...`);
+      let query = db.collectionGroup("pagos")
+        .orderBy(FieldPath.documentId())
+        .limit(READ_CHUNK_SIZE);
 
-    for (const pagoDoc of allPagosSnapshot.docs) {
-      const pago = {id: pagoDoc.id, ...pagoDoc.data()} as Payment;
-
-      const pensionerDocRef = pagoDoc.ref.parent.parent;
-      if (!pensionerDocRef) {
-        logger.warn(`Could not find parent for pagoDoc ${pagoDoc.id}`);
-        continue;
-      }
-      const pensionerId = pensionerDocRef.id;
-
-      if (!pago.pagoId || existingPagoIds.has(pago.pagoId)) {
-        continue;
+      if (lastVisible) {
+        query = query.startAfter(lastVisible);
       }
 
-      const sentenceConcepts = pago.detalles.filter((detail) =>
-        SENTENCE_CONCEPT_PREFIXES.some((prefix) =>
-          detail.nombre?.startsWith(prefix)
-        )
-      );
+      const pagosChunkSnapshot = await query.get();
 
-      if (sentenceConcepts.length > 0) {
-        const newProcessDocRef = db.collection("procesoscancelados").doc();
+      if (pagosChunkSnapshot.empty) {
+        logger.info("No more payment documents to process.");
+        break; // Exit loop when no more documents are found
+      }
 
-        const fechaLiquidacionDate = pago.fechaProcesado?.toDate ?
-          pago.fechaProcesado.toDate() :
-          new Date();
+      const docs = pagosChunkSnapshot.docs;
+      lastVisible = docs[docs.length - 1];
+      chunksProcessed++;
 
-        const newProcessData = {
-          año: pago.año,
-          conceptos: sentenceConcepts.map((c): ProcesoCanceladoConcepto => ({
-            codigo: c.codigo || c.nombre?.split("-")[0] || "",
-            nombre: c.nombre,
-            ingresos: c.ingresos,
-            egresos: c.egresos,
-          })),
-          creadoEn: Timestamp.now(),
-          fechaLiquidacion: fechaLiquidacionDate.toISOString(),
-          pagoId: pago.pagoId,
-          pensionadoId: pensionerId,
-          periodoPago: pago.periodoPago,
-        };
+      let batch = db.batch();
+      let batchCounter = 0;
 
-        batch.set(newProcessDocRef, newProcessData);
-        newProcessesCount++;
-        batchCounter++;
-        existingPagoIds.add(pago.pagoId);
+      for (const pagoDoc of docs) {
+        const pago = {id: pagoDoc.id, ...pagoDoc.data()} as Payment;
 
-        if (batchCounter >= MAX_BATCH_SIZE) {
-          await batch.commit();
-          logger.info(`Committed a batch of ${batchCounter} new processes.`);
-          batch = db.batch();
-          batchCounter = 0;
+        if (!pago.pagoId || existingPagoIds.has(pago.pagoId)) {
+          continue;
+        }
+
+        const pensionerDocRef = pagoDoc.ref.parent.parent;
+        if (!pensionerDocRef) {
+          logger.warn(`Could not find parent for pagoDoc ${pagoDoc.id}`);
+          continue;
+        }
+        const pensionerId = pensionerDocRef.id;
+
+        const sentenceConcepts = pago.detalles.filter((detail) =>
+          SENTENCE_CONCEPT_PREFIXES.some((prefix) =>
+            detail.nombre?.startsWith(prefix)
+          )
+        );
+
+        if (sentenceConcepts.length > 0) {
+          const newProcessDocRef = db.collection("procesoscancelados").doc();
+          const fechaLiquidacionDate = pago.fechaProcesado?.toDate ?
+            pago.fechaProcesado.toDate() :
+            new Date();
+
+          const newProcessData = {
+            año: pago.año,
+            conceptos: sentenceConcepts.map((c): ProcesoCanceladoConcepto => ({
+              codigo: c.codigo || c.nombre?.split("-")[0] || "",
+              nombre: c.nombre,
+              ingresos: c.ingresos,
+              egresos: c.egresos,
+            })),
+            creadoEn: Timestamp.now(),
+            fechaLiquidacion: fechaLiquidacionDate.toISOString(),
+            pagoId: pago.pagoId,
+            pensionadoId: pensionerId,
+            periodoPago: pago.periodoPago,
+          };
+
+          batch.set(newProcessDocRef, newProcessData);
+          batchCounter++;
+          totalNewProcessesCount++;
+          existingPagoIds.add(pago.pagoId);
+
+          if (batchCounter >= MAX_BATCH_SIZE) {
+            await batch.commit();
+            const msg = `Committed batch of ${batchCounter} new processes.`;
+            logger.info(msg);
+            batch = db.batch();
+            batchCounter = 0;
+          }
         }
       }
+
+      if (batchCounter > 0) {
+        await batch.commit();
+        const msg = `Committed final batch of ${batchCounter} for chunk.`;
+        logger.info(msg);
+      }
     }
 
-    if (batchCounter > 0) {
-      await batch.commit();
-      logger.info(`Committed final batch of ${batchCounter} new processes.`);
-    }
-
-    logger.info(
-      `Synchronization complete. Found ${newProcessesCount} new processes.`
-    );
-    return {success: true, count: newProcessesCount};
+    const finalMsg =
+      `Sync complete. Found ${totalNewProcessesCount} new processes.`;
+    logger.info(finalMsg);
+    return {success: true, count: totalNewProcessesCount};
   } catch (error) {
-    logger.error("Error during process synchronization:", error);
+    logger.error("Error during chunked process synchronization:", error);
     throw new Error("An unexpected error occurred during synchronization.");
   }
 });
