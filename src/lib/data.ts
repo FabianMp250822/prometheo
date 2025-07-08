@@ -68,3 +68,28 @@ export interface Payment {
   fechaProcesado: Timestamp;
   detalles: PaymentDetail[];
 }
+
+// New type for Procesos Cancelados
+export interface ProcesoCanceladoConcepto {
+    codigo: string;
+    egresos: number;
+    ingresos: number;
+    nombre: string;
+}
+
+export interface ProcesoCancelado {
+    id: string;
+    año: string;
+    conceptos: ProcesoCanceladoConcepto[];
+    creadoEn: Timestamp;
+    fechaLiquidacion: string;
+    pagoId: string;
+    pensionadoId: string;
+    periodoPago: string;
+    pensionerInfo?: {
+        name: string;
+        document: string;
+        department: string;
+    };
+    totalAmount: number;
+}
