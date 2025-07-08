@@ -8,6 +8,7 @@ import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, S
 import { Scale, LayoutGrid, TrendingUp, Banknote, BarChart2, Settings, LogOut, User as UserIcon, Gavel, Database, FileUp, FileClock, BookUser } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
+import Link from 'next/link';
 
 export default function DashboardLayout({
   children,
@@ -59,57 +60,75 @@ export default function DashboardLayout({
         <SidebarContent>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton href="/dashboard" tooltip="Dashboard">
-                <LayoutGrid />
-                <span className="group-data-[collapsible=icon]:hidden">Dashboard</span>
+              <SidebarMenuButton asChild tooltip="Dashboard">
+                <Link href="/dashboard">
+                  <LayoutGrid />
+                  <span className="group-data-[collapsible=icon]:hidden">Dashboard</span>
+                </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
              <SidebarMenuItem>
-                <SidebarMenuButton href="/dashboard/sentencias" tooltip="Análisis de Sentencias" >
-                  <Gavel />
-                  <span className="group-data-[collapsible=icon]:hidden">Análisis de Sentencias</span>
+                <SidebarMenuButton asChild tooltip="Análisis de Sentencias" >
+                  <Link href="/dashboard/sentencias">
+                    <Gavel />
+                    <span className="group-data-[collapsible=icon]:hidden">Análisis de Sentencias</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton href="/dashboard/liquidaciones" tooltip="Liquidaciones" >
-                  <TrendingUp />
-                  <span className="group-data-[collapsible=icon]:hidden">Liquidaciones</span>
+                <SidebarMenuButton asChild tooltip="Liquidaciones" >
+                  <Link href="/dashboard/liquidaciones">
+                    <TrendingUp />
+                    <span className="group-data-[collapsible=icon]:hidden">Liquidaciones</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton href="/dashboard/pagos" tooltip="Pagos" >
-                  <Banknote />
-                  <span className="group-data-[collapsible=icon]:hidden">Pagos</span>
+                <SidebarMenuButton asChild tooltip="Pagos" >
+                  <Link href="/dashboard/pagos">
+                    <Banknote />
+                    <span className="group-data-[collapsible=icon]:hidden">Pagos</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton href="/dashboard/reportes" tooltip="Reportes">
-                  <BarChart2 />
-                  <span className="group-data-[collapsible=icon]:hidden">Reportes</span>
+                <SidebarMenuButton asChild tooltip="Reportes">
+                  <Link href="/dashboard/reportes">
+                    <BarChart2 />
+                    <span className="group-data-[collapsible=icon]:hidden">Reportes</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton href="/dashboard/maestros" tooltip="Maestros">
-                  <Database />
-                  <span className="group-data-[collapsible=icon]:hidden">Maestros</span>
+                <SidebarMenuButton asChild tooltip="Maestros">
+                  <Link href="/dashboard/maestros">
+                    <Database />
+                    <span className="group-data-[collapsible=icon]:hidden">Maestros</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton href="/dashboard/historial-cargas" tooltip="Historial de Cargas">
-                  <FileUp />
-                  <span className="group-data-[collapsible=icon]:hidden">Historial de Cargas</span>
+                <SidebarMenuButton asChild tooltip="Historial de Cargas">
+                  <Link href="/dashboard/historial-cargas">
+                    <FileUp />
+                    <span className="group-data-[collapsible=icon]:hidden">Historial de Cargas</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton href="/dashboard/gestion-demandas" tooltip="Gestión de Demandas">
-                  <FileClock />
-                  <span className="group-data-[collapsible=icon]:hidden">Gestión de Demandas</span>
+                <SidebarMenuButton asChild tooltip="Gestión de Demandas">
+                  <Link href="/dashboard/gestion-demandas">
+                    <FileClock />
+                    <span className="group-data-[collapsible=icon]:hidden">Gestión de Demandas</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton href="/dashboard/usuarios" tooltip="Usuarios">
-                  <BookUser />
-                  <span className="group-data-[collapsible=icon]:hidden">Usuarios</span>
+                <SidebarMenuButton asChild tooltip="Usuarios">
+                  <Link href="/dashboard/usuarios">
+                    <BookUser />
+                    <span className="group-data-[collapsible=icon]:hidden">Usuarios</span>
+                  </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
           </SidebarMenu>
@@ -118,22 +137,26 @@ export default function DashboardLayout({
             <SidebarSeparator />
             <SidebarMenu>
                 <SidebarMenuItem>
-                <SidebarMenuButton href="/dashboard/mi-perfil" tooltip="Mi Perfil">
-                    <UserIcon />
-                    <span className="group-data-[collapsible=icon]:hidden">Mi Perfil</span>
-                </SidebarMenuButton>
+                  <SidebarMenuButton asChild tooltip="Mi Perfil">
+                    <Link href="/dashboard/mi-perfil">
+                      <UserIcon />
+                      <span className="group-data-[collapsible=icon]:hidden">Mi Perfil</span>
+                    </Link>
+                  </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                <SidebarMenuButton href="/dashboard/configuracion" tooltip="Configuración">
-                    <Settings />
-                    <span className="group-data-[collapsible=icon]:hidden">Configuración</span>
-                </SidebarMenuButton>
+                  <SidebarMenuButton asChild tooltip="Configuración">
+                    <Link href="/dashboard/configuracion">
+                      <Settings />
+                      <span className="group-data-[collapsible=icon]:hidden">Configuración</span>
+                    </Link>
+                  </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
-                <SidebarMenuButton onClick={handleLogout} tooltip="Cerrar Sesión">
-                    <LogOut />
-                    <span className="group-data-[collapsible=icon]:hidden">Cerrar Sesión</span>
-                </SidebarMenuButton>
+                  <SidebarMenuButton onClick={handleLogout} tooltip="Cerrar Sesión">
+                      <LogOut />
+                      <span className="group-data-[collapsible=icon]:hidden">Cerrar Sesión</span>
+                  </SidebarMenuButton>
                 </SidebarMenuItem>
             </SidebarMenu>
         </SidebarFooter>
