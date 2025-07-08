@@ -91,3 +91,9 @@ export const timestampToDate = (timestamp: Timestamp | null | undefined): Date |
   }
   return null;
 };
+
+export const parseDepartmentName = (departmentName: string): string => {
+  if (!departmentName) return 'N/A';
+  // Removes prefixes like "V1-"
+  return departmentName.replace(/^V\d+-/, '').trim();
+};

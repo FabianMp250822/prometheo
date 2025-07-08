@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Gavel, Loader2, RotateCw, Download, Search, Filter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { formatCurrency, parsePeriodoPago, parseEmployeeName, parsePaymentDetailName, timestampToDate } from '@/lib/helpers';
+import { formatCurrency, parsePeriodoPago, parseEmployeeName, parsePaymentDetailName, timestampToDate, parseDepartmentName } from '@/lib/helpers';
 import { Badge } from '@/components/ui/badge';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
@@ -205,7 +205,7 @@ export default function SentenciasPage() {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">Todas las Dependencias</SelectItem>
-                                {uniqueDepartments.map(dep => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
+                                {uniqueDepartments.map(dep => <SelectItem key={dep} value={dep}>{parseDepartmentName(dep)}</SelectItem>)}
                             </SelectContent>
                         </Select>
                          <Select value={selectedYear} onValueChange={setSelectedYear} disabled={isLoading || uniqueYears.length === 0}>
@@ -239,6 +239,7 @@ export default function SentenciasPage() {
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead>Pensionado</TableHead>
+                                        <TableHead>Dependencia</TableHead>
                                         <TableHead>Periodo de Pago</TableHead>
                                         <TableHead>Conceptos</TableHead>
                                         <TableHead className="text-right">Monto Total</TableHead>
@@ -251,7 +252,9 @@ export default function SentenciasPage() {
                                             <TableCell>
                                                 <div className="font-medium">{proceso.pensionerInfo?.name || 'N/A'}</div>
                                                 <div className="text-xs text-muted-foreground">{proceso.pensionerInfo?.document}</div>
-                                                <Badge variant="outline" className="mt-1">{proceso.pensionerInfo?.department}</Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                {parseDepartmentName(proceso.pensionerInfo?.department || 'N/A')}
                                             </TableCell>
                                             <TableCell>{proceso.periodoPago}</TableCell>
                                             <TableCell>
@@ -271,7 +274,7 @@ export default function SentenciasPage() {
                                     ))}
                                     {filteredProcesos.length === 0 && !isLoading && (
                                         <TableRow>
-                                            <TableCell colSpan={5} className="text-center text-muted-foreground">
+                                            <TableCell colSpan={6} className="text-center text-muted-foreground">
                                                 No se encontraron datos con los filtros aplicados.
                                             </TableCell>
                                         </TableRow>
