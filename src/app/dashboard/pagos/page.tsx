@@ -12,6 +12,7 @@ import { Banknote, Search, Loader2, ChevronsLeft, ChevronLeft, ChevronRight, Che
 import { Pensioner } from '@/lib/data';
 import { parseEmployeeName } from '@/lib/helpers';
 import { PaymentDetailsSheet } from '@/components/dashboard/payment-details-sheet';
+import { usePensioner } from '@/context/pensioner-provider';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -29,7 +30,7 @@ export default function PagosPage() {
     });
     
     const [currentPage, setCurrentPage] = useState(0);
-    const [selectedPensioner, setSelectedPensioner] = useState<Pensioner | null>(null);
+    const { selectedPensioner, setSelectedPensioner } = usePensioner();
 
     // Fetch all data on initial load
     useEffect(() => {

@@ -37,40 +37,28 @@ export function GlobalHeader() {
         setIsSearching(true);
         try {
             const isNumeric = /^\d+$/.test(searchVal);
-            
-            let finalResults: Pensioner[] = [];
-            const resultsMap = new Map<string, Pensioner>();
+            let pensionersQuery;
 
-            // Query by document if numeric
             if (isNumeric) {
-                const docQuery = query(
+                pensionersQuery = query(
                     collection(db, "pensionados"),
                     where("documento", ">=", searchVal),
                     where("documento", "<=", searchVal + '\uf8ff'),
-                    limit(5)
+                    limit(10)
                 );
-                const docSnap = await getDocs(docQuery);
-                docSnap.forEach(doc => {
-                    const data = { id: doc.id, ...doc.data() } as Pensioner;
-                    resultsMap.set(data.id, data);
-                });
+            } else {
+                pensionersQuery = query(
+                    collection(db, "pensionados"),
+                    where("empleado", ">=", searchVal.toUpperCase()),
+                    where("empleado", "<=", searchVal.toUpperCase() + '\uf8ff'),
+                    limit(10)
+                );
             }
 
-            // Always query by name
-            const nameQuery = query(
-                collection(db, "pensionados"),
-                where("empleado", ">=", searchVal.toUpperCase()),
-                where("empleado", "<=", searchVal.toUpperCase() + '\uf8ff'),
-                limit(10)
-            );
-            const nameSnap = await getDocs(nameQuery);
-            nameSnap.forEach(doc => {
-                const data = { id: doc.id, ...doc.data() } as Pensioner;
-                resultsMap.set(data.id, data);
-            });
-            
-            finalResults = Array.from(resultsMap.values());
-            setSearchResults(finalResults);
+            const querySnapshot = await getDocs(pensionersQuery);
+            const pensionersData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
+            setSearchResults(pensionersData);
+
         } catch (error) {
             console.error("Error searching pensioners:", error);
             setSearchResults([]);
