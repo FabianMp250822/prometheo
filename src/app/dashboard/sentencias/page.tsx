@@ -141,6 +141,7 @@ export default function SentenciasPage() {
                         variant: 'destructive',
                         title: 'Error de Sincronización',
                         description: result.error || 'Ocurrió un error inesperado.',
+                        duration: 15000,
                     });
                 }
             } catch (error: any) {

@@ -12,7 +12,8 @@ const MAX_BATCH_SIZE = 499;
  * Scans for new sentence-related payments for the year 2025 and saves them
  * to the 'procesoscancelados' collection. This server action processes
  * payments in chunks to avoid memory limits and timeouts.
- * This version uses idempotent writes to avoid pre-loading existing IDs.
+ * This version uses idempotent writes and filters by year at the query level,
+ * which requires a Firestore index for performance.
  */
 export async function syncNewProcesses(): Promise<{ success: boolean; count: number; error?: string }> {
     console.log("Starting idempotent process synchronization for year 2025 from server action...");
@@ -26,7 +27,11 @@ export async function syncNewProcesses(): Promise<{ success: boolean; count: num
         while (true) {
             console.log(`Processing chunk #${chunksProcessed + 1}...`);
             
+            // This query now filters by year. It REQUIRES a composite index in Firestore.
+            // If the index is missing, this will throw a FAILED_PRECONDITION error.
+            // The Firebase console logs will provide a direct link to create the index.
             let query = adminDb.collectionGroup("pagos")
+                .where("año", "==", "2025")
                 .orderBy(FieldPath.documentId())
                 .limit(READ_CHUNK_SIZE);
 
@@ -37,7 +42,7 @@ export async function syncNewProcesses(): Promise<{ success: boolean; count: num
             const pagosChunkSnapshot = await query.get();
 
             if (pagosChunkSnapshot.empty) {
-                console.log("No more payment documents to process.");
+                console.log("No more payment documents to process for 2025.");
                 break; // Exit loop when no more documents are found
             }
 
@@ -51,16 +56,10 @@ export async function syncNewProcesses(): Promise<{ success: boolean; count: num
             for (const pagoDoc of docs) {
                 const pago = { id: pagoDoc.id, ...pagoDoc.data() } as Payment;
 
-                // Manually filter for year 2025 to avoid needing a composite index
-                if (pago.año !== "2025") {
-                    continue;
-                }
-
                 if (!pago.pagoId) {
                     continue;
                 }
 
-                // Defensive check to prevent crashes on inconsistent data
                 if (!pago.detalles || !Array.isArray(pago.detalles)) {
                     console.warn(`Skipping payment ${pagoDoc.id} due to missing or invalid 'detalles' field.`);
                     continue;
@@ -80,7 +79,6 @@ export async function syncNewProcesses(): Promise<{ success: boolean; count: num
                 );
 
                 if (sentenceConcepts.length > 0) {
-                    // Use pago.pagoId as the document ID for idempotency.
                     const newProcessDocRef = adminDb.collection("procesoscancelados").doc(pago.pagoId);
                     
                     const fechaLiquidacionDate = pago.fechaProcesado?.toDate ?
@@ -126,6 +124,13 @@ export async function syncNewProcesses(): Promise<{ success: boolean; count: num
         return { success: true, count: totalProcessesProcessedCount };
     } catch (error: any) {
         console.error("Error during server action process synchronization:", error);
+        
+        // Specifically check for the FAILED_PRECONDITION error which indicates a missing index.
+        if (error.code === 'failed-precondition' || (error.message && error.message.includes('FAILED_PRECONDITION'))) {
+             const detailedError = "La consulta falló porque falta un índice en Firestore. Revisa los logs de Firebase (Cloud Run) para encontrar un enlace y crear el índice automáticamente.";
+            return { success: false, count: 0, error: detailedError };
+        }
+        
         return { success: false, count: 0, error: "An unexpected error occurred during synchronization." };
     }
 }
