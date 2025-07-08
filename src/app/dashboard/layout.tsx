@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-provider';
 import { auth } from '@/lib/firebase';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarSeparator } from '@/components/ui/sidebar';
-import { Scale, LayoutGrid, TrendingUp, Banknote, BarChart2, Settings, LogOut, User as UserIcon, Gavel, Database, FileUp, FileClock, BookUser } from 'lucide-react';
+import { Scale, LayoutGrid, TrendingUp, Banknote, BarChart2, Settings, LogOut, User as UserIcon, Gavel, Database, FileUp, FileClock, BookUser, UserSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { GlobalHeader } from '@/components/dashboard/global-header';
+import { usePensioner } from '@/context/pensioner-provider';
 
 export default function DashboardLayout({
   children,
@@ -17,6 +18,7 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const { user, loading } = useAuth();
+  const { selectedPensioner } = usePensioner();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -68,6 +70,16 @@ export default function DashboardLayout({
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
+            {selectedPensioner && (
+               <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Hoja de Vida">
+                  <Link href="/dashboard/pensionado">
+                    <UserSquare />
+                    <span className="group-data-[collapsible=icon]:hidden">Hoja de Vida</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
              <SidebarMenuItem>
                 <SidebarMenuButton asChild tooltip="Análisis de Sentencias" >
                   <Link href="/dashboard/sentencias">

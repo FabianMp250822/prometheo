@@ -94,3 +94,40 @@ export interface ProcesoCancelado {
     };
     totalAmount: number;
 }
+
+// Types for Pensioner Profile Page
+export interface Parris1 {
+  id: string;
+  fe_adquiere: Timestamp;
+  fe_causa: Timestamp;
+  fe_ingreso: Timestamp;
+  fe_nacido: Timestamp;
+  fe_vinculado: Timestamp;
+  semanas: number;
+  res_nro: string;
+  res_ano: number;
+}
+
+export interface CausanteRecord {
+  cedula_beneficiario: string;
+  fecha_desde: Timestamp;
+  fecha_hasta: Timestamp;
+  observacion: string;
+  tipo_aum: string;
+  valor_empresa: number;
+  valor_iss: number;
+}
+
+export interface Causante {
+  id: string;
+  cedula_causante: string;
+  records: CausanteRecord[];
+}
+
+export interface PensionerProfile {
+    pensioner: Pensioner;
+    parris1Data: Parris1 | null;
+    causanteData: Causante | null;
+    procesosCancelados: ProcesoCancelado[];
+    lastPayment: Payment | null;
+}

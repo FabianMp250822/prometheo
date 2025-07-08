@@ -1,5 +1,7 @@
 import { Sentence } from "./data";
 import type { Timestamp } from 'firebase/firestore';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 
 export const formatCurrency = (amount: number) => {
@@ -106,18 +108,42 @@ export const formatPeriodoToMonthYear = (periodoPago: string): string => {
         'may': 'Mayo', 'jun': 'Junio', 'jul': 'Julio', 'ago': 'Agosto', 
         'sep': 'Septiembre', 'oct': 'Octubre', 'nov': 'Noviembre', 'dic': 'Diciembre'
     };
-
-    const match = periodoPago.match(/(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\.?\s(\d{4})/i);
     
-    if (match) {
-        const monthStr = match[1].toLowerCase();
-        const year = match[2];
-        const fullMonth = fullMonthMap[monthStr as keyof typeof fullMonthMap];
-        
-        if (fullMonth) {
-            return `${fullMonth} ${year}`;
+    const cleanedPeriodo = periodoPago.toLowerCase().replace(/\./g, '');
+    const parts = cleanedPeriodo.split(' a ');
+
+    // Try to match "mes año" format first
+    const monthYearMatch = cleanedPeriodo.match(/(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\s(\d{4})/);
+    if (monthYearMatch) {
+      const monthStr = monthYearMatch[1];
+      const year = monthYearMatch[2];
+      return `${fullMonthMap[monthStr] || monthStr} ${year}`;
+    }
+
+    // Fallback to parsing start date of period
+    if (parts.length > 0) {
+        const dateParts = parts[0].trim().split(' ');
+        if (dateParts.length === 3) {
+            const [, monthStr, year] = dateParts;
+            const month = fullMonthMap[monthStr as keyof typeof fullMonthMap];
+            if (month) {
+                return `${month} ${year}`;
+            }
         }
     }
 
     return periodoPago; // Return original if format is unexpected
+};
+
+export const formatFirebaseTimestamp = (timestamp: Timestamp | null | undefined, dateFormat = 'd MMMM yyyy'): string => {
+  if (!timestamp || typeof timestamp.toDate !== 'function') {
+    return 'N/A';
+  }
+  try {
+    const date = timestamp.toDate();
+    return format(date, dateFormat, { locale: es });
+  } catch (error) {
+    console.error("Error formatting timestamp:", error);
+    return 'Fecha inválida';
+  }
 };
