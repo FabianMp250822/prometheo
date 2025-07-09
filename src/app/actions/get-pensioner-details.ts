@@ -29,17 +29,25 @@ export async function getPensionerDetails(documento: string): Promise<PensionerP
 
     let pensionerDoc;
     try {
-        // Step 1: Find the pensioner using their national ID ('documento'). This is the only critical step.
-        const pensionerQuery = await adminDb.collection(PENSIONADOS_COLLECTION)
-            .where('documento', '==', documento)
-            .limit(1)
-            .get();
+        // Step 1: Get the pensioner document directly by its ID, which is the 'documento'.
+        // This is more efficient and robust than a 'where' query.
+        const pensionerDocRef = adminDb.collection(PENSIONADOS_COLLECTION).doc(documento);
+        pensionerDoc = await pensionerDocRef.get();
 
-        if (pensionerQuery.empty) {
-            console.warn(`No pensionado encontrado con documento: ${documento}`);
-            return null;
+        if (!pensionerDoc.exists) {
+            console.warn(`No pensioner found with document ID: ${documento}`);
+            // Attempt to find by field as a fallback, just in case.
+             const pensionerQuery = await adminDb.collection(PENSIONADOS_COLLECTION)
+                .where('documento', '==', documento)
+                .limit(1)
+                .get();
+
+            if (pensionerQuery.empty) {
+                console.warn(`No pensionado encontrado con documento (field search): ${documento}`);
+                return null;
+            }
+            pensionerDoc = pensionerQuery.docs[0];
         }
-        pensionerDoc = pensionerQuery.docs[0];
     } catch (error) {
         console.error(`Error fetching main pensioner document for ${documento}:`, error);
         // If we can't get the main document, we must throw an error as we cannot proceed.
@@ -47,7 +55,7 @@ export async function getPensionerDetails(documento: string): Promise<PensionerP
     }
     
     const pensioner = { id: pensionerDoc.id, ...pensionerDoc.data() };
-    const pensionerFirestoreId = pensionerDoc.id; // Correctly store the Firestore document ID
+    const pensionerFirestoreId = pensionerDoc.id;
 
     // --- Resilient Data Fetching for secondary collections ---
     // Each fetch is wrapped in a try-catch to prevent a single failure from crashing the entire process.
@@ -80,7 +88,6 @@ export async function getPensionerDetails(documento: string): Promise<PensionerP
     
     let procesosCancelados: any[] = [];
     try {
-        // **FIXED**: Query using the correct pensioner's Firestore Document ID
         const procesosQuery = await adminDb.collection(PROCESOS_CANCELADOS_COLLECTION)
             .where('pensionadoId', '==', pensionerFirestoreId)
             .get();
@@ -93,7 +100,7 @@ export async function getPensionerDetails(documento: string): Promise<PensionerP
         });
         procesosCancelados = fetchedProcesos;
     } catch (e) {
-        console.warn(`Could not fetch procesosCancelados for ${documento}:`, e);
+        console.warn(`Could not fetch procesosCancelados for ${documento} using ID ${pensionerFirestoreId}:`, e);
     }
 
     let lastPayment: any | null = null;
