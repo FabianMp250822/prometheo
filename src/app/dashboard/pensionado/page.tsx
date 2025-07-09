@@ -51,7 +51,7 @@ export default function PensionadoPage() {
             setProfile(null);
             setIsLoading(false);
         }
-    }, [selectedPensioner]);
+    }, [selectedPensioner?.documento]);
 
     if (isLoading) {
         return (
