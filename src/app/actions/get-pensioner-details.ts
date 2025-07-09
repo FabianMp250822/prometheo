@@ -61,31 +61,38 @@ export async function getPensionerDetails(pensionadoId: string): Promise<Pension
         return dateB - dateA;
     });
 
-    // OPTIMIZED and ROBUST last payment fetching
     let lastPayment: any | null = null;
-    const paymentsCollectionRef = adminDb.collection('pensionados').doc(pensionadoId).collection('pagos');
-    // Step 1: Fetch only the date field from all payment docs to keep data size small
-    const paymentsDateQuery = paymentsCollectionRef.select('fechaProcesado');
-    const paymentsDateSnap = await paymentsDateQuery.get();
+    try {
+        // OPTIMIZED and ROBUST last payment fetching
+        const paymentsCollectionRef = adminDb.collection('pensionados').doc(pensionadoId).collection('pagos');
+        // Step 1: Fetch only the date field from all payment docs to keep data size small
+        const paymentsDateQuery = paymentsCollectionRef.select('fechaProcesado');
+        const paymentsDateSnap = await paymentsDateQuery.get();
 
-    if (!paymentsDateSnap.empty) {
-        // Step 2: Find the ID of the latest payment in-code
-        let latestPaymentInfo = { id: '', time: 0 };
+        if (!paymentsDateSnap.empty) {
+            // Step 2: Find the ID of the latest payment in-code
+            let latestPaymentInfo = { id: '', time: 0 };
 
-        paymentsDateSnap.docs.forEach(doc => {
-            const data = doc.data();
-            const date = (data.fechaProcesado && typeof data.fechaProcesado.toDate === 'function') ? data.fechaProcesado.toDate().getTime() : 0;
-            if (date > latestPaymentInfo.time) {
-                latestPaymentInfo = { id: doc.id, time: date };
+            paymentsDateSnap.docs.forEach(doc => {
+                const data = doc.data();
+                const date = (data.fechaProcesado && typeof data.fechaProcesado.toDate === 'function') ? data.fechaProcesado.toDate().getTime() : 0;
+                if (date > latestPaymentInfo.time) {
+                    latestPaymentInfo = { id: doc.id, time: date };
+                }
+            });
+
+            // Step 3: Fetch the single, full document for the latest payment
+            if (latestPaymentInfo.id) {
+                const lastPaymentDoc = await paymentsCollectionRef.doc(latestPaymentInfo.id).get();
+                lastPayment = { id: lastPaymentDoc.id, ...lastPaymentDoc.data() };
             }
-        });
-
-        // Step 3: Fetch the single, full document for the latest payment
-        if (latestPaymentInfo.id) {
-            const lastPaymentDoc = await paymentsCollectionRef.doc(latestPaymentInfo.id).get();
-            lastPayment = { id: lastPaymentDoc.id, ...lastPaymentDoc.data() };
         }
+    } catch (e) {
+        console.warn(`Could not fetch last payment for pensioner ${pensionadoId}. This may be due to a timeout or data inconsistency. The rest of the profile will be loaded.`, e);
+        // We set lastPayment to null and continue, not re-throwing the error.
+        lastPayment = null;
     }
+
 
     const profileData = {
         pensioner,
