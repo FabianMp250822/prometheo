@@ -61,7 +61,6 @@ export async function getPensionerDetails(documento: string): Promise<PensionerP
             ? { id: causanteQuery.docs[0].id, ...causanteQuery.docs[0].data() }
             : null;
 
-        // The linking field in procesoscancelados is also the national ID
         const procesosQuery = await adminDb.collection(PROCESOS_CANCELADOS_COLLECTION)
             .where('pensionadoId', '==', documento)
             .get();
