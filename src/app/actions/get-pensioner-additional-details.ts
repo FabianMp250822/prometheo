@@ -1,11 +1,8 @@
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
-import type { Parris1, Causante, ProcesoCancelado, Payment, PensionerProfile } from '@/lib/data';
+import type { Payment } from '@/lib/data';
 
-const PARRIS1_COLLECTION = "parris1";
-const CAUSANTE_COLLECTION = "causante";
-const PROCESOS_CANCELADOS_COLLECTION = "procesoscancelados";
 const PENSIONADOS_COLLECTION = "pensionados";
 
 const serializeTimestamps = (data: any): any => {
@@ -24,52 +21,11 @@ const serializeTimestamps = (data: any): any => {
     return data;
 };
 
-export type PensionerAdditionalData = Pick<PensionerProfile, 'parris1Data' | 'causanteData' | 'procesosCancelados' | 'lastPayment'>;
+export interface LastPaymentData {
+    lastPayment: Payment | null;
+}
 
-export async function getPensionerAdditionalDetails(documento: string, pensionerFirestoreId: string): Promise<PensionerAdditionalData> {
-
-    let parris1Data: Parris1 | null = null;
-    try {
-        const parris1Query = await adminDb.collection(PARRIS1_COLLECTION)
-            .where('cedula', '==', documento)
-            .limit(1)
-            .get();
-        if (!parris1Query.empty) {
-            parris1Data = { id: parris1Query.docs[0].id, ...parris1Query.docs[0].data() } as Parris1;
-        }
-    } catch (e) {
-        console.warn(`Could not fetch parris1 data for ${documento}:`, e);
-    }
-
-    let causanteData: Causante | null = null;
-    try {
-        const causanteQuery = await adminDb.collection(CAUSANTE_COLLECTION)
-            .where('cedula_causante', '==', documento)
-            .limit(1)
-            .get();
-        if (!causanteQuery.empty) {
-            causanteData = { id: causanteQuery.docs[0].id, ...causanteQuery.docs[0].data() } as Causante;
-        }
-    } catch (e) {
-        console.warn(`Could not fetch causante data for ${documento}:`, e);
-    }
-    
-    let procesosCancelados: any[] = [];
-    try {
-        const procesosQuery = await adminDb.collection(PROCESOS_CANCELADOS_COLLECTION)
-            .where('pensionadoId', '==', pensionerFirestoreId)
-            .get();
-        
-        const fetchedProcesos = procesosQuery.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        fetchedProcesos.sort((a: any, b: any) => {
-            const dateA = (a.creadoEn?.toDate?.())?.getTime?.() || 0;
-            const dateB = (b.creadoEn?.toDate?.())?.getTime?.() || 0;
-            return dateB - dateA;
-        });
-        procesosCancelados = fetchedProcesos;
-    } catch (e) {
-        console.warn(`Could not fetch procesosCancelados for ${documento} using ID ${pensionerFirestoreId}:`, e);
-    }
+export async function getPensionerAdditionalDetails(pensionerFirestoreId: string): Promise<LastPaymentData> {
 
     let lastPayment: any | null = null;
     try {
@@ -90,15 +46,9 @@ export async function getPensionerAdditionalDetails(documento: string, pensioner
             }
         }
     } catch (e) {
-        console.warn(`Could not fetch last payment for ${documento}:`, e);
+        console.warn(`Could not fetch last payment for pensioner ID ${pensionerFirestoreId}:`, e);
+        // Do not throw, just return null so the page can render gracefully.
     }
 
-    const additionalData = {
-        parris1Data,
-        causanteData,
-        procesosCancelados,
-        lastPayment,
-    };
-
-    return serializeTimestamps(additionalData) as PensionerAdditionalData;
+    return serializeTimestamps({ lastPayment }) as LastPaymentData;
 }

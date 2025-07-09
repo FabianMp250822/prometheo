@@ -2,13 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { usePensioner } from '@/context/pensioner-provider';
-import { getPensionerAdditionalDetails, type PensionerAdditionalData } from '@/app/actions/get-pensioner-additional-details';
+import { getPensionerAdditionalDetails, type LastPaymentData } from '@/app/actions/get-pensioner-additional-details';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { UserSquare, ServerCrash, FileText, Landmark, History, Calendar, Hash, Tag, Scale } from 'lucide-react';
-import { formatCurrency, formatFirebaseTimestamp, parseEmployeeName, parsePaymentDetailName, formatPeriodoToMonthYear, parseDepartmentName } from '@/lib/helpers';
-import { Badge } from '@/components/ui/badge';
+import { UserSquare, ServerCrash, History, Landmark, Hash, Tag } from 'lucide-react';
+import { formatCurrency, formatFirebaseTimestamp, parseEmployeeName, formatPeriodoToMonthYear, parseDepartmentName } from '@/lib/helpers';
 import { Skeleton } from '@/components/ui/skeleton';
 
 function InfoField({ icon, label, value }: { icon: React.ReactNode, label: string, value: React.ReactNode }) {
@@ -28,10 +26,9 @@ function DetailCardSkeleton() {
         <Card>
             <CardHeader>
                 <Skeleton className="h-6 w-1/2" />
-                <Skeleton className="h-4 w-3/4" />
             </CardHeader>
             <CardContent>
-                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-10 w-full" />
             </CardContent>
         </Card>
     )
@@ -39,16 +36,16 @@ function DetailCardSkeleton() {
 
 export default function PensionadoPage() {
     const { selectedPensioner } = usePensioner();
-    const [details, setDetails] = useState<PensionerAdditionalData | null>(null);
+    const [details, setDetails] = useState<LastPaymentData | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (selectedPensioner?.documento && selectedPensioner.id) {
+        if (selectedPensioner?.id) {
             setIsLoading(true);
             setError(null);
             setDetails(null);
-            getPensionerAdditionalDetails(selectedPensioner.documento, selectedPensioner.id)
+            getPensionerAdditionalDetails(selectedPensioner.id)
                 .then(data => {
                     if (data) {
                         setDetails(data);
@@ -79,7 +76,7 @@ export default function PensionadoPage() {
         );
     }
     
-    const { lastPayment, procesosCancelados, parris1Data, causanteData } = details || {};
+    const { lastPayment } = details || {};
 
     return (
         <div className="p-4 md:p-8 space-y-6">
@@ -89,7 +86,7 @@ export default function PensionadoPage() {
                         <UserSquare className="h-6 w-6" />
                         Hoja de Vida del Pensionado
                     </CardTitle>
-                    <CardDescription>Resumen completo de la información de {parseEmployeeName(selectedPensioner.empleado)}.</CardDescription>
+                    <CardDescription>Resumen de la información de {parseEmployeeName(selectedPensioner.empleado)}.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <InfoField icon={<Hash />} label="Documento" value={selectedPensioner.documento} />
@@ -99,12 +96,7 @@ export default function PensionadoPage() {
             </Card>
 
             {isLoading && (
-                <>
-                    <DetailCardSkeleton />
-                    <DetailCardSkeleton />
-                    <DetailCardSkeleton />
-                    <DetailCardSkeleton />
-                </>
+                <DetailCardSkeleton />
             )}
 
             {error && (
@@ -117,7 +109,7 @@ export default function PensionadoPage() {
 
             {!isLoading && !error && details && (
                 <>
-                    {lastPayment && (
+                    {lastPayment ? (
                         <Card>
                             <CardHeader>
                                 <CardTitle className="text-xl flex items-center gap-2">
@@ -132,101 +124,20 @@ export default function PensionadoPage() {
                                 </div>
                             </CardContent>
                         </Card>
-                    )}
-
-                    {procesosCancelados && procesosCancelados.length > 0 && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-xl flex items-center gap-2">
-                                   <Scale className="h-5 w-5" /> Procesos Judiciales Cancelados
-                                </CardTitle>
-                                <CardDescription>Pagos relacionados con sentencias y costas procesales.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                 <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Periodo</TableHead>
-                                            <TableHead>Conceptos</TableHead>
-                                            <TableHead className="text-right">Total Proceso</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {procesosCancelados.map((p) => (
-                                            <TableRow key={p.id}>
-                                                <TableCell>{formatPeriodoToMonthYear(p.periodoPago)}</TableCell>
-                                                <TableCell>
-                                                    <div className="flex flex-col">
-                                                        {p.conceptos.map(c => <span key={c.codigo}>{parsePaymentDetailName(c.nombre)}</span>)}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-right font-bold">{formatCurrency(p.conceptos.reduce((acc, cur) => acc + cur.ingresos, 0))}</TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    {parris1Data && (
+                    ) : (
                          <Card>
                             <CardHeader>
                                 <CardTitle className="text-xl flex items-center gap-2">
-                                   <FileText className="h-5 w-5" /> Información Parris1
+                                    <History className="h-5 w-5" /> Último Pago Recibido
                                 </CardTitle>
-                            </CardHeader>
-                            <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                <InfoField icon={<Calendar />} label="Fecha de Adquisición" value={formatFirebaseTimestamp(parris1Data.fe_adquiere)} />
-                                <InfoField icon={<Calendar />} label="Fecha de Causa" value={formatFirebaseTimestamp(parris1Data.fe_causa)} />
-                                <InfoField icon={<Calendar />} label="Fecha de Ingreso" value={formatFirebaseTimestamp(parris1Data.fe_ingreso)} />
-                                <InfoField icon={<Calendar />} label="Fecha de Nacimiento" value={formatFirebaseTimestamp(parris1Data.fe_nacido)} />
-                                <InfoField icon={<Calendar />} label="Fecha de Vinculación" value={formatFirebaseTimestamp(parris1Data.fe_vinculado)} />
-                                <InfoField icon={<Hash />} label="Semanas Cotizadas" value={parris1Data.semanas} />
-                                <InfoField icon={<FileText />} label="Resolución" value={`${parris1Data.res_nro} (${parris1Data.res_ano})`} />
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    {causanteData && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-xl flex items-center gap-2">
-                                   <FileText className="h-5 w-5" /> Información del Causante
-                                </CardTitle>
-                                <CardDescription>Cédula del causante: {causanteData.cedula_causante}</CardDescription>
                             </CardHeader>
                             <CardContent>
-                                 <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Beneficiario</TableHead>
-                                            <TableHead>Desde</TableHead>
-                                            <TableHead>Hasta</TableHead>
-                                            <TableHead>Tipo</TableHead>
-                                            <TableHead>Observación</TableHead>
-                                            <TableHead className="text-right">Valor</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {causanteData.records.map((r, i) => (
-                                            <TableRow key={i}>
-                                                <TableCell>{r.cedula_beneficiario}</TableCell>
-                                                <TableCell>{formatFirebaseTimestamp(r.fecha_desde)}</TableCell>
-                                                <TableCell>{formatFirebaseTimestamp(r.fecha_hasta)}</TableCell>
-                                                <TableCell><Badge variant="outline">{r.tipo_aum}</Badge></TableCell>
-                                                <TableCell>{r.observacion || '-'}</TableCell>
-                                                <TableCell className="text-right">{formatCurrency(r.valor_empresa + r.valor_iss)}</TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
+                                <p className="text-muted-foreground">No se encontraron registros de pagos para este pensionado.</p>
                             </CardContent>
                         </Card>
                     )}
                 </>
             )}
-
         </div>
     );
 }
