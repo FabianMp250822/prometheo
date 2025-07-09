@@ -47,6 +47,7 @@ export async function getPensionerDetails(documento: string): Promise<PensionerP
     }
     
     const pensioner = { id: pensionerDoc.id, ...pensionerDoc.data() };
+    const pensionerFirestoreId = pensionerDoc.id; // Correctly store the Firestore document ID
 
     // --- Resilient Data Fetching for secondary collections ---
     // Each fetch is wrapped in a try-catch to prevent a single failure from crashing the entire process.
@@ -79,8 +80,9 @@ export async function getPensionerDetails(documento: string): Promise<PensionerP
     
     let procesosCancelados: any[] = [];
     try {
+        // **FIXED**: Query using the correct pensioner's Firestore Document ID
         const procesosQuery = await adminDb.collection(PROCESOS_CANCELADOS_COLLECTION)
-            .where('pensionadoId', '==', documento)
+            .where('pensionadoId', '==', pensionerFirestoreId)
             .get();
         
         const fetchedProcesos = procesosQuery.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -96,7 +98,7 @@ export async function getPensionerDetails(documento: string): Promise<PensionerP
 
     let lastPayment: any | null = null;
     try {
-        const pagosRef = adminDb.collection(PENSIONADOS_COLLECTION).doc(pensionerDoc.id).collection('pagos');
+        const pagosRef = adminDb.collection(PENSIONADOS_COLLECTION).doc(pensionerFirestoreId).collection('pagos');
         const pagosQuery = await pagosRef.select('fechaProcesado').get();
 
         if (!pagosQuery.empty) {
