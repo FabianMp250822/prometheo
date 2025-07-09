@@ -30,11 +30,11 @@ export default function PensionadoPage() {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (selectedPensioner?.id) {
+        if (selectedPensioner?.documento) {
             setIsLoading(true);
             setError(null);
             setProfile(null);
-            getPensionerDetails(selectedPensioner.id)
+            getPensionerDetails(selectedPensioner.documento)
                 .then(data => {
                     if (data) {
                         setProfile(data);
