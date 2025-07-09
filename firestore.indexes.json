@@ -43,6 +43,66 @@
       ]
     },
     {
+      "collectionGroup": "pensionados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "dependencia1",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "documento",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "pensionados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "centroCosto",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "documento",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "pensionados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "dependencia1",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "centroCosto",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "documento",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "procesoscancelados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "pensionadoId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "creadoEn",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "pagos",
       "queryScope": "COLLECTION_GROUP",
       "fields": [

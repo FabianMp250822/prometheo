@@ -1,25 +1,28 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { collection, getDocs, query, orderBy, limit, startAfter, where, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Banknote, Search, Loader2, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from 'lucide-react';
+import { Banknote, Search, Loader2 } from 'lucide-react';
 import { Pensioner } from '@/lib/data';
 import { parseEmployeeName } from '@/lib/helpers';
 import { PaymentDetailsSheet } from '@/components/dashboard/payment-details-sheet';
 import { usePensioner } from '@/context/pensioner-provider';
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 50;
 
 export default function PagosPage() {
-    const [allPensioners, setAllPensioners] = useState<Pensioner[]>([]);
+    const [pensioners, setPensioners] = useState<Pensioner[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+    const [hasMore, setHasMore] = useState(true);
+    
     const [uniqueDependencias, setUniqueDependencias] = useState<string[]>([]);
     const [uniqueCentrosCosto, setUniqueCentrosCosto] = useState<string[]>([]);
 
@@ -29,76 +32,102 @@ export default function PagosPage() {
         centroCosto: 'all',
     });
     
-    const [currentPage, setCurrentPage] = useState(0);
     const { setSelectedPensioner } = usePensioner();
     const [sheetPensioner, setSheetPensioner] = useState<Pensioner | null>(null);
 
+    const buildQuery = useCallback((cursor?: QueryDocumentSnapshot<DocumentData>) => {
+        let q = query(collection(db, "pensionados"), orderBy("documento"));
 
-    // Fetch all data on initial load
-    useEffect(() => {
-        const fetchData = async () => {
+        if (filters.dependencia !== 'all') {
+            q = query(q, where("dependencia1", "==", filters.dependencia));
+        }
+        if (filters.centroCosto !== 'all') {
+            q = query(q, where("centroCosto", "==", filters.centroCosto));
+        }
+        if (cursor) {
+            q = query(q, startAfter(cursor));
+        }
+        
+        return query(q, limit(ITEMS_PER_PAGE));
+    }, [filters.dependencia, filters.centroCosto]);
+
+
+    const fetchPensioners = useCallback(async (isInitial = true) => {
+        if (isInitial) {
             setIsLoading(true);
-            try {
-                const pensionersQuery = query(collection(db, "pensionados"), orderBy("documento"));
-                const querySnapshot = await getDocs(pensionersQuery);
-                
-                const pensionersData: Pensioner[] = [];
+            setPensioners([]); // Reset on initial fetch
+        } else {
+            setIsLoadingMore(true);
+        }
+
+        try {
+            const q = buildQuery(isInitial ? undefined : lastDoc);
+            const querySnapshot = await getDocs(q);
+
+            const newPensioners = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
+            const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
+            
+            setLastDoc(lastVisible || null);
+            setHasMore(querySnapshot.docs.length === ITEMS_PER_PAGE);
+
+            if (isInitial) {
+                setPensioners(newPensioners);
+            } else {
+                setPensioners(prev => [...prev, ...newPensioners]);
+            }
+            
+        } catch (error) {
+            console.error("Error fetching pensioners:", error);
+        } finally {
+            setIsLoading(false);
+            setIsLoadingMore(false);
+        }
+    }, [buildQuery, lastDoc]);
+    
+    // Fetch unique filter values once on mount
+    useEffect(() => {
+        const fetchFilterValues = async () => {
+             try {
+                const depSnapshot = await getDocs(query(collection(db, "pensionados")));
                 const deps = new Set<string>();
                 const centros = new Set<string>();
 
-                querySnapshot.forEach(doc => {
-                    const data = { id: doc.id, ...doc.data() } as Pensioner;
-                    pensionersData.push(data);
+                depSnapshot.forEach(doc => {
+                    const data = doc.data();
                     if (data.dependencia1) deps.add(data.dependencia1);
                     if (data.centroCosto) centros.add(data.centroCosto);
                 });
 
-                setAllPensioners(pensionersData);
                 setUniqueDependencias(Array.from(deps).sort());
                 setUniqueCentrosCosto(Array.from(centros).sort());
 
             } catch (error) {
-                console.error("Error fetching pensioners:", error);
-            } finally {
-                setIsLoading(false);
+                console.error("Error fetching filter values:", error);
             }
         };
-
-        fetchData();
+        fetchFilterValues();
     }, []);
 
-    const filteredPensioners = useMemo(() => {
-        setCurrentPage(0); // Reset to first page whenever filters change
+    // Trigger initial fetch when filters change
+    useEffect(() => {
+        fetchPensioners(true);
+    }, [filters.dependencia, filters.centroCosto]); // Do not re-run on 'fetchPensioners' change
 
-        return allPensioners.filter(pensioner => {
-            const searchTermMatch = filters.searchTerm 
-                ? parseEmployeeName(pensioner.empleado).toLowerCase().includes(filters.searchTerm.toLowerCase()) || 
-                  pensioner.documento.includes(filters.searchTerm)
-                : true;
-            
-            const dependenciaMatch = filters.dependencia === 'all' || pensioner.dependencia1 === filters.dependencia;
-            
-            const centroCostoMatch = filters.centroCosto === 'all' || pensioner.centroCosto === filters.centroCosto;
-
-            return searchTermMatch && dependenciaMatch && centroCostoMatch;
-        });
-    }, [allPensioners, filters]);
-
-    const pageCount = Math.ceil(filteredPensioners.length / ITEMS_PER_PAGE);
-    const paginatedPensioners = useMemo(() => {
-        const start = currentPage * ITEMS_PER_PAGE;
-        const end = start + ITEMS_PER_PAGE;
-        return filteredPensioners.slice(start, end);
-    }, [filteredPensioners, currentPage]);
-
+    const filteredBySearch = useMemo(() => {
+        if (!filters.searchTerm) return pensioners;
+        return pensioners.filter(pensioner => 
+            parseEmployeeName(pensioner.empleado).toLowerCase().includes(filters.searchTerm.toLowerCase()) || 
+            pensioner.documento.includes(filters.searchTerm)
+        );
+    }, [pensioners, filters.searchTerm]);
 
     const handleFilterChange = (filterType: keyof typeof filters, value: string) => {
         setFilters(prev => ({ ...prev, [filterType]: value }));
     };
 
     const handleViewPayments = (pensioner: Pensioner) => {
-        setSelectedPensioner(pensioner); // Update global context
-        setSheetPensioner(pensioner); // Set local state to open sheet
+        setSelectedPensioner(pensioner);
+        setSheetPensioner(pensioner);
     };
 
     return (
@@ -117,17 +146,17 @@ export default function PagosPage() {
             
             <Card>
                 <CardHeader className="gap-4">
-                    <div className="relative w-full md:w-1/2">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input 
-                            placeholder="Buscar por nombre o documento..."
-                            value={filters.searchTerm}
-                            onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
-                            className="pl-10"
-                        />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Select value={filters.dependencia} onValueChange={value => handleFilterChange('dependencia', value)} disabled={isLoading}>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="relative md:col-span-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input 
+                                placeholder="Buscar en datos cargados..."
+                                value={filters.searchTerm}
+                                onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
+                                className="pl-10"
+                            />
+                        </div>
+                        <Select value={filters.dependencia} onValueChange={value => handleFilterChange('dependencia', value)}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Filtrar por Dependencia" />
                             </SelectTrigger>
@@ -136,7 +165,7 @@ export default function PagosPage() {
                                 {uniqueDependencias.map(dep => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
                             </SelectContent>
                         </Select>
-                         <Select value={filters.centroCosto} onValueChange={value => handleFilterChange('centroCosto', value)} disabled={isLoading}>
+                         <Select value={filters.centroCosto} onValueChange={value => handleFilterChange('centroCosto', value)}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Filtrar por Centro de Costo" />
                             </SelectTrigger>
@@ -155,7 +184,7 @@ export default function PagosPage() {
                     ) : (
                     <>
                         <div className='mb-2 text-sm text-muted-foreground'>
-                            Mostrando {paginatedPensioners.length} de {filteredPensioners.length} resultados.
+                            Mostrando {filteredBySearch.length} de {pensioners.length} pensionados cargados.
                         </div>
                         <Table>
                             <TableHeader>
@@ -168,7 +197,7 @@ export default function PagosPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {paginatedPensioners.map(pensioner => (
+                                {filteredBySearch.map(pensioner => (
                                     <TableRow key={pensioner.id}>
                                         <TableCell className="font-medium">{parseEmployeeName(pensioner.empleado)}</TableCell>
                                         <TableCell>{pensioner.documento}</TableCell>
@@ -181,33 +210,25 @@ export default function PagosPage() {
                                         </TableCell>
                                     </TableRow>
                                 ))}
-                                {paginatedPensioners.length === 0 && (
+                                {filteredBySearch.length === 0 && !isLoading && (
                                     <TableRow>
                                         <TableCell colSpan={5} className="text-center text-muted-foreground">
-                                            No se encontraron pensionados con los criterios de búsqueda.
+                                            No se encontraron pensionados con los criterios aplicados.
                                         </TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
                         </Table>
-                         <div className="flex items-center justify-between p-2 mt-4">
-                            <div className="text-sm text-muted-foreground">
-                                Página {currentPage + 1} de {pageCount > 0 ? pageCount : 1}
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <Button variant="outline" size="icon" onClick={() => setCurrentPage(0)} disabled={currentPage === 0}>
-                                    <ChevronsLeft className="h-4 w-4" />
+                         <div className="flex justify-center py-4">
+                            {hasMore && (
+                                <Button onClick={() => fetchPensioners(false)} disabled={isLoadingMore}>
+                                    {isLoadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Cargar más
                                 </Button>
-                                <Button variant="outline" size="icon" onClick={() => setCurrentPage(currentPage - 1)} disabled={currentPage === 0}>
-                                    <ChevronLeft className="h-4 w-4" />
-                                </Button>
-                                <Button variant="outline" size="icon" onClick={() => setCurrentPage(currentPage + 1)} disabled={currentPage >= pageCount - 1}>
-                                    <ChevronRight className="h-4 w-4" />
-                                </Button>
-                                <Button variant="outline" size="icon" onClick={() => setCurrentPage(pageCount - 1)} disabled={currentPage >= pageCount - 1 || pageCount === 0}>
-                                    <ChevronsRight className="h-4 w-4" />
-                                </Button>
-                            </div>
+                            )}
+                            {!hasMore && pensioners.length > 0 && (
+                                <p className="text-sm text-muted-foreground">Has llegado al final de la lista.</p>
+                            )}
                         </div>
                     </>
                     )}
