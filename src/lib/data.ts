@@ -63,10 +63,9 @@ export interface PaymentDetail {
 
 export interface Payment {
   id: string;
-  pagoId: string;
   año: string;
   periodoPago: string;
-  fechaProcesado: string; // Changed from Timestamp
+  fechaLiquidacion?: string;
   detalles: PaymentDetail[];
 }
 

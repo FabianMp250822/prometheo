@@ -2,6 +2,7 @@
 
 import { adminDb } from '@/lib/firebase-admin';
 import type { Payment } from '@/lib/data';
+import { parsePeriodoPago } from '@/lib/helpers';
 
 const PENSIONADOS_COLLECTION = "pensionados";
 
@@ -25,28 +26,29 @@ export interface LastPaymentData {
     lastPayment: Payment | null;
 }
 
-export async function getPensionerAdditionalDetails(pensionerFirestoreId: string): Promise<LastPaymentData> {
+export async function getPensionerAdditionalDetails(pensionerId: string): Promise<LastPaymentData> {
 
     let lastPayment: any | null = null;
     try {
-        const pagosRef = adminDb.collection(PENSIONADOS_COLLECTION).doc(pensionerFirestoreId).collection('pagos');
-        const pagosQuery = await pagosRef.select('fechaProcesado').get();
+        const pagosRef = adminDb.collection(PENSIONADOS_COLLECTION).doc(pensionerId).collection('pagos');
+        const pagosSnapshot = await pagosRef.get();
 
-        if (!pagosQuery.empty) {
-            let latest = { id: '', time: 0 };
-            pagosQuery.forEach(doc => {
-                const data = doc.data();
-                const t = data.fechaProcesado?.toDate?.()?.getTime?.() || 0;
-                if (t > latest.time) latest = { id: doc.id, time: t };
+        if (!pagosSnapshot.empty) {
+            const allPayments = pagosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
+
+            // Sort payments in-code using the end date of the payment period.
+            // This is robust and handles non-timestamp date fields.
+            allPayments.sort((a, b) => {
+                const dateA = parsePeriodoPago(a.periodoPago)?.endDate || new Date(0);
+                const dateB = parsePeriodoPago(b.periodoPago)?.endDate || new Date(0);
+                return dateB.getTime() - dateA.getTime();
             });
 
-            if (latest.id) {
-                const pagoDoc = await pagosRef.doc(latest.id).get();
-                lastPayment = { id: pagoDoc.id, ...pagoDoc.data() };
-            }
+            // The first element after descending sort is the latest payment.
+            lastPayment = allPayments[0];
         }
     } catch (e) {
-        console.warn(`Could not fetch last payment for pensioner ID ${pensionerFirestoreId}:`, e);
+        console.warn(`Could not fetch last payment for pensioner ID ${pensionerId}:`, e);
         // Do not throw, just return null so the page can render gracefully.
     }
 

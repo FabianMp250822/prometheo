@@ -6,7 +6,7 @@ import { getPensionerAdditionalDetails, type LastPaymentData } from '@/app/actio
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { UserSquare, ServerCrash, History, Landmark, Hash, Tag } from 'lucide-react';
-import { formatCurrency, formatFirebaseTimestamp, parseEmployeeName, formatPeriodoToMonthYear, parseDepartmentName } from '@/lib/helpers';
+import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parseDepartmentName } from '@/lib/helpers';
 import { Skeleton } from '@/components/ui/skeleton';
 
 function InfoField({ icon, label, value }: { icon: React.ReactNode, label: string, value: React.ReactNode }) {
@@ -119,7 +119,7 @@ export default function PensionadoPage() {
                             <CardContent>
                                 <div className="grid md:grid-cols-3 gap-4 text-sm">
                                     <p><strong>Periodo:</strong> {formatPeriodoToMonthYear(lastPayment.periodoPago)}</p>
-                                    <p><strong>Fecha:</strong> {formatFirebaseTimestamp(lastPayment.fechaProcesado)}</p>
+                                    <p><strong>Fecha Liquidación:</strong> {lastPayment.fechaLiquidacion || 'N/A'}</p>
                                     <p><strong>Total:</strong> <span className="font-bold text-primary">{formatCurrency(lastPayment.detalles.find((d: any) => d.nombre.includes('Totales'))?.ingresos || 0)}</span></p>
                                 </div>
                             </CardContent>
