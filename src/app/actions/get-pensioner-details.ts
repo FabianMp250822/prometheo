@@ -37,18 +37,12 @@ export async function getPensionerDetails(pensionadoId: string): Promise<Pension
       .collection(PROCESOS_CANCELADOS_COLLECTION)
       .where('pensionadoId', '==', pensionadoId);
     
-    // Fetch all payments for the single pensioner to sort them safely in code.
-    const allPaymentsQuery = adminDb
-      .collection('pensionados')
-      .doc(pensionadoId)
-      .collection('pagos');
-
-    const [pensionerSnap, parris1Snap, causanteSnap, procesosSnap, allPaymentsSnap] = await Promise.all([
+    // Fetch base data in parallel
+    const [pensionerSnap, parris1Snap, causanteSnap, procesosSnap] = await Promise.all([
         pensionerDocRef.get(),
         parris1DocRef.get(),
         causanteDocRef.get(),
         procesosQuery.get(),
-        allPaymentsQuery.get() // Fetch all payments for this user
     ]);
 
     if (!pensionerSnap.exists) {
@@ -60,7 +54,6 @@ export async function getPensionerDetails(pensionadoId: string): Promise<Pension
     const parris1Data = parris1Snap.exists ? { id: parris1Snap.id, ...parris1Snap.data() } : null;
     const causanteData = causanteSnap.exists ? { id: causanteSnap.id, ...causanteSnap.data() } : null;
     
-    // Map and sort procesos in code for robustness
     let procesosCancelados = procesosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     procesosCancelados.sort((a: any, b: any) => {
         const dateA = (a.creadoEn && typeof a.creadoEn.toDate === 'function') ? a.creadoEn.toDate().getTime() : 0;
@@ -68,18 +61,30 @@ export async function getPensionerDetails(pensionadoId: string): Promise<Pension
         return dateB - dateA;
     });
 
-    // Sort all payments in code to find the latest one reliably.
+    // OPTIMIZED and ROBUST last payment fetching
     let lastPayment: any | null = null;
-    if (!allPaymentsSnap.empty) {
-        const allPayments = allPaymentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        
-        allPayments.sort((a: any, b: any) => {
-            const dateA = (a.fechaProcesado && typeof a.fechaProcesado.toDate === 'function') ? a.fechaProcesado.toDate().getTime() : 0;
-            const dateB = (b.fechaProcesado && typeof b.fechaProcesado.toDate === 'function') ? b.fechaProcesado.toDate().getTime() : 0;
-            return dateB - dateA; // Sort descending
+    const paymentsCollectionRef = adminDb.collection('pensionados').doc(pensionadoId).collection('pagos');
+    // Step 1: Fetch only the date field from all payment docs to keep data size small
+    const paymentsDateQuery = paymentsCollectionRef.select('fechaProcesado');
+    const paymentsDateSnap = await paymentsDateQuery.get();
+
+    if (!paymentsDateSnap.empty) {
+        // Step 2: Find the ID of the latest payment in-code
+        let latestPaymentInfo = { id: '', time: 0 };
+
+        paymentsDateSnap.docs.forEach(doc => {
+            const data = doc.data();
+            const date = (data.fechaProcesado && typeof data.fechaProcesado.toDate === 'function') ? data.fechaProcesado.toDate().getTime() : 0;
+            if (date > latestPaymentInfo.time) {
+                latestPaymentInfo = { id: doc.id, time: date };
+            }
         });
 
-        lastPayment = allPayments[0] || null;
+        // Step 3: Fetch the single, full document for the latest payment
+        if (latestPaymentInfo.id) {
+            const lastPaymentDoc = await paymentsCollectionRef.doc(latestPaymentInfo.id).get();
+            lastPayment = { id: lastPaymentDoc.id, ...lastPaymentDoc.data() };
+        }
     }
 
     const profileData = {
