@@ -57,8 +57,8 @@ export async function getPensionerDetails(pensionadoId: string): Promise<Pension
     // Map and sort procesos in code for robustness
     let procesosCancelados = procesosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     procesosCancelados.sort((a: any, b: any) => {
-        const dateA = a.creadoEn?.toDate ? a.creadoEn.toDate().getTime() : 0;
-        const dateB = b.creadoEn?.toDate ? b.creadoEn.toDate().getTime() : 0;
+        const dateA = (a.creadoEn && typeof a.creadoEn.toDate === 'function') ? a.creadoEn.toDate().getTime() : 0;
+        const dateB = (b.creadoEn && typeof b.creadoEn.toDate === 'function') ? b.creadoEn.toDate().getTime() : 0;
         return dateB - dateA;
     });
 
@@ -70,9 +70,9 @@ export async function getPensionerDetails(pensionadoId: string): Promise<Pension
     if (!allPaymentsSnap.empty) {
         const allPayments = allPaymentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
-        allPayments.sort((a, b) => {
-            const dateA = a.fechaProcesado?.toDate ? a.fechaProcesado.toDate().getTime() : 0;
-            const dateB = b.fechaProcesado?.toDate ? b.fechaProcesado.toDate().getTime() : 0;
+        allPayments.sort((a: any, b: any) => {
+            const dateA = (a.fechaProcesado && typeof a.fechaProcesado.toDate === 'function') ? a.fechaProcesado.toDate().getTime() : 0;
+            const dateB = (b.fechaProcesado && typeof b.fechaProcesado.toDate === 'function') ? b.fechaProcesado.toDate().getTime() : 0;
             return dateB - dateA;
         });
         lastPayment = allPayments.length > 0 ? allPayments[0] : null;
