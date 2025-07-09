@@ -1,12 +1,12 @@
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
-import type { PensionerProfile } from '@/lib/data';
+import type { Parris1, Causante, ProcesoCancelado, Payment, PensionerProfile } from '@/lib/data';
 
-const PENSIONADOS_COLLECTION = "pensionados";
 const PARRIS1_COLLECTION = "parris1";
 const CAUSANTE_COLLECTION = "causante";
 const PROCESOS_CANCELADOS_COLLECTION = "procesoscancelados";
+const PENSIONADOS_COLLECTION = "pensionados";
 
 const serializeTimestamps = (data: any): any => {
     if (!data) return data;
@@ -24,63 +24,31 @@ const serializeTimestamps = (data: any): any => {
     return data;
 };
 
-export async function getPensionerDetails(documento: string): Promise<PensionerProfile | null> {
-    if (!documento) return null;
+export type PensionerAdditionalData = Pick<PensionerProfile, 'parris1Data' | 'causanteData' | 'procesosCancelados' | 'lastPayment'>;
 
-    let pensionerDoc;
-    try {
-        // Step 1: Get the pensioner document directly by its ID, which is the 'documento'.
-        // This is more efficient and robust than a 'where' query.
-        const pensionerDocRef = adminDb.collection(PENSIONADOS_COLLECTION).doc(documento);
-        pensionerDoc = await pensionerDocRef.get();
+export async function getPensionerAdditionalDetails(documento: string, pensionerFirestoreId: string): Promise<PensionerAdditionalData> {
 
-        if (!pensionerDoc.exists) {
-            console.warn(`No pensioner found with document ID: ${documento}`);
-            // Attempt to find by field as a fallback, just in case.
-             const pensionerQuery = await adminDb.collection(PENSIONADOS_COLLECTION)
-                .where('documento', '==', documento)
-                .limit(1)
-                .get();
-
-            if (pensionerQuery.empty) {
-                console.warn(`No pensionado encontrado con documento (field search): ${documento}`);
-                return null;
-            }
-            pensionerDoc = pensionerQuery.docs[0];
-        }
-    } catch (error) {
-        console.error(`Error fetching main pensioner document for ${documento}:`, error);
-        // If we can't get the main document, we must throw an error as we cannot proceed.
-        throw new Error('Error al obtener el documento principal del pensionado.');
-    }
-    
-    const pensioner = { id: pensionerDoc.id, ...pensionerDoc.data() };
-    const pensionerFirestoreId = pensionerDoc.id;
-
-    // --- Resilient Data Fetching for secondary collections ---
-    // Each fetch is wrapped in a try-catch to prevent a single failure from crashing the entire process.
-
-    let parris1Data = null;
+    let parris1Data: Parris1 | null = null;
     try {
         const parris1Query = await adminDb.collection(PARRIS1_COLLECTION)
             .where('cedula', '==', documento)
             .limit(1)
             .get();
         if (!parris1Query.empty) {
-            parris1Data = { id: parris1Query.docs[0].id, ...parris1Query.docs[0].data() };
+            parris1Data = { id: parris1Query.docs[0].id, ...parris1Query.docs[0].data() } as Parris1;
         }
     } catch (e) {
         console.warn(`Could not fetch parris1 data for ${documento}:`, e);
     }
 
-    let causanteData = null;
+    let causanteData: Causante | null = null;
     try {
         const causanteQuery = await adminDb.collection(CAUSANTE_COLLECTION)
             .where('cedula_causante', '==', documento)
             .limit(1)
             .get();
         if (!causanteQuery.empty) {
-            causanteData = { id: causanteQuery.docs[0].id, ...causanteQuery.docs[0].data() };
+            causanteData = { id: causanteQuery.docs[0].id, ...causanteQuery.docs[0].data() } as Causante;
         }
     } catch (e) {
         console.warn(`Could not fetch causante data for ${documento}:`, e);
@@ -125,13 +93,12 @@ export async function getPensionerDetails(documento: string): Promise<PensionerP
         console.warn(`Could not fetch last payment for ${documento}:`, e);
     }
 
-    const profileData = {
-        pensioner,
+    const additionalData = {
         parris1Data,
         causanteData,
         procesosCancelados,
         lastPayment,
     };
 
-    return serializeTimestamps(profileData) as PensionerProfile;
+    return serializeTimestamps(additionalData) as PensionerAdditionalData;
 }
