@@ -15,20 +15,6 @@
       ]
     },
     {
-      "collectionGroup": "pagos",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "`año`",
-          "order": "DESCENDING"
-        },
-        {
-          "fieldPath": "fechaProcesado",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
       "collectionGroup": "pensionados",
       "queryScope": "COLLECTION",
       "fields": [
@@ -67,20 +53,6 @@
         {
           "fieldPath": "__name__",
           "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "procesoscancelados",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "pensionadoId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "creadoEn",
-          "order": "DESCENDING"
         }
       ]
     }

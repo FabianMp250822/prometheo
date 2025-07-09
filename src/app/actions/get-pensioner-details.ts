@@ -13,9 +13,9 @@ const PROCESOS_CANCELADOS_COLLECTION = "procesoscancelados";
 const serializeTimestamps = (data: any): any => {
     if (!data) return data;
     if (Array.isArray(data)) return data.map(serializeTimestamps);
-    if (typeof data === 'object') {
-        if (typeof data.toDate === 'function') {
-            return data.toDate().toISOString();
+    if (typeof data === 'object' && data !== null) {
+        if (typeof (data as any).toDate === 'function') {
+            return (data as any).toDate().toISOString();
         }
         const res: { [key: string]: any } = {};
         for (const key in data) {
@@ -33,10 +33,10 @@ export async function getPensionerDetails(pensionadoId: string): Promise<Pension
     const pensionerDocRef = adminDb.collection(PENSIONADOS_COLLECTION).doc(pensionadoId);
     const parris1DocRef = adminDb.collection(PARRIS1_COLLECTION).doc(pensionadoId);
     const causanteDocRef = adminDb.collection(CAUSANTE_COLLECTION).doc(pensionadoId);
+    // Simplified query to avoid potential index/ordering issues. Sorting will be done in code.
     const procesosQuery = adminDb
       .collection(PROCESOS_CANCELADOS_COLLECTION)
-      .where('pensionadoId', '==', pensionadoId)
-      .orderBy('creadoEn', 'desc');
+      .where('pensionadoId', '==', pensionadoId);
     
     const [pensionerSnap, parris1Snap, causanteSnap, procesosSnap] = await Promise.all([
         pensionerDocRef.get(),
@@ -53,7 +53,14 @@ export async function getPensionerDetails(pensionadoId: string): Promise<Pension
     const pensioner = { id: pensionerSnap.id, ...pensionerSnap.data() };
     const parris1Data = parris1Snap.exists ? { id: parris1Snap.id, ...parris1Snap.data() } : null;
     const causanteData = causanteSnap.exists ? { id: causanteSnap.id, ...causanteSnap.data() } : null;
-    const procesosCancelados = procesosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    // Map and sort procesos in code for robustness
+    let procesosCancelados = procesosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    procesosCancelados.sort((a: any, b: any) => {
+        const dateA = a.creadoEn?.toDate ? a.creadoEn.toDate().getTime() : 0;
+        const dateB = b.creadoEn?.toDate ? b.creadoEn.toDate().getTime() : 0;
+        return dateB - dateA;
+    });
 
     // Get all payments and find the latest one in code to be more resilient
     const allPaymentsQuery = adminDb.collection('pensionados').doc(pensionadoId).collection('pagos');
@@ -63,7 +70,6 @@ export async function getPensionerDetails(pensionadoId: string): Promise<Pension
     if (!allPaymentsSnap.empty) {
         const allPayments = allPaymentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
-        // Sort client-side to find the latest payment, safely handling potential data issues
         allPayments.sort((a, b) => {
             const dateA = a.fechaProcesado?.toDate ? a.fechaProcesado.toDate().getTime() : 0;
             const dateB = b.fechaProcesado?.toDate ? b.fechaProcesado.toDate().getTime() : 0;
@@ -80,7 +86,6 @@ export async function getPensionerDetails(pensionadoId: string): Promise<Pension
         lastPayment,
     };
 
-    // The key step: serialize all data before returning from the server action
     return serializeTimestamps(profileData) as PensionerProfile;
 
   } catch (error: any) {
