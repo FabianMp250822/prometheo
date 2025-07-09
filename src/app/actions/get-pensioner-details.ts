@@ -33,16 +33,22 @@ export async function getPensionerDetails(pensionadoId: string): Promise<Pension
     const pensionerDocRef = adminDb.collection(PENSIONADOS_COLLECTION).doc(pensionadoId);
     const parris1DocRef = adminDb.collection(PARRIS1_COLLECTION).doc(pensionadoId);
     const causanteDocRef = adminDb.collection(CAUSANTE_COLLECTION).doc(pensionadoId);
-    // Simplified query to avoid potential index/ordering issues. Sorting will be done in code.
     const procesosQuery = adminDb
       .collection(PROCESOS_CANCELADOS_COLLECTION)
       .where('pensionadoId', '==', pensionadoId);
     
-    const [pensionerSnap, parris1Snap, causanteSnap, procesosSnap] = await Promise.all([
+    // Fetch all payments for the single pensioner to sort them safely in code.
+    const allPaymentsQuery = adminDb
+      .collection('pensionados')
+      .doc(pensionadoId)
+      .collection('pagos');
+
+    const [pensionerSnap, parris1Snap, causanteSnap, procesosSnap, allPaymentsSnap] = await Promise.all([
         pensionerDocRef.get(),
         parris1DocRef.get(),
         causanteDocRef.get(),
-        procesosQuery.get()
+        procesosQuery.get(),
+        allPaymentsQuery.get() // Fetch all payments for this user
     ]);
 
     if (!pensionerSnap.exists) {
@@ -62,19 +68,18 @@ export async function getPensionerDetails(pensionadoId: string): Promise<Pension
         return dateB - dateA;
     });
 
-    // Fetch only the latest payment for efficiency
-    const latestPaymentQuery = adminDb
-      .collection('pensionados')
-      .doc(pensionadoId)
-      .collection('pagos')
-      .orderBy('fechaProcesado', 'desc')
-      .limit(1);
-      
-    const latestPaymentSnap = await latestPaymentQuery.get();
-
+    // Sort all payments in code to find the latest one reliably.
     let lastPayment: any | null = null;
-    if (!latestPaymentSnap.empty) {
-      lastPayment = { id: latestPaymentSnap.docs[0].id, ...latestPaymentSnap.docs[0].data() };
+    if (!allPaymentsSnap.empty) {
+        const allPayments = allPaymentsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        allPayments.sort((a: any, b: any) => {
+            const dateA = (a.fechaProcesado && typeof a.fechaProcesado.toDate === 'function') ? a.fechaProcesado.toDate().getTime() : 0;
+            const dateB = (b.fechaProcesado && typeof b.fechaProcesado.toDate === 'function') ? b.fechaProcesado.toDate().getTime() : 0;
+            return dateB - dateA; // Sort descending
+        });
+
+        lastPayment = allPayments[0] || null;
     }
 
     const profileData = {
