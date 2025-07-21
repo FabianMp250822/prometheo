@@ -2,7 +2,7 @@
   "indexes": [
     {
       "collectionGroup": "anotaciones",
-      "queryScope": "COLLECTION_GROUP",
+      "queryScope": "COLLECTION",
       "fields": [
         {
           "fieldPath": "fecha_limite_ordenable",
