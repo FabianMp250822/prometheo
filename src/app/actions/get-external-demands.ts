@@ -41,7 +41,7 @@ export async function getDemandantesByRegistro(numRegistro: string): Promise<Api
     }
 }
 
-// Kept the original functions for potential individual use, though they are not used by the new table.
+// This function is kept for conceptual similarity but is now an API health check
 export async function checkDbConnection(): Promise<{ success: boolean; error?: string }> {
     // This function now checks the availability of the external API endpoint
     try {
