@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { FileClock, Loader2 } from 'lucide-react';
-import { getExternalDemands, getAllExternalDemands, getDemandantesByRegistro } from '@/app/actions/get-external-demands';
+import { getAllExternalDemands, getDemandantesByRegistro } from '@/app/actions/get-external-demands';
 import { ExternalDemandsTable } from '@/components/dashboard/external-demands-table';
 
 export default function GestionDemandasPage() {
