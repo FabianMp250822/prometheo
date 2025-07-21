@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { collectionGroup, query, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
+import { collectionGroup, query, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -24,6 +24,7 @@ interface PendingTask extends Anotacion {
 const getDayOfWeek = (dateString: string) => {
     if (!dateString) return '';
     try {
+        // Assuming dateString is in DD-MM-YYYY format
         const date = parse(dateString, 'dd-MM-yyyy', new Date());
         if (isNaN(date.getTime())) return '';
         return format(date, 'E', { locale: es });
@@ -48,32 +49,38 @@ export default function PorFechaPage() {
         setIsLoading(true);
         setError(null);
         try {
-            // Fetch all annotations without date filtering first.
             const anotacionesQuery = query(collectionGroup(db, 'anotaciones'));
-            
             const querySnapshot = await getDocs(anotacionesQuery);
             const allData = querySnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Anotacion));
 
             const tasksWithProcesos: PendingTask[] = await Promise.all(
                 allData.map(async (anotacion) => {
                     if (anotacion.num_registro) {
-                        const procesoDocRef = doc(db, 'procesos', anotacion.num_registro);
-                        const procesoDoc = await getDoc(procesoDocRef);
-                        if (procesoDoc.exists()) {
-                            return {
-                                ...anotacion,
-                                fecha_limite: transformarFecha(anotacion.fecha_limite),
-                                proceso: procesoDoc.data()
-                            };
+                        try {
+                            const procesoDocRef = doc(db, 'procesos', anotacion.num_registro);
+                            const procesoDoc = await getDoc(procesoDocRef);
+                            if (procesoDoc.exists()) {
+                                return {
+                                    ...anotacion,
+                                    fecha_limite: transformarFecha(anotacion.fecha_limite),
+                                    proceso: procesoDoc.data()
+                                };
+                            }
+                        } catch (e) {
+                             console.error(`Failed to fetch proceso ${anotacion.num_registro}`, e);
                         }
                     }
-                    return anotacion;
+                    // Return anotacion even if proceso fetch fails to avoid losing data
+                    return {
+                        ...anotacion,
+                        fecha_limite: transformarFecha(anotacion.fecha_limite),
+                    };
                 })
             );
             setAllAnotaciones(tasksWithProcesos);
             
         } catch (err: any) {
-            console.error("Error fetching tasks by date:", err);
+            console.error("Error fetching tasks:", err);
             setError('Ocurrió un error inesperado al buscar las tareas.');
         } finally {
             setIsLoading(false);
@@ -98,16 +105,14 @@ export default function PorFechaPage() {
         const filtered = allAnotaciones.filter(anotacion => {
             if (!anotacion.fecha_limite) return false;
             try {
-                // Parse the DD-MM-YYYY string to a Date object for comparison
                 const taskDate = parse(anotacion.fecha_limite, 'dd-MM-yyyy', new Date());
                 return taskDate >= startDate && taskDate <= endDate;
             } catch (e) {
-                console.error("Invalid date format for annotation:", anotacion);
+                console.warn("Invalid date format for annotation:", anotacion.id, anotacion.fecha_limite);
                 return false;
             }
         });
 
-        // Sort the filtered results
         filtered.sort((a, b) => {
             const dateA = parse(a.fecha_limite, 'dd-MM-yyyy', new Date());
             const dateB = parse(b.fecha_limite, 'dd-MM-yyyy', new Date());
@@ -116,7 +121,6 @@ export default function PorFechaPage() {
                 return dateA.getTime() - dateB.getTime();
             }
 
-            // If dates are the same, sort by time
             const timeA = a.hora_limite?.replace(/\s*(am|pm)/i, '') || '00:00';
             const timeB = b.hora_limite?.replace(/\s*(am|pm)/i, '') || '00:00';
 
