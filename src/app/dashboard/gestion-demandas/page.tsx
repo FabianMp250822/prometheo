@@ -8,7 +8,6 @@ import { ExternalDemandsTable } from '@/components/dashboard/external-demands-ta
 import { ProcessDetailsSheet } from '@/components/dashboard/process-details-sheet';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { getExternalDemands } from '@/app/actions/get-external-demands';
 import { writeBatch, collection, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/auth-provider';
@@ -28,6 +27,18 @@ export default function GestionDemandasPage() {
   const [isSaving, startSaving] = useTransition();
   const { toast } = useToast();
   const { user } = useAuth();
+  
+  const fetchExternalData = async (url: string) => {
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`Error en la respuesta de la red: ${response.statusText}`);
+    }
+    const data = await response.json();
+    if (data.error) {
+        throw new Error(`Error de la API: ${data.error}`);
+    }
+    return data;
+  }
 
   const handleFetchData = () => {
     startFetching(async () => {
@@ -37,22 +48,42 @@ export default function GestionDemandasPage() {
       setLoadingMessage('Obteniendo lista de procesos...');
       
       try {
-        const result = await getExternalDemands();
+        const procesosData = await fetchExternalData('https://appdajusticia.com/procesos.php?all=true');
 
-        if (!result.success) {
-          throw new Error(result.error || "Error desconocido al obtener datos externos.");
+        if (!Array.isArray(procesosData)) {
+            throw new Error('La respuesta de la API de procesos no es un array válido.');
         }
         
-        setProcesos(result.procesos || []);
-        setDemandantes(result.demandantes || {});
+        setLoadingMessage('Obteniendo detalles de demandantes...');
+        const registrosUnicos = [...new Set(procesosData.map((p: any) => p.num_registro))];
+        const demandantesData: { [key: string]: any[] } = {};
+
+        await Promise.all(
+            registrosUnicos.map(async (numRegistro) => {
+                 try {
+                    const res = await fetchExternalData(`https://appdajusticia.com/procesos.php?num_registro=${numRegistro}`);
+                    if (res && !res.error && Array.isArray(res)) {
+                        demandantesData[numRegistro] = res;
+                    } else {
+                        demandantesData[numRegistro] = [];
+                    }
+                 } catch (e) {
+                    console.warn(`No se pudieron cargar demandantes para el registro ${numRegistro}`, e);
+                    demandantesData[numRegistro] = [];
+                 }
+            })
+        );
+        
+        setProcesos(procesosData);
+        setDemandantes(demandantesData);
 
         toast({
           title: 'Datos Obtenidos',
-          description: `Se encontraron ${result.procesos?.length || 0} procesos.`,
+          description: `Se encontraron ${procesosData.length} procesos.`,
         });
 
       } catch (err: any) {
-        setError(`Error al conectar con el servicio externo: ${err.message}.`);
+        setError(`Error al conectar con el servicio externo: ${err.message}. Por favor, verifique que el servicio esté disponible.`);
       } finally {
         setLoadingMessage(null);
       }

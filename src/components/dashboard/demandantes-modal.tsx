@@ -7,7 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Loader2, UserPlus, Edit, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getDemandantesByRegistro, addDemandante } from '@/app/actions/proxy-appdajusticia';
+
+const API_URL = 'https://appdajusticia.com/procesos.php';
 
 export function DemandantesModal({ proceso, isOpen, onClose }: { proceso: any | null; isOpen: boolean; onClose: () => void }) {
   const [demandantes, setDemandantes] = useState<any[]>([]);
@@ -25,7 +26,14 @@ export function DemandantesModal({ proceso, isOpen, onClose }: { proceso: any | 
     setCargando(true);
     setError(null);
     try {
-      const data = await getDemandantesByRegistro(num_registro);
+      const response = await fetch(`${API_URL}?num_registro=${num_registro}`);
+       if (!response.ok) {
+        throw new Error('Error al obtener demandantes del servidor');
+      }
+      const data = await response.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
       setDemandantes(Array.isArray(data) ? data : []);
     } catch (err: any) {
       console.error(err);
@@ -66,9 +74,18 @@ export function DemandantesModal({ proceso, isOpen, onClose }: { proceso: any | 
       identidad_demandante: nuevoDemandante.identidad_demandante,
       poder: nuevoDemandante.poder || '',
     };
-
+    
     try {
-      await addDemandante(body);
+       const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await response.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
       toast({ title: 'Éxito', description: 'Demandante agregado correctamente.' });
       await fetchDemandantes(proceso.num_registro); // Recargar
       setNuevoDemandante({ nombre_demandante: '', identidad_demandante: '', poder: '' });
