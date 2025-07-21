@@ -1,7 +1,7 @@
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
-import * as adminAuth from 'firebase-admin/auth';
+import { getAuth } from 'firebase-admin/auth';
 
 /**
  * Guarda los procesos y sus demandantes en la base de datos de Firebase,
@@ -18,7 +18,7 @@ export async function saveProcessesToFirebase(
 ): Promise<{ success: boolean; count: number; error?: string }> {
   try {
     // Verificar el token de ID para asegurar que la solicitud es de un usuario autenticado.
-    await adminAuth.getAuth().verifyIdToken(idToken);
+    await getAuth().verifyIdToken(idToken);
   } catch (error) {
     console.error('Error de autenticación:', error);
     return { success: false, count: 0, error: 'Autenticación requerida. No se pudo verificar la sesión.' };

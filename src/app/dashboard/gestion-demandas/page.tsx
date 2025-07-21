@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FileClock, Loader2, ServerCrash, Download, Save } from 'lucide-react';
@@ -30,9 +30,14 @@ export default function GestionDemandasPage() {
       setLoadingMessage('Obteniendo lista de procesos...');
       
       try {
-        const response = await axios.get('https://appdajusticia.com/procesos.php?all=true');
-        if (!Array.isArray(response.data)) {
-            throw new Error("La respuesta de la API de procesos no es un array válido.");
+        const response = await axios.get('https://appdajusticia.com/procesos.php?all=true', {
+           headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+           }
+        });
+
+        if (response.data.error || !Array.isArray(response.data)) {
+            throw new Error(response.data.error || "La respuesta de la API de procesos no es un array válido.");
         }
         setProcesos(response.data);
         
@@ -44,8 +49,12 @@ export default function GestionDemandasPage() {
         await Promise.all(
           registrosUnicos.map(async (numRegistro) => {
             try {
-              const res = await axios.get(`https://appdajusticia.com/procesos.php?num_registro=${numRegistro}`);
-              if (res.data && !res.data.error) {
+              const res = await axios.get(`https://appdajusticia.com/procesos.php?num_registro=${numRegistro}`, {
+                 headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                 }
+              });
+              if (res.data && !res.data.error && Array.isArray(res.data)) {
                 demandantesData[numRegistro] = res.data;
               } else {
                 demandantesData[numRegistro] = [];
@@ -91,7 +100,7 @@ export default function GestionDemandasPage() {
 
     startSaving(async () => {
       try {
-        const idToken = await user.getIdToken(true); // Get fresh ID token
+        const idToken = await user.getIdToken(true);
         const result = await saveProcessesToFirebase(idToken, procesos, demandantes);
 
         if (result.success) {
