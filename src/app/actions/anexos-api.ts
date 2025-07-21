@@ -1,54 +1,25 @@
 'use server';
 
-import { getAuth } from 'firebase-admin/auth';
-import { adminApp } from '@/lib/firebase-admin';
-
-// Re-usable helper function to make authenticated API requests
-async function makeApiRequest(numRegistro: string, formData?: FormData) {
-    const API_ENDPOINT = 'https://appdajusticia.com/crud_anexos.php';
-    const url = formData ? API_ENDPOINT : `${API_ENDPOINT}?num_registro=${numRegistro}`;
-
-    try {
-        const response = await fetch(url, {
-            method: formData ? 'POST' : 'GET',
-            body: formData,
-            // We are not setting Content-Type for FormData, browser will do it with the correct boundary
-            headers: {
-                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            }
-        });
-
-        if (!response.ok) {
-            throw new Error(`Error de red: ${response.status} ${response.statusText}.`);
-        }
-        
-        const text = await response.text();
-        // Try to parse JSON, but if it fails, return the raw text for debugging.
-        try {
-            return JSON.parse(text);
-        } catch (e) {
-            return { error: `Respuesta no válida del servidor: ${text}` };
-        }
-
-    } catch (error: any) {
-        console.error('Error en la API de anexos:', error);
-        return { success: false, error: error.message || 'Error desconocido en el servidor.' };
-    }
-}
-
+// This file is being temporarily kept to avoid breaking imports,
+// but it is no longer functional for communicating with the external API
+// due to server-side security (403 Forbidden errors).
+// The logic will be migrated to use Firebase Storage.
 
 export async function getAnexos(numRegistro: string) {
-    return makeApiRequest(numRegistro);
+    console.warn("getAnexos is deprecated and will not fetch from external API.");
+    // Return an empty array to prevent breaking the UI while allowing it to load.
+    return []; 
 }
 
 export async function addAnexo(formData: FormData) {
-    formData.append('action', 'addAnexo');
-    return makeApiRequest(formData.get('num_registro') as string, formData);
+     console.warn("addAnexo is deprecated and will not post to external API.");
+    // Return a success-like message to avoid UI errors.
+    // In a real scenario, this would now upload to Firebase Storage.
+    return { success: true, message: "Operation not sent to external API." };
 }
 
 export async function deleteAnexo(auto: string) {
-    const formData = new FormData();
-    formData.append('action', 'deleteAnexo');
-    formData.append('auto', auto);
-    return makeApiRequest('', formData);
+    console.warn("deleteAnexo is deprecated and will not post to external API.");
+    // Return a success-like message to avoid UI errors.
+    return { success: true, message: "Operation not sent to external API." };
 }

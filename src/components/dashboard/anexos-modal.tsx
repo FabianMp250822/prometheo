@@ -6,7 +6,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Loader2, PlusCircle, Search, Trash2, Edit, FileDown, Upload, FileUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getAnexos, deleteAnexo } from '@/app/actions/anexos-api';
 import { NuevaAnexoModal } from './nueva-anexo-modal';
 
 type Anexo = {
@@ -25,26 +24,12 @@ export function AnexosModal({ proceso, isOpen, onClose }: { proceso: any | null;
   const [busqueda, setBusqueda] = useState('');
   const [showNuevoModal, setShowNuevoModal] = useState(false);
 
-  const fetchAnexos = async (numRegistro: string) => {
-    setCargando(true);
-    setError(null);
-    try {
-      const data = await getAnexos(numRegistro);
-      if (data.error) throw new Error(data.error);
-      setAnexos(Array.isArray(data) ? data : []);
-    } catch (err: any) {
-      setError(err.message || 'Ocurrió un error al cargar los anexos.');
-      setAnexos([]);
-    } finally {
-      setCargando(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isOpen && proceso?.num_registro) {
-      fetchAnexos(proceso.num_registro);
-    }
-  }, [isOpen, proceso]);
+  // useEffect(() => {
+  //   if (isOpen && proceso?.num_registro) {
+  //     // This fetch is disabled to prevent 403 Forbidden errors from the external server.
+  //     // The functionality will be migrated to Firebase.
+  //   }
+  // }, [isOpen, proceso]);
 
   const anexosFiltrados = useMemo(() => {
     if (!busqueda) return anexos;
@@ -55,21 +40,14 @@ export function AnexosModal({ proceso, isOpen, onClose }: { proceso: any | null;
   }, [busqueda, anexos]);
   
   const handleEliminar = async (auto: string) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este anexo?')) return;
-    try {
-        const result = await deleteAnexo(auto);
-        if (result.error) throw new Error(result.error);
-        toast({ title: 'Éxito', description: 'Anexo eliminado correctamente.' });
-        fetchAnexos(proceso.num_registro);
-    } catch (err: any) {
-        toast({ variant: 'destructive', title: 'Error al Eliminar', description: err.message });
-    }
+    // Logic to delete from Firebase will be implemented here.
+    toast({ title: 'En desarrollo', description: 'La eliminación de anexos se conectará a Firebase.' });
   };
 
 
   const handleCloseNuevoModal = () => {
     setShowNuevoModal(false);
-    fetchAnexos(proceso.num_registro); // Refresh list
+    // Logic to refresh from Firebase will be implemented here.
   };
 
   if (!proceso) return null;
@@ -101,9 +79,8 @@ export function AnexosModal({ proceso, isOpen, onClose }: { proceso: any | null;
 
           <div className="flex-1 overflow-y-auto border rounded-md">
             {cargando && <div className="flex justify-center items-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>}
-            {error && <p className="text-destructive p-4">Error: {error}</p>}
-
-            {!cargando && !error && (
+            
+            {!cargando && (
               <Table>
                 <TableHeader>
                   <TableRow>
