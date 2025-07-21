@@ -34,7 +34,7 @@ const getDayOfWeek = (dateString: string) => {
 
 export default function PorFechaPage() {
     const [tasks, setTasks] = useState<PendingTask[]>([]);
-    const [allAnotaciones, setAllAnotaciones] = useState<Anotacion[]>([]);
+    const [allAnotaciones, setAllAnotaciones] = useState<PendingTask[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -48,11 +48,8 @@ export default function PorFechaPage() {
         setIsLoading(true);
         setError(null);
         try {
-            const anotacionesQuery = query(
-                collectionGroup(db, 'anotaciones'),
-                orderBy('fecha_limite_ordenable'),
-                orderBy('hora_limite')
-            );
+            // Fetch all annotations without date filtering first.
+            const anotacionesQuery = query(collectionGroup(db, 'anotaciones'));
             
             const querySnapshot = await getDocs(anotacionesQuery);
             const allData = querySnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Anotacion));
@@ -77,11 +74,7 @@ export default function PorFechaPage() {
             
         } catch (err: any) {
             console.error("Error fetching tasks by date:", err);
-            if (err.code === 'failed-precondition') {
-                 setError('Error de consulta: El índice de Firebase necesario para esta búsqueda se está construyendo. Por favor, espere unos minutos e inténtelo de nuevo.');
-            } else {
-                setError('Ocurrió un error inesperado al buscar las tareas.');
-            }
+            setError('Ocurrió un error inesperado al buscar las tareas.');
         } finally {
             setIsLoading(false);
         }
@@ -89,10 +82,10 @@ export default function PorFechaPage() {
     
     useEffect(() => {
         fetchAllAnotaciones();
-    }, []); 
+    }, [fetchAllAnotaciones]); 
 
-    const filterTasksByDate = useCallback(() => {
-        if (!dateRange.from || !dateRange.to) {
+    const filterAndSortTasks = useCallback(() => {
+        if (!dateRange.from || !dateRange.to || allAnotaciones.length === 0) {
             setTasks([]);
             return;
         }
@@ -105,12 +98,31 @@ export default function PorFechaPage() {
         const filtered = allAnotaciones.filter(anotacion => {
             if (!anotacion.fecha_limite) return false;
             try {
+                // Parse the DD-MM-YYYY string to a Date object for comparison
                 const taskDate = parse(anotacion.fecha_limite, 'dd-MM-yyyy', new Date());
-                 return taskDate >= startDate && taskDate <= endDate;
+                return taskDate >= startDate && taskDate <= endDate;
             } catch (e) {
+                console.error("Invalid date format for annotation:", anotacion);
                 return false;
             }
         });
+
+        // Sort the filtered results
+        filtered.sort((a, b) => {
+            const dateA = parse(a.fecha_limite, 'dd-MM-yyyy', new Date());
+            const dateB = parse(b.fecha_limite, 'dd-MM-yyyy', new Date());
+
+            if (dateA.getTime() !== dateB.getTime()) {
+                return dateA.getTime() - dateB.getTime();
+            }
+
+            // If dates are the same, sort by time
+            const timeA = a.hora_limite?.replace(/\s*(am|pm)/i, '') || '00:00';
+            const timeB = b.hora_limite?.replace(/\s*(am|pm)/i, '') || '00:00';
+
+            return timeA.localeCompare(timeB);
+        });
+
         setTasks(filtered);
 
     }, [allAnotaciones, dateRange]);
@@ -120,16 +132,16 @@ export default function PorFechaPage() {
             setError("Por favor seleccione un rango de fechas válido.");
             return;
         }
-        filterTasksByDate();
+        filterAndSortTasks();
     };
     
     useEffect(() => {
         if(allAnotaciones.length > 0) {
-            filterTasksByDate();
+            filterAndSortTasks();
         }
-    }, [allAnotaciones, filterTasksByDate]);
+    }, [allAnotaciones, filterAndSortTasks]);
 
-    const filteredTasks = useMemo(() => {
+    const filteredTasksBySearchTerm = useMemo(() => {
         if (!searchTerm) return tasks;
         const lowercasedFilter = searchTerm.toLowerCase();
         return tasks.filter(task =>
@@ -232,10 +244,10 @@ export default function PorFechaPage() {
               ) : error ? (
                 <div className="flex flex-col items-center justify-center p-10 text-center text-destructive">
                     <AlertTriangle className="h-12 w-12 mb-4" />
-                    <h3 className="text-lg font-semibold">Error de Consulta</h3>
+                    <h3 className="text-lg font-semibold">Error de Carga</h3>
                     <p className="text-sm">{error}</p>
                 </div>
-              ) : filteredTasks.length > 0 ? (
+              ) : filteredTasksBySearchTerm.length > 0 ? (
                   <Table>
                       <TableHeader>
                           <TableRow>
@@ -250,7 +262,7 @@ export default function PorFechaPage() {
                           </TableRow>
                       </TableHeader>
                       <TableBody>
-                          {filteredTasks.map(task => (
+                          {filteredTasksBySearchTerm.map(task => (
                               <TableRow key={task.id}>
                                   <TableCell className="font-medium">{task.fecha_limite}</TableCell>
                                   <TableCell>{getDayOfWeek(task.fecha_limite)}</TableCell>

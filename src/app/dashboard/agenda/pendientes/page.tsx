@@ -7,7 +7,7 @@ export default function PendientesPage() {
     const router = useRouter();
 
     useEffect(() => {
-        // Redirect to the more powerful "por-fecha" page
+        // Redirect to the more powerful "por-fecha" page as it handles all pending logic now.
         router.replace('/dashboard/agenda/por-fecha');
     }, [router]);
 
