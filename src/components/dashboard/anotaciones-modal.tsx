@@ -7,9 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Loader2, PlusCircle, Search, Trash2, Edit, FileDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Anotacion } from '@/lib/data';
-import { corregirTexto, transformarFecha, convertirAFormatoOrdenable, convertirHoraLimite, anadirPrefijoRuta } from '@/lib/anotaciones-helpers';
+import { corregirTexto, transformarFecha, convertirHoraLimite, anadirPrefijoRuta, convertirAFormatoOrdenable } from '@/lib/anotaciones-helpers';
 import { NuevaAnotacionModal } from './nueva-anotacion-modal';
-import { collection, deleteDoc, doc, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { DocumentViewerModal } from './document-viewer-modal';
 
@@ -28,20 +28,40 @@ export function AnotacionesModal({ proceso, isOpen, onClose }: { proceso: any | 
   const fetchAnotacionesFromFirebase = useCallback(async (numRegistro: string) => {
     setCargando(true);
     try {
-      const q = query(collection(db, 'procesos', numRegistro, 'anotaciones'), orderBy('fecha'));
+      const q = query(collection(db, 'procesos', numRegistro, 'anotaciones'));
       const querySnapshot = await getDocs(q);
-      const anotacionesData = querySnapshot.docs.map(doc => {
+      let anotacionesData = querySnapshot.docs.map(doc => {
         const data = doc.data();
         return {
           ...data,
           id: doc.id,
-          // Apply same corrections as before
           detalle: corregirTexto(data.detalle),
+          clase: corregirTexto(data.clase),
           fecha: transformarFecha(data.fecha),
           fecha_limite: transformarFecha(data.fecha_limite),
+          hora_limite: data.hora_limite || '',
           archivo_url: data.archivo_url ? anadirPrefijoRuta(data.archivo_url) : null,
         } as Anotacion;
       });
+
+      // Sort annotations chronologically
+      anotacionesData.sort((a, b) => {
+          const fechaA = convertirAFormatoOrdenable(a.fecha);
+          const fechaB = convertirAFormatoOrdenable(b.fecha);
+          
+          if (fechaA < fechaB) return -1;
+          if (fechaA > fechaB) return 1;
+
+          // If dates are the same, compare by time
+          const horaA = convertirHoraLimite(a.hora_limite);
+          const horaB = convertirHoraLimite(b.hora_limite);
+
+          if (horaA < horaB) return -1;
+          if (horaA > horaB) return 1;
+
+          return 0;
+      });
+      
       setAnotaciones(anotacionesData);
     } catch (err: any) {
       console.error(err);
