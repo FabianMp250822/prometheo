@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { FileClock, Loader2, ServerCrash, Download, Save } from 'lucide-react';
 import { ExternalDemandsTable } from '@/components/dashboard/external-demands-table';
+import { ProcessDetailsSheet } from '@/components/dashboard/process-details-sheet';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import axios from 'axios';
@@ -18,6 +19,8 @@ export default function GestionDemandasPage() {
   const [demandantes, setDemandantes] = useState<{ [key: string]: any[] }>({});
   const [error, setError] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
+
+  const [selectedProcess, setSelectedProcess] = useState<any | null>(null);
 
   const [isFetching, startFetching] = useTransition();
   const [isSaving, startSaving] = useTransition();
@@ -144,6 +147,11 @@ export default function GestionDemandasPage() {
     });
   };
 
+  const handleViewDetails = (process: any) => {
+    setSelectedProcess(process);
+  };
+
+
   return (
     <div className="p-4 md:p-8 space-y-4">
       <Card>
@@ -198,8 +206,23 @@ export default function GestionDemandasPage() {
       )}
 
       {procesos.length > 0 && !isFetching && (
-         <ExternalDemandsTable procesos={procesos} demandantes={demandantes} />
+         <ExternalDemandsTable 
+            procesos={procesos} 
+            demandantes={demandantes}
+            onViewDetails={handleViewDetails}
+          />
       )}
+
+      <ProcessDetailsSheet
+        process={selectedProcess}
+        demandantes={selectedProcess ? demandantes[selectedProcess.num_registro] : []}
+        isOpen={!!selectedProcess}
+        onOpenChange={(isOpen) => {
+            if (!isOpen) {
+                setSelectedProcess(null);
+            }
+        }}
+       />
     </div>
   );
 }

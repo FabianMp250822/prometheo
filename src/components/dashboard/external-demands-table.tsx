@@ -6,47 +6,26 @@ import { utils, write } from 'xlsx';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Download, ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight, Pencil, Ban, Check } from 'lucide-react';
+import { Download, ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '../ui/badge';
 import { useToast } from '@/hooks/use-toast';
 
-const DemandantesTabla = ({ demandantes }: { demandantes: any[] }) => (
-    <div className="max-h-[60vh] overflow-y-auto">
-      <Table>
-        <TableHeader className="sticky top-0 bg-secondary z-10">
-          <TableRow>
-            <TableHead>Nombre</TableHead>
-            <TableHead>Documento</TableHead>
-            <TableHead>Teléfonos</TableHead>
-            <TableHead>Dirección</TableHead>
-            <TableHead>Correo</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {demandantes.map((demandante, index) => (
-            <TableRow key={demandante.identidad_demandante || index}>
-              <TableCell>{demandante.nombre_demandante}</TableCell>
-              <TableCell>{demandante.identidad_demandante}</TableCell>
-              <TableCell>{demandante.telefonos}</TableCell>
-              <TableCell>{demandante.direccion}</TableCell>
-              <TableCell>{demandante.correo}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-);
-
-export const ExternalDemandsTable = ({ procesos, demandantes }: { procesos: any[], demandantes: { [key: string]: any[] } }) => {
+export const ExternalDemandsTable = ({ 
+    procesos, 
+    demandantes,
+    onViewDetails
+}: { 
+    procesos: any[], 
+    demandantes: { [key: string]: any[] },
+    onViewDetails: (process: any) => void;
+}) => {
     const { toast } = useToast();
     const [negocioSearch, setNegocioSearch] = useState('');
     const [selectedEstados, setSelectedEstados] = useState<string[]>([]);
     
     const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
-    const [editableApoderado, setEditableApoderado] = useState<{ [key: string]: string }>({});
-
+    
     const filteredProcesos = useMemo(() => {
         let results = procesos;
         if (negocioSearch) {
@@ -77,29 +56,7 @@ export const ExternalDemandsTable = ({ procesos, demandantes }: { procesos: any[
         setSelectedEstados(values);
         setPagination(p => ({ ...p, pageIndex: 0 })); // Reset to first page on filter change
     };
-    
-    const handleApoderadoChange = (numRegistro: string, value: string) => {
-        setEditableApoderado(prev => ({ ...prev, [numRegistro]: value }));
-    };
-
-    const handleSaveApoderado = (numRegistro: string) => {
-        toast({
-            variant: "destructive",
-            title: "Función Deshabilitada",
-            description: "La edición de apoderados no está permitida en este modo. Las actualizaciones deben realizarse en el sistema de origen.",
-        });
-        // Note: We don't actually save, just revert the UI state
-        handleCancelEdit(numRegistro);
-    };
-
-    const handleCancelEdit = (numRegistro: string) => {
-        setEditableApoderado(prev => {
-            const newState = { ...prev };
-            delete newState[numRegistro];
-            return newState;
-        });
-    };
-    
+        
     const exportarAExcel = () => {
         const wb = utils.book_new();
         const data = [];
@@ -206,8 +163,7 @@ export const ExternalDemandsTable = ({ procesos, demandantes }: { procesos: any[
                         <TableHead>Estado</TableHead>
                         <TableHead>Negocio</TableHead>
                         <TableHead>Apoderado</TableHead>
-                        <TableHead>Demandantes</TableHead>
-                        <TableHead>Acciones</TableHead>
+                        <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -216,48 +172,22 @@ export const ExternalDemandsTable = ({ procesos, demandantes }: { procesos: any[
                         <TableCell>{proceso.num_registro}</TableCell>
                         <TableCell><Badge variant="outline">{proceso.estado}</Badge></TableCell>
                         <TableCell>{proceso.negocio}</TableCell>
-                        <TableCell>
-                            {editableApoderado.hasOwnProperty(proceso.num_registro) ? (
-                                <Input
-                                    type="text"
-                                    value={editableApoderado[proceso.num_registro]}
-                                    onChange={(e) => handleApoderadoChange(proceso.num_registro, e.target.value)}
-                                    className="h-8"
-                                />
-                            ) : (
-                                proceso.nombres_apoderado
-                            )}
-                        </TableCell>
-                        <TableCell>
-                            <Dialog>
-                                <DialogTrigger asChild>
-                                    <Button variant="outline" size="sm" disabled={!demandantes[proceso.num_registro] || demandantes[proceso.num_registro].length === 0}>
-                                        Ver ({demandantes[proceso.num_registro]?.length || 0})
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent className="sm:max-w-[800px]">
-                                    <DialogHeader>
-                                        <DialogTitle>Demandantes para el Proceso #{proceso.num_registro}</DialogTitle>
-                                    </DialogHeader>
-                                    <DemandantesTabla demandantes={demandantes[proceso.num_registro] || []} />
-                                </DialogContent>
-                            </Dialog>
-                        </TableCell>
-                         <TableCell>
-                            {editableApoderado.hasOwnProperty(proceso.num_registro) ? (
-                                <div className="flex gap-2">
-                                    <Button size="sm" onClick={() => handleSaveApoderado(proceso.num_registro)}><Check className="h-4 w-4" /> Guardar</Button>
-                                    <Button size="sm" variant="ghost" onClick={() => handleCancelEdit(proceso.num_registro)}><Ban className="h-4 w-4" /> Cancelar</Button>
-                                </div>
-                            ) : (
-                                <Button size="sm" variant="outline" onClick={() => handleApoderadoChange(proceso.num_registro, proceso.nombres_apoderado)}><Pencil className="h-4 w-4" /> Editar</Button>
-                            )}
+                        <TableCell>{proceso.nombres_apoderado}</TableCell>
+                        <TableCell className="text-right">
+                           <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => onViewDetails(proceso)}
+                           >
+                              <Eye className="mr-2 h-4 w-4" />
+                              Ver Detalles
+                           </Button>
                         </TableCell>
                       </TableRow>
                     ))}
                     {filteredProcesos.length === 0 && (
                         <TableRow>
-                            <TableCell colSpan={6} className="text-center h-24">
+                            <TableCell colSpan={5} className="text-center h-24">
                                 No se encontraron procesos con los filtros aplicados.
                             </TableCell>
                         </TableRow>
