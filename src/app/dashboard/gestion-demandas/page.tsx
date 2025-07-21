@@ -5,11 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { FileClock, Loader2, ServerCrash, Download, Save } from 'lucide-react';
 import { ExternalDemandsTable } from '@/components/dashboard/external-demands-table';
-import { saveProcessesToFirebase } from '@/app/actions/save-processes-to-firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import axios from 'axios';
 import { useAuth } from '@/context/auth-provider';
+import { db } from '@/lib/firebase';
+import { writeBatch, collection, doc } from 'firebase/firestore';
+
 
 export default function GestionDemandasPage() {
   const [procesos, setProcesos] = useState<any[]>([]);
@@ -20,7 +22,7 @@ export default function GestionDemandasPage() {
   const [isFetching, startFetching] = useTransition();
   const [isSaving, startSaving] = useTransition();
   const { toast } = useToast();
-  const { user } = useAuth(); // Get authenticated user
+  const { user } = useAuth();
 
   const handleFetchData = () => {
     startFetching(async () => {
@@ -45,7 +47,6 @@ export default function GestionDemandasPage() {
         const registrosUnicos = [...new Set(response.data.map((p: any) => p.num_registro))];
         const demandantesData: { [key: string]: any[] } = {};
 
-        // Fetch demandantes in parallel
         await Promise.all(
           registrosUnicos.map(async (numRegistro) => {
             try {
@@ -100,26 +101,44 @@ export default function GestionDemandasPage() {
 
     startSaving(async () => {
       try {
-        const idToken = await user.getIdToken(true);
-        const result = await saveProcessesToFirebase(idToken, procesos, demandantes);
+        const batch = writeBatch(db);
+        const procesosCollection = collection(db, 'procesos');
 
-        if (result.success) {
-          toast({
+        procesos.forEach(proceso => {
+          const procesoDocRef = doc(procesosCollection, proceso.num_registro);
+          
+          const procesoData = Object.fromEntries(
+            Object.entries(proceso).filter(([_, v]) => v != null)
+          );
+          batch.set(procesoDocRef, procesoData);
+
+          const demandantesDeProceso = demandantes[proceso.num_registro];
+          if (demandantesDeProceso && demandantesDeProceso.length > 0) {
+            const demandantesSubCollection = collection(procesoDocRef, 'demandantes');
+            demandantesDeProceso.forEach(demandante => {
+              if (demandante.identidad_demandante) {
+                const demandanteDocRef = doc(demandantesSubCollection, demandante.identidad_demandante);
+                const demandanteData = Object.fromEntries(
+                    Object.entries(demandante).filter(([_, v]) => v != null)
+                );
+                batch.set(demandanteDocRef, demandanteData);
+              }
+            });
+          }
+        });
+
+        await batch.commit();
+
+        toast({
             title: 'Guardado Exitoso',
-            description: `${result.count} procesos han sido guardados en Firebase.`,
-          });
-        } else {
-          toast({
-            variant: 'destructive',
-            title: 'Error al Guardar',
-            description: result.error || 'Ocurrió un error al guardar en Firebase.',
-          });
-        }
-      } catch (authError: any) {
+            description: `${procesos.length} procesos han sido guardados en Firebase.`,
+        });
+
+      } catch (error: any) {
          toast({
             variant: 'destructive',
-            title: 'Error de Autenticación',
-            description: `No se pudo obtener el token de sesión: ${authError.message}`,
+            title: 'Error al Guardar',
+            description: `Error de Firestore: ${error.message}`,
         });
       }
     });
