@@ -155,7 +155,7 @@ export const ExternalDemandsTable = ({
                 </Button>
             </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="rounded-md border">
             <Table>
                 <TableHeader>
                     <TableRow>
@@ -168,7 +168,7 @@ export const ExternalDemandsTable = ({
                 </TableHeader>
                 <TableBody>
                     {paginatedData.map((proceso) => (
-                      <TableRow key={proceso.num_registro}>
+                      <TableRow key={proceso.num_registro} className="hover:bg-muted/50">
                         <TableCell>{proceso.num_registro}</TableCell>
                         <TableCell><Badge variant="outline">{proceso.estado}</Badge></TableCell>
                         <TableCell>{proceso.negocio}</TableCell>
