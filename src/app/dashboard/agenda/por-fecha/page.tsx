@@ -152,7 +152,8 @@ export default function PorFechaPage() {
             task.proceso?.nombres_demandante?.toLowerCase().includes(lowercasedFilter) ||
             task.proceso?.nombres_demandado?.toLowerCase().includes(lowercasedFilter) ||
             task.detalle?.toLowerCase().includes(lowercasedFilter) ||
-            task.proceso?.num_radicado_ult?.includes(lowercasedFilter)
+            task.proceso?.num_radicado_ult?.includes(lowercasedFilter) ||
+            task.proceso?.num_radicado_ini?.includes(lowercasedFilter)
         );
     }, [tasks, searchTerm]);
 
