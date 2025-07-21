@@ -23,13 +23,29 @@ export const transformarFecha = (fecha: string): string => {
     const fechaLimpia = fecha.trim();
     if (fechaLimpia === '00-00-0000' || fechaLimpia === '00/00/0000') return '';
 
-    // Reemplazar barras con guiones
-    const partes = fechaLimpia.replace(/\//g, '-').split('-'); 
+    // Reemplazar barras con guiones para estandarizar el separador
+    const fechaConGuiones = fechaLimpia.replace(/\//g, '-');
+    const partes = fechaConGuiones.split('-');
     
     if (partes.length === 3) {
+      // Caso 1: Detectar formato YYYY-MM-DD (posiblemente con año erróneo)
+      if (partes[0].length >= 4) {
+          let [anio, mes, dia] = partes;
+          
+          // Corregir año malformado como "20025" -> "2025"
+          if (anio.length > 4 && anio.startsWith('200')) {
+              anio = '20' + anio.substring(3);
+          } else if (anio.length > 4) {
+              anio = anio.substring(0, 4);
+          }
+
+          return `${dia.padStart(2, '0')}-${mes.padStart(2, '0')}-${anio}`;
+      }
+      
+      // Caso 2: Formato DD-MM-YYYY (original)
       let [dia, mes, anio] = partes;
       
-      // Corregir año malformado como "20025" -> "2025"
+      // Corregir año malformado
       if (anio.length > 4 && anio.startsWith('200')) {
           anio = '20' + anio.substring(3);
       } else if (anio.length > 4) {
