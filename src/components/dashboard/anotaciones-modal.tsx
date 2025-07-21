@@ -42,16 +42,17 @@ export function AnotacionesModal({ proceso, isOpen, onClose }: { proceso: any | 
         archivo_url: anadirPrefijoRuta(a.archivo_url),
       }));
 
+      // Sort ascending (oldest first)
       anotacionesCorregidas.sort((a, b) => {
         const fechaA = convertirAFormatoOrdenable(a.fecha);
         const fechaB = convertirAFormatoOrdenable(b.fecha);
-        if (fechaA > fechaB) return -1; // Sort descending by date
-        if (fechaA < fechaB) return 1;
+        if (fechaA < fechaB) return -1;
+        if (fechaA > fechaB) return 1;
         
         const horaA = convertirHoraLimite(a.hora_limite);
         const horaB = convertirHoraLimite(b.hora_limite);
-        if (horaA > horaB) return -1;
-        if (horaA < horaB) return 1;
+        if (horaA < horaB) return -1;
+        if (horaA > horaB) return 1;
         
         return 0;
       });

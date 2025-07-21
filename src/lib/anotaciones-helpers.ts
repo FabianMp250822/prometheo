@@ -20,26 +20,43 @@ export const corregirTexto = (texto: string): string => {
 
 export const transformarFecha = (fecha: string): string => {
     if (!fecha) return '';
-    const partes = fecha.split('-'); // Expects DD-MM-YYYY
+    const fechaLimpia = fecha.trim();
+    if (fechaLimpia === '00-00-0000' || fechaLimpia === '00/00/0000') return '';
+
+    // Reemplazar barras con guiones
+    const partes = fechaLimpia.replace(/\//g, '-').split('-'); 
+    
     if (partes.length === 3) {
       let [dia, mes, anio] = partes;
+      
+      // Corregir año malformado como "20025" -> "2025"
+      if (anio.length > 4 && anio.startsWith('200')) {
+          anio = '20' + anio.substring(3);
+      } else if (anio.length > 4) {
+          anio = anio.substring(0, 4);
+      }
+      
+      // Corregir años extraños como "0017"
       if (anio.length === 4 && parseInt(anio) < 1900) {
-        // Handle strange years like '0017' becoming '2017'
          anio = `20${anio.slice(-2)}`;
       }
-      return `${dia}-${mes}-${anio}`;
+      
+      return `${dia.padStart(2, '0')}-${mes.padStart(2, '0')}-${anio}`;
     }
-    return fecha; // Return as is if format is unexpected
+    return fecha; // Devolver como está si el formato es inesperado
 };
 
 export const convertirAFormatoOrdenable = (fecha: string): string => {
-    if (!fecha) return '';
+    if (!fecha) return '9999-12-31'; // Put items with no date at the end
     const partes = fecha.split('-');
     if (partes.length === 3) {
       const [dia, mes, anio] = partes;
-      return `${anio}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
+      // Ensure year is valid before creating the sortable string
+      if (anio && mes && dia && anio.length === 4) {
+        return `${anio}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
+      }
     }
-    return '';
+    return '9999-12-31'; // Invalid format, put at the end
 };
 
 export const convertirHoraLimite = (hora: string): string => {
@@ -48,6 +65,8 @@ export const convertirHoraLimite = (hora: string): string => {
     const [time, modifier] = hora.toLowerCase().split(' ');
     let [hours, minutes] = time.split(':').map(Number);
     
+    if (isNaN(hours) || isNaN(minutes)) return '00:00';
+
     if (modifier === 'pm' && hours < 12) {
       hours += 12;
     }
