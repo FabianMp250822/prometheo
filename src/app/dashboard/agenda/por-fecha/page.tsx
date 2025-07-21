@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { collectionGroup, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
+import { collectionGroup, query, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { CalendarSearch, Loader2, Search, CalendarOff, AlertTriangle } from 'lucide-react';
 import type { Anotacion } from '@/lib/data';
-import { format, addDays } from 'date-fns';
+import { format, addDays, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { transformarFecha } from '@/lib/anotaciones-helpers';
 import { Calendar as CalendarIcon } from 'lucide-react';
@@ -24,9 +24,8 @@ interface PendingTask extends Anotacion {
 const getDayOfWeek = (dateString: string) => {
     if (!dateString) return '';
     try {
-        const [day, month, year] = dateString.split('-').map(Number);
-        if (isNaN(day) || isNaN(month) || isNaN(year)) return '';
-        const date = new Date(year, month - 1, day);
+        const date = parse(dateString, 'dd-MM-yyyy', new Date());
+        if (isNaN(date.getTime())) return '';
         return format(date, 'E', { locale: es });
     } catch {
         return '';
@@ -35,7 +34,8 @@ const getDayOfWeek = (dateString: string) => {
 
 export default function PorFechaPage() {
     const [tasks, setTasks] = useState<PendingTask[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
+    const [allAnotaciones, setAllAnotaciones] = useState<Anotacion[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -44,28 +44,21 @@ export default function PorFechaPage() {
         to: addDays(new Date(), 7),
     });
 
-    const fetchTasksByDate = useCallback(async (startDate: Date, endDate: Date) => {
+    const fetchAllAnotaciones = useCallback(async () => {
         setIsLoading(true);
         setError(null);
-        setTasks([]);
-
         try {
-            const startStr = format(startDate, 'yyyy-MM-dd');
-            const endStr = format(endDate, 'yyyy-MM-dd');
-            
             const anotacionesQuery = query(
                 collectionGroup(db, 'anotaciones'),
-                where('fecha_limite_ordenable', '>=', startStr),
-                where('fecha_limite_ordenable', '<=', endStr),
                 orderBy('fecha_limite_ordenable'),
                 orderBy('hora_limite')
             );
             
             const querySnapshot = await getDocs(anotacionesQuery);
-            const pendingAnotaciones = querySnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Anotacion));
+            const allData = querySnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Anotacion));
 
             const tasksWithProcesos: PendingTask[] = await Promise.all(
-                pendingAnotaciones.map(async (anotacion) => {
+                allData.map(async (anotacion) => {
                     if (anotacion.num_registro) {
                         const procesoDocRef = doc(db, 'procesos', anotacion.num_registro);
                         const procesoDoc = await getDoc(procesoDocRef);
@@ -80,28 +73,62 @@ export default function PorFechaPage() {
                     return anotacion;
                 })
             );
+            setAllAnotaciones(tasksWithProcesos);
             
-            setTasks(tasksWithProcesos);
         } catch (err: any) {
             console.error("Error fetching tasks by date:", err);
-            setError('Error al buscar tareas. Es posible que el índice de Firebase aún se esté creando. Por favor, espere unos minutos e intente de nuevo.');
+            if (err.code === 'failed-precondition') {
+                 setError('Error de consulta: El índice de Firebase necesario para esta búsqueda se está construyendo. Por favor, espere unos minutos e inténtelo de nuevo.');
+            } else {
+                setError('Ocurrió un error inesperado al buscar las tareas.');
+            }
         } finally {
             setIsLoading(false);
         }
     }, []);
     
     useEffect(() => {
-        fetchTasksByDate(dateRange.from, dateRange.to);
+        fetchAllAnotaciones();
     }, []); 
+
+    const filterTasksByDate = useCallback(() => {
+        if (!dateRange.from || !dateRange.to) {
+            setTasks([]);
+            return;
+        }
+
+        const startDate = dateRange.from;
+        startDate.setHours(0, 0, 0, 0);
+        const endDate = dateRange.to;
+        endDate.setHours(23, 59, 59, 999);
+
+        const filtered = allAnotaciones.filter(anotacion => {
+            if (!anotacion.fecha_limite) return false;
+            try {
+                const taskDate = parse(anotacion.fecha_limite, 'dd-MM-yyyy', new Date());
+                 return taskDate >= startDate && taskDate <= endDate;
+            } catch (e) {
+                return false;
+            }
+        });
+        setTasks(filtered);
+
+    }, [allAnotaciones, dateRange]);
 
     const handleSearch = () => {
         if (!dateRange.from || !dateRange.to) {
             setError("Por favor seleccione un rango de fechas válido.");
             return;
         }
-        fetchTasksByDate(dateRange.from, dateRange.to);
+        filterTasksByDate();
     };
     
+    useEffect(() => {
+        if(allAnotaciones.length > 0) {
+            filterTasksByDate();
+        }
+    }, [allAnotaciones, filterTasksByDate]);
+
     const filteredTasks = useMemo(() => {
         if (!searchTerm) return tasks;
         const lowercasedFilter = searchTerm.toLowerCase();
