@@ -1,17 +1,29 @@
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
+import * as adminAuth from 'firebase-admin/auth';
 
 /**
- * Guarda los procesos y sus demandantes en la base de datos de Firebase.
+ * Guarda los procesos y sus demandantes en la base de datos de Firebase,
+ * después de verificar la autenticación del usuario a través de un ID Token.
+ * @param idToken - El ID Token del usuario de Firebase para autenticación.
  * @param procesos - Un array de objetos de proceso.
  * @param demandantes - Un objeto donde las claves son `num_registro` y los valores son arrays de demandantes.
  * @returns Un objeto indicando el éxito, el número de procesos guardados o un mensaje de error.
  */
 export async function saveProcessesToFirebase(
+  idToken: string,
   procesos: any[],
   demandantes: { [key: string]: any[] }
 ): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    // Verificar el token de ID para asegurar que la solicitud es de un usuario autenticado.
+    await adminAuth.getAuth().verifyIdToken(idToken);
+  } catch (error) {
+    console.error('Error de autenticación:', error);
+    return { success: false, count: 0, error: 'Autenticación requerida. No se pudo verificar la sesión.' };
+  }
+
   if (!procesos || procesos.length === 0) {
     return { success: false, count: 0, error: 'No hay procesos para guardar.' };
   }

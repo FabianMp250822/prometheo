@@ -9,6 +9,7 @@ import { saveProcessesToFirebase } from '@/app/actions/save-processes-to-firebas
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import axios from 'axios';
+import { useAuth } from '@/context/auth-provider';
 
 export default function GestionDemandasPage() {
   const [procesos, setProcesos] = useState<any[]>([]);
@@ -19,6 +20,7 @@ export default function GestionDemandasPage() {
   const [isFetching, startFetching] = useTransition();
   const [isSaving, startSaving] = useTransition();
   const { toast } = useToast();
+  const { user } = useAuth(); // Get authenticated user
 
   const handleFetchData = () => {
     startFetching(async () => {
@@ -69,6 +71,15 @@ export default function GestionDemandasPage() {
   };
 
   const handleSaveData = () => {
+    if (!user) {
+        toast({
+            variant: 'destructive',
+            title: 'No Autenticado',
+            description: 'Debe iniciar sesión para guardar datos.',
+        });
+        return;
+    }
+
     if (procesos.length === 0) {
       toast({
         variant: 'destructive',
@@ -77,18 +88,29 @@ export default function GestionDemandasPage() {
       });
       return;
     }
+
     startSaving(async () => {
-      const result = await saveProcessesToFirebase(procesos, demandantes);
-      if (result.success) {
-        toast({
-          title: 'Guardado Exitoso',
-          description: `${result.count} procesos han sido guardados en Firebase.`,
-        });
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'Error al Guardar',
-          description: result.error || 'Ocurrió un error al guardar en Firebase.',
+      try {
+        const idToken = await user.getIdToken(true); // Get fresh ID token
+        const result = await saveProcessesToFirebase(idToken, procesos, demandantes);
+
+        if (result.success) {
+          toast({
+            title: 'Guardado Exitoso',
+            description: `${result.count} procesos han sido guardados en Firebase.`,
+          });
+        } else {
+          toast({
+            variant: 'destructive',
+            title: 'Error al Guardar',
+            description: result.error || 'Ocurrió un error al guardar en Firebase.',
+          });
+        }
+      } catch (authError: any) {
+         toast({
+            variant: 'destructive',
+            title: 'Error de Autenticación',
+            description: `No se pudo obtener el token de sesión: ${authError.message}`,
         });
       }
     });
