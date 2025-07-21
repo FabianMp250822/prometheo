@@ -7,6 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Loader2, UserPlus, Edit, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { db } from '@/lib/firebase';
+import { doc, setDoc, collection } from 'firebase/firestore';
 
 const API_URL = 'https://appdajusticia.com/procesos.php';
 
@@ -59,11 +61,11 @@ export function DemandantesModal({ proceso, isOpen, onClose }: { proceso: any | 
 
   const handleAgregar = async () => {
     if (!nuevoDemandante.nombre_demandante || !nuevoDemandante.identidad_demandante) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Por favor, completa los campos requeridos.' });
+      toast({ variant: 'destructive', title: 'Error de Validación', description: 'Por favor, complete los campos de nombre e identidad.' });
       return;
     }
     if (!proceso?.num_registro) {
-      toast({ variant: 'destructive', title: 'Error', description: 'No se encontró el número de registro del proceso.' });
+      toast({ variant: 'destructive', title: 'Error de Proceso', description: 'No se encontró el número de registro del proceso.' });
       return;
     }
 
@@ -76,7 +78,8 @@ export function DemandantesModal({ proceso, isOpen, onClose }: { proceso: any | 
     };
     
     try {
-       const response = await fetch(API_URL, {
+      // 1. Guardar en la API externa
+      const response = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -84,15 +87,32 @@ export function DemandantesModal({ proceso, isOpen, onClose }: { proceso: any | 
 
       const data = await response.json();
       if (data.error) {
-        throw new Error(data.error);
+        throw new Error(`Error de la API externa: ${data.error}`);
       }
-      toast({ title: 'Éxito', description: 'Demandante agregado correctamente.' });
-      await fetchDemandantes(proceso.num_registro); // Recargar
+      toast({ title: 'Éxito Externo', description: 'Demandante agregado a la API externa.' });
+
+      // 2. Guardar en Firebase
+      const procesoDocRef = doc(db, 'procesos', proceso.num_registro);
+      const demandanteDocRef = doc(collection(procesoDocRef, 'demandantes'), nuevoDemandante.identidad_demandante);
+      
+      const firebaseData = {
+          num_registro: proceso.num_registro,
+          ...nuevoDemandante
+      };
+      
+      await setDoc(demandanteDocRef, firebaseData);
+
+      toast({ title: 'Éxito Total', description: 'Demandante agregado a la API externa y a Firebase.' });
+
+      await fetchDemandantes(proceso.num_registro);
       setNuevoDemandante({ nombre_demandante: '', identidad_demandante: '', poder: '' });
+      
     } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Error al agregar', description: err.message });
+      toast({ variant: 'destructive', title: 'Error al Agregar', description: err.message });
+      console.error("Error en operación de guardado dual:", err);
     }
   };
+
 
   if (!proceso) return null;
 
