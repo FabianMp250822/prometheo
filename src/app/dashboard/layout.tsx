@@ -4,13 +4,15 @@ import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-provider';
 import { auth } from '@/lib/firebase';
-import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarSeparator } from '@/components/ui/sidebar';
-import { Scale, LayoutGrid, TrendingUp, Banknote, BarChart2, Settings, LogOut, User as UserIcon, Gavel, Database, FileUp, FileClock, BookUser, UserSquare } from 'lucide-react';
+import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarSeparator, SidebarMenuSub, SidebarMenuSubButton } from '@/components/ui/sidebar';
+import { Scale, LayoutGrid, TrendingUp, Banknote, BarChart2, Settings, LogOut, User as UserIcon, Gavel, Database, FileUp, FileClock, BookUser, UserSquare, CalendarClock, ListTodo, CalendarPlus, CalendarSearch } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { GlobalHeader } from '@/components/dashboard/global-header';
 import { usePensioner } from '@/context/pensioner-provider';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown } from 'lucide-react';
 
 export default function DashboardLayout({
   children,
@@ -87,6 +89,72 @@ export default function DashboardLayout({
                     <span className="group-data-[collapsible=icon]:hidden">Análisis de Sentencias</span>
                   </Link>
                 </SidebarMenuButton>
+              </SidebarMenuItem>
+               <SidebarMenuItem>
+                  <Collapsible>
+                    <CollapsibleTrigger className="w-full">
+                      <SidebarMenuButton tooltip="Agenda" className="w-full justify-between">
+                         <div className="flex items-center gap-2">
+                          <CalendarClock />
+                          <span className="group-data-[collapsible=icon]:hidden">Agenda</span>
+                        </div>
+                        <ChevronDown className="h-4 w-4 group-data-[collapsible=icon]:hidden group-data-[state=open]:rotate-180 transition-transform" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                       <SidebarMenuSub>
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/agenda/pendientes">
+                                <ListTodo />
+                                <span>Pendientes</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                          <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/agenda/por-fecha">
+                                <CalendarSearch />
+                                <span>Por Fecha</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                           <SidebarMenuSubItem>
+                             <Collapsible>
+                                <CollapsibleTrigger className="w-full">
+                                   <SidebarMenuSubButton className="w-full justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <ListTodo />
+                                        <span>Tareas</span>
+                                      </div>
+                                      <ChevronDown className="h-4 w-4 group-data-[state=open]:rotate-180 transition-transform" />
+                                    </SidebarMenuSubButton>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="pl-4">
+                                   <SidebarMenuSub>
+                                      <SidebarMenuSubItem>
+                                        <SidebarMenuSubButton asChild size="sm">
+                                          <Link href="/dashboard/agenda/agregar-tareas">
+                                            <CalendarPlus />
+                                            <span>Agregar Tareas</span>
+                                          </Link>
+                                        </SidebarMenuSubButton>
+                                      </SidebarMenuSubItem>
+                                      <SidebarMenuSubItem>
+                                        <SidebarMenuSubButton asChild size="sm">
+                                          <Link href="/dashboard/agenda/ver-tareas">
+                                            <CalendarSearch />
+                                            <span>Ver Tareas</span>
+                                          </Link>
+                                        </SidebarMenuSubButton>
+                                      </SidebarMenuSubItem>
+                                    </SidebarMenuSub>
+                                </CollapsibleContent>
+                              </Collapsible>
+                          </SidebarMenuSubItem>
+                       </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </Collapsible>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild tooltip="Liquidaciones" >
