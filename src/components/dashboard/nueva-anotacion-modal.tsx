@@ -12,6 +12,7 @@ import type { Anotacion } from '@/lib/data';
 import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
 import { db, storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { convertirAFormatoOrdenable } from '@/lib/anotaciones-helpers';
 
 interface NuevaAnotacionModalProps {
   isOpen: boolean;
@@ -89,6 +90,7 @@ export function NuevaAnotacionModal({ isOpen, onClose, proceso, anotacionExisten
         archivo_url: fileUrl,
         nombre_documento: fileName,
         num_registro: proceso.num_registro,
+        fecha_limite_ordenable: convertirAFormatoOrdenable(formData.fecha_limite)
       };
 
       const anotacionesCollectionRef = collection(db, 'procesos', proceso.num_registro, 'anotaciones');
