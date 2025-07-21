@@ -1,46 +1,37 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Download, Eye, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Eye, Search, Loader2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export const ExternalDemandsTable = ({ 
     procesos, 
-    onViewDetails
+    onViewDetails,
+    searchTerm,
+    onSearchTermChange,
+    isSearching,
 }: { 
     procesos: any[], 
     onViewDetails: (process: any) => void;
+    searchTerm: string;
+    onSearchTermChange: (value: string) => void;
+    isSearching: boolean;
 }) => {
-    const [searchTerm, setSearchTerm] = useState('');
     
-    const filteredProcesos = useMemo(() => {
-        let results = procesos;
-        if (searchTerm) {
-            const lowercasedFilter = searchTerm.toLowerCase();
-            results = results.filter((p) =>
-                Object.values(p).some(val => 
-                    String(val).toLowerCase().includes(lowercasedFilter)
-                )
-            );
-        }
-        return results;
-    }, [procesos, searchTerm]);
-    
-
     return (
     <div className="space-y-4">
         <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
                 type="text"
-                placeholder="Buscar en los procesos cargados..."
+                placeholder="Buscar por radicado o nombre (mín. 3 caracteres)..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => onSearchTermChange(e.target.value)}
                 className="pl-10"
             />
+            {isSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin" />}
         </div>
         <div className="rounded-md border">
             <Table>
@@ -55,7 +46,7 @@ export const ExternalDemandsTable = ({
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {filteredProcesos.map((proceso) => (
+                    {procesos.map((proceso) => (
                       <TableRow key={proceso.id} className="hover:bg-muted/50">
                         <TableCell>{proceso.num_radicado_ult || proceso.num_radicado_ini}</TableCell>
                         <TableCell>{proceso.nombres_demandante}</TableCell>
@@ -74,7 +65,7 @@ export const ExternalDemandsTable = ({
                         </TableCell>
                       </TableRow>
                     ))}
-                    {filteredProcesos.length === 0 && (
+                    {procesos.length === 0 && !isSearching && (
                         <TableRow>
                             <TableCell colSpan={6} className="text-center h-24">
                                 No se encontraron procesos.

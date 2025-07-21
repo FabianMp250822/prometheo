@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useCallback, useEffect } from 'react';
+import { useState, useTransition, useCallback, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FileClock, Loader2, ServerCrash, Download, Save, RefreshCw } from 'lucide-react';
@@ -9,7 +9,7 @@ import { ProcessDetailsSheet } from '@/components/dashboard/process-details-shee
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { writeBatch, collection, doc, getDocs, query, orderBy, limit, startAfter, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
+import { writeBatch, collection, doc, getDocs, query, orderBy, limit, startAfter, where, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/auth-provider';
 import { DemandantesModal } from '@/components/dashboard/demandantes-modal';
@@ -17,6 +17,21 @@ import { AnotacionesModal } from '@/components/dashboard/anotaciones-modal';
 import { AnexosModal } from '@/components/dashboard/anexos-modal';
 
 const ITEMS_PER_PAGE = 20;
+
+// Debounce hook to delay querying Firestore
+function useDebounce<T>(value: T, delay: number): T {
+    const [debouncedValue, setDebouncedValue] = useState<T>(value);
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [value, delay]);
+    return debouncedValue;
+}
+
 
 export default function GestionDemandasPage() {
   // State for data from external API (for syncing)
@@ -32,6 +47,11 @@ export default function GestionDemandasPage() {
   const [isLoadingFirebase, setIsLoadingFirebase] = useState(true);
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
   const [hasMore, setHasMore] = useState(true);
+
+  // State for search
+  const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Modals and sheets state
   const [selectedProcess, setSelectedProcess] = useState<any | null>(null);
@@ -49,6 +69,9 @@ export default function GestionDemandasPage() {
   
   // --- Data Fetching from Firebase ---
   const fetchProcesosFromFirebase = useCallback(async (loadMore = false) => {
+    // If searching, this function should not run.
+    if (debouncedSearchTerm) return;
+
     if (!loadMore) {
       setIsLoadingFirebase(true);
       setFirebaseProcesos([]);
@@ -76,11 +99,70 @@ export default function GestionDemandasPage() {
     } finally {
       setIsLoadingFirebase(false);
     }
-  }, [lastDoc, toast]);
+  }, [lastDoc, toast, debouncedSearchTerm]);
   
+  // Initial fetch from Firebase (paginated)
   useEffect(() => {
-    fetchProcesosFromFirebase();
-  }, []); // Initial fetch from Firebase
+    if (!debouncedSearchTerm) {
+      fetchProcesosFromFirebase();
+    }
+  }, []); // Run only on initial mount when not searching
+
+  // Effect for handling search queries
+  useEffect(() => {
+      const search = async () => {
+          if (debouncedSearchTerm.length < 3) {
+              setFirebaseProcesos([]); // Clear search results
+              fetchProcesosFromFirebase(false); // Fetch initial paginated data
+              return;
+          }
+
+          setIsSearching(true);
+          setIsLoadingFirebase(true);
+
+          try {
+              const isNumeric = /^\d+$/.test(debouncedSearchTerm);
+              let searchPromises: Promise<QueryDocumentSnapshot<DocumentData>[]>[] = [];
+
+              if (isNumeric) {
+                  // Search by number fields
+                  const radicadoIniQuery = query(collection(db, 'procesos'), where('num_radicado_ini', '>=', debouncedSearchTerm), where('num_radicado_ini', '<=', debouncedSearchTerm + '\uf8ff'));
+                  const radicadoUltQuery = query(collection(db, 'procesos'), where('num_radicado_ult', '>=', debouncedSearchTerm), where('num_radicado_ult', '<=', debouncedSearchTerm + '\uf8ff'));
+                  searchPromises.push(getDocs(radicadoIniQuery).then(snap => snap.docs));
+                  searchPromises.push(getDocs(radicadoUltQuery).then(snap => snap.docs));
+              } else {
+                  // Search by text fields (case-insensitive requires uppercase)
+                  const upperSearchTerm = debouncedSearchTerm.toUpperCase();
+                  const demandanteQuery = query(collection(db, 'procesos'), where('nombres_demandante', '>=', upperSearchTerm), where('nombres_demandante', '<=', upperSearchTerm + '\uf8ff'));
+                  const demandadoQuery = query(collection(db, 'procesos'), where('nombres_demandado', '>=', upperSearchTerm), where('nombres_demandado', '<=', upperSearchTerm + '\uf8ff'));
+                  searchPromises.push(getDocs(demandanteQuery).then(snap => snap.docs));
+                  searchPromises.push(getDocs(demandadoQuery).then(snap => snap.docs));
+              }
+
+              const results = await Promise.all(searchPromises);
+              const combinedDocs = [...results[0], ...results[1]];
+              const uniqueDocs = Array.from(new Map(combinedDocs.map(doc => [doc.id, doc])).values());
+              
+              setFirebaseProcesos(uniqueDocs.map(doc => ({ id: doc.id, ...doc.data() })));
+              setHasMore(false); // Disable pagination during search
+
+          } catch (error) {
+              console.error('Error during search:', error);
+              toast({ variant: 'destructive', title: 'Error de Búsqueda', description: 'No se pudo realizar la búsqueda.' });
+          } finally {
+              setIsSearching(false);
+              setIsLoadingFirebase(false);
+          }
+      };
+
+      if (debouncedSearchTerm) {
+          search();
+      } else {
+          // If search term is cleared, fetch initial paginated data
+          fetchProcesosFromFirebase(false);
+      }
+  }, [debouncedSearchTerm, toast]);
+
 
   // --- External API Data Fetching for Syncing ---
   const fetchExternalData = async (url: string) => {
@@ -286,41 +368,49 @@ export default function GestionDemandasPage() {
         </Alert>
       )}
 
-      {isLoadingFirebase ? (
-        <div className="flex justify-center items-center p-10">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        </div>
-      ) : (
-         <Card>
-            <CardHeader className='flex-row items-center justify-between'>
-                <div>
-                    <CardTitle>Procesos en Firebase</CardTitle>
-                    <CardDescription>Mostrando {firebaseProcesos.length} registros.</CardDescription>
+       <Card>
+          <CardHeader>
+              <CardTitle>Procesos en Firebase</CardTitle>
+              <div className='flex flex-col md:flex-row justify-between md:items-center gap-4'>
+                <CardDescription>
+                  {debouncedSearchTerm ? `Resultados de búsqueda para "${debouncedSearchTerm}".` : `Mostrando ${firebaseProcesos.length} registros.`}
+                </CardDescription>
+                <div className='flex items-center gap-2'>
+                  <Button variant="outline" size="sm" onClick={() => fetchProcesosFromFirebase()}>
+                      <RefreshCw className="mr-2 h-4 w-4"/>
+                      Refrescar
+                  </Button>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => fetchProcesosFromFirebase()}>
-                    <RefreshCw className="mr-2 h-4 w-4"/>
-                    Refrescar
-                </Button>
-            </CardHeader>
-            <CardContent>
-                <ExternalDemandsTable 
-                    procesos={firebaseProcesos} 
-                    onViewDetails={handleViewDetails}
-                />
-                 <div className="flex justify-center py-4">
-                    {hasMore && (
-                        <Button onClick={() => fetchProcesosFromFirebase(true)} disabled={isLoadingFirebase}>
-                            {isLoadingFirebase && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Cargar más
-                        </Button>
-                    )}
-                    {!hasMore && firebaseProcesos.length > 0 && (
-                        <p className="text-sm text-muted-foreground">Has llegado al final de la lista.</p>
-                    )}
+              </div>
+          </CardHeader>
+          <CardContent>
+              <ExternalDemandsTable 
+                  procesos={firebaseProcesos} 
+                  onViewDetails={handleViewDetails}
+                  searchTerm={searchTerm}
+                  onSearchTermChange={setSearchTerm}
+                  isSearching={isSearching}
+              />
+               {!debouncedSearchTerm && (
+                <div className="flex justify-center py-4">
+                  {hasMore && (
+                      <Button onClick={() => fetchProcesosFromFirebase(true)} disabled={isLoadingFirebase}>
+                          {isLoadingFirebase && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Cargar más
+                      </Button>
+                  )}
+                  {!hasMore && firebaseProcesos.length > 0 && (
+                      <p className="text-sm text-muted-foreground">Has llegado al final de la lista.</p>
+                  )}
                 </div>
-            </CardContent>
-         </Card>
-      )}
+               )}
+                {isLoadingFirebase && (
+                    <div className="flex justify-center items-center p-10">
+                        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                    </div>
+                )}
+          </CardContent>
+       </Card>
 
       <ProcessDetailsSheet
         process={selectedProcess}
