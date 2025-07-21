@@ -17,6 +17,7 @@ import { Input } from '../ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { AnexosModal } from './anexos-modal';
 
 interface ProcessDetailsSheetProps {
   process: any | null;
@@ -88,6 +89,7 @@ export function ProcessDetailsSheet({
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editedData, setEditedData] = useState<any | null>(null);
+  const [showAnexosModal, setShowAnexosModal] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -192,71 +194,79 @@ export function ProcessDetailsSheet({
   ];
 
   return (
-    <Sheet open={isOpen} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-4xl flex flex-col p-0">
-        <SheetHeader className="p-6 pb-4 border-b">
-          <SheetTitle className="text-2xl font-headline flex items-center gap-2">
-            <Info />
-            Detalles del Proceso
-          </SheetTitle>
-          <SheetDescription>
-            Registro #{process.num_registro} - <Badge variant="outline">{process.estado}</Badge>
-          </SheetDescription>
-        </SheetHeader>
+    <>
+      <Sheet open={isOpen} onOpenChange={onOpenChange}>
+        <SheetContent className="w-full sm:max-w-4xl flex flex-col p-0">
+          <SheetHeader className="p-6 pb-4 border-b">
+            <SheetTitle className="text-2xl font-headline flex items-center gap-2">
+              <Info />
+              Detalles del Proceso
+            </SheetTitle>
+            <SheetDescription>
+              Registro #{process.num_registro} - <Badge variant="outline">{process.estado}</Badge>
+            </SheetDescription>
+          </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                 <h2 className="text-lg font-bold col-span-1 md:col-span-2 text-foreground mb-2 border-b pb-2">DATOS DEL PROCESO</h2>
-                 
-                 {fields.map(field => (
-                   <DetailItem 
-                     key={field.name}
-                     label={field.label}
-                     name={field.name}
-                     value={editedData?.[field.name]}
-                     isEditing={isEditing}
-                     onChange={handleInputChange}
-                   />
-                 ))}
-                 
-                 <DetailItem label="DESCRIPCIÓN" name="descripcion" value={editedData?.descripcion} fullWidth isEditing={isEditing} onChange={handleInputChange} />
-            </div>
-        </div>
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                  <h2 className="text-lg font-bold col-span-1 md:col-span-2 text-foreground mb-2 border-b pb-2">DATOS DEL PROCESO</h2>
+                  
+                  {fields.map(field => (
+                    <DetailItem 
+                      key={field.name}
+                      label={field.label}
+                      name={field.name}
+                      value={editedData?.[field.name]}
+                      isEditing={isEditing}
+                      onChange={handleInputChange}
+                    />
+                  ))}
+                  
+                  <DetailItem label="DESCRIPCIÓN" name="descripcion" value={editedData?.descripcion} fullWidth isEditing={isEditing} onChange={handleInputChange} />
+              </div>
+          </div>
 
-        <SheetFooter className="p-4 bg-muted/50 border-t flex-col sm:flex-row sm:justify-start gap-2">
-            {isEditing ? (
-                <>
-                    <Button onClick={handleSaveChanges} disabled={isSaving} className="w-full sm:w-auto">
-                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
-                        Guardar Cambios
-                    </Button>
-                    <Button variant="outline" onClick={handleCancelClick} disabled={isSaving} className="w-full sm:w-auto">
-                        <XCircle className="mr-2 h-4 w-4" />
-                        Cancelar
-                    </Button>
-                </>
-            ) : (
-                <>
-                    <Button variant="outline" className="w-full sm:w-auto" onClick={() => onViewDemandantes(process)}>
-                        <Users className="mr-2 h-4 w-4" />
-                        Ver Demandantes
-                    </Button>
-                    <Button variant="outline" className="w-full sm:w-auto" onClick={() => onViewAnotaciones(process)}>
-                        <FileText className="mr-2 h-4 w-4" />
-                        Anotaciones
-                    </Button>
-                    <Button variant="outline" className="w-full sm:w-auto" disabled>
-                        <Briefcase className="mr-2 h-4 w-4" />
-                        Anexos
-                    </Button>
-                    <Button onClick={handleEditClick} className="bg-accent hover:bg-accent/90 text-accent-foreground w-full sm:w-auto">
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Editar
-                    </Button>
-                </>
-            )}
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+          <SheetFooter className="p-4 bg-muted/50 border-t flex-col sm:flex-row sm:justify-start gap-2">
+              {isEditing ? (
+                  <>
+                      <Button onClick={handleSaveChanges} disabled={isSaving} className="w-full sm:w-auto">
+                          {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
+                          Guardar Cambios
+                      </Button>
+                      <Button variant="outline" onClick={handleCancelClick} disabled={isSaving} className="w-full sm:w-auto">
+                          <XCircle className="mr-2 h-4 w-4" />
+                          Cancelar
+                      </Button>
+                  </>
+              ) : (
+                  <>
+                      <Button variant="outline" className="w-full sm:w-auto" onClick={() => onViewDemandantes(process)}>
+                          <Users className="mr-2 h-4 w-4" />
+                          Ver Demandantes
+                      </Button>
+                      <Button variant="outline" className="w-full sm:w-auto" onClick={() => onViewAnotaciones(process)}>
+                          <FileText className="mr-2 h-4 w-4" />
+                          Anotaciones
+                      </Button>
+                      <Button variant="outline" className="w-full sm:w-auto" onClick={() => setShowAnexosModal(true)}>
+                          <Briefcase className="mr-2 h-4 w-4" />
+                          Anexos
+                      </Button>
+                      <Button onClick={handleEditClick} className="bg-accent hover:bg-accent/90 text-accent-foreground w-full sm:w-auto">
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar
+                      </Button>
+                  </>
+              )}
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+      
+      <AnexosModal
+        proceso={process}
+        isOpen={showAnexosModal}
+        onClose={() => setShowAnexosModal(false)}
+      />
+    </>
   );
 }
