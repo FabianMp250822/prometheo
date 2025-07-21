@@ -14,7 +14,7 @@ import { db } from '@/lib/firebase';
 
 const ANOTACIONES_API = 'https://appdajusticia.com/anotaciones.php';
 
-export function AnotacionesModal({ proceso, isOpen, onClose }: { proceso: any | null; isOpen: boolean; onClose: () => void }) {
+export function AnotacionesModal({ proceso, anotaciones: initialAnotaciones, isOpen, onClose }: { proceso: any | null; anotaciones: any[]; isOpen: boolean; onClose: () => void }) {
   const [anotaciones, setAnotaciones] = useState<Anotacion[]>([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,17 +24,9 @@ export function AnotacionesModal({ proceso, isOpen, onClose }: { proceso: any | 
   const [showNuevoModal, setShowNuevoModal] = useState(false);
   const [anotacionParaEditar, setAnotacionParaEditar] = useState<Anotacion | null>(null);
 
-  const fetchAnotaciones = async (numRegistro: string) => {
-    setCargando(true);
-    setError(null);
-    try {
-      const response = await fetch(`${ANOTACIONES_API}?num_registro=${numRegistro}`);
-      if (!response.ok) throw new Error('Error de red al obtener anotaciones.');
-      
-      const data = await response.json();
-      if (data.error) throw new Error(data.error);
-
-      const anotacionesCorregidas = (Array.isArray(data) ? data : []).map((a: any) => ({
+  useEffect(() => {
+    if (isOpen && Array.isArray(initialAnotaciones)) {
+        const anotacionesCorregidas = initialAnotaciones.map((a: any) => ({
         ...a,
         fecha: transformarFecha(a.fecha),
         fecha_limite: transformarFecha(a.fecha_limite),
@@ -58,19 +50,8 @@ export function AnotacionesModal({ proceso, isOpen, onClose }: { proceso: any | 
       });
 
       setAnotaciones(anotacionesCorregidas);
-    } catch (err: any) {
-      setError(err.message || 'Ocurrió un error al cargar las anotaciones.');
-      setAnotaciones([]);
-    } finally {
-      setCargando(false);
     }
-  };
-
-  useEffect(() => {
-    if (isOpen && proceso?.num_registro) {
-      fetchAnotaciones(proceso.num_registro);
-    }
-  }, [isOpen, proceso]);
+  }, [isOpen, initialAnotaciones]);
 
   const anotacionesFiltradas = useMemo(() => {
     if (!busqueda) return anotaciones;
@@ -101,7 +82,9 @@ export function AnotacionesModal({ proceso, isOpen, onClose }: { proceso: any | 
         await deleteDoc(anotacionDocRef);
         
         toast({ title: 'Éxito', description: 'Anotación eliminada de ambos sistemas.' });
-        fetchAnotaciones(proceso.num_registro);
+        // TODO: Need a way to refresh the data in the parent component
+        onClose();
+
 
     } catch (err: any) {
         toast({ variant: 'destructive', title: 'Error al Eliminar', description: err.message });
@@ -111,7 +94,8 @@ export function AnotacionesModal({ proceso, isOpen, onClose }: { proceso: any | 
   const handleCloseNuevoModal = () => {
     setShowNuevoModal(false);
     setAnotacionParaEditar(null);
-    fetchAnotaciones(proceso.num_registro);
+    // TODO: Need a way to refresh the data in the parent component
+    onClose();
   };
 
   if (!proceso) return null;
@@ -167,7 +151,7 @@ export function AnotacionesModal({ proceso, isOpen, onClose }: { proceso: any | 
                       <TableCell>
                         {anotacion.archivo_url ? (
                             <Button asChild variant="outline" size="sm">
-                                <a href={anotacion.archivo_url} target="_blank" rel="noopener noreferrer">
+                                <a href={`https://appdajusticia.com/${anotacion.archivo_url}`} target="_blank" rel="noopener noreferrer">
                                 <FileDown className="h-3 w-3 mr-1" />
                                 Ver
                                 </a>

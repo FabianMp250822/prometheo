@@ -18,6 +18,7 @@ import { AnotacionesModal } from '@/components/dashboard/anotaciones-modal';
 export default function GestionDemandasPage() {
   const [procesos, setProcesos] = useState<any[]>([]);
   const [demandantes, setDemandantes] = useState<{ [key: string]: any[] }>({});
+  const [anotaciones, setAnotaciones] = useState<{ [key: string]: any[] }>({});
   const [error, setError] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
 
@@ -51,6 +52,7 @@ export default function GestionDemandasPage() {
       setError(null);
       setProcesos([]);
       setDemandantes({});
+      setAnotaciones({});
       setLoadingMessage('Obteniendo lista de procesos...');
       
       try {
@@ -60,8 +62,9 @@ export default function GestionDemandasPage() {
             throw new Error('La respuesta de la API de procesos no es un array válido.');
         }
         
-        setLoadingMessage('Obteniendo detalles de demandantes...');
         const registrosUnicos = [...new Set(procesosData.map((p: any) => p.num_registro))];
+        
+        setLoadingMessage(`Obteniendo detalles de demandantes para ${registrosUnicos.length} procesos...`);
         const demandantesData: { [key: string]: any[] } = {};
 
         await Promise.all(
@@ -80,12 +83,31 @@ export default function GestionDemandasPage() {
             })
         );
         
+        setLoadingMessage(`Obteniendo anotaciones para ${registrosUnicos.length} procesos...`);
+        const anotacionesData: { [key: string]: any[] } = {};
+        await Promise.all(
+            registrosUnicos.map(async (numRegistro) => {
+                try {
+                    const res = await fetchExternalData(`https://appdajusticia.com/anotaciones.php?num_registro=${numRegistro}`);
+                    if(res && !res.error && Array.isArray(res)) {
+                        anotacionesData[numRegistro] = res;
+                    } else {
+                        anotacionesData[numRegistro] = [];
+                    }
+                } catch (e) {
+                    console.warn(`No se pudieron cargar anotaciones para el registro ${numRegistro}`, e);
+                    anotacionesData[numRegistro] = [];
+                }
+            })
+        );
+
         setProcesos(procesosData);
         setDemandantes(demandantesData);
+        setAnotaciones(anotacionesData);
 
         toast({
           title: 'Datos Obtenidos',
-          description: `Se encontraron ${procesosData.length} procesos.`,
+          description: `Se encontraron ${procesosData.length} procesos, con sus demandantes y anotaciones.`,
         });
 
       } catch (err: any) {
@@ -141,6 +163,21 @@ export default function GestionDemandasPage() {
               }
             });
           }
+
+          const anotacionesDeProceso = anotaciones[proceso.num_registro];
+          if (anotacionesDeProceso && anotacionesDeProceso.length > 0) {
+              const anotacionesSubCollection = collection(procesoDocRef, 'anotaciones');
+              anotacionesDeProceso.forEach(anotacion => {
+                  if(anotacion.auto) {
+                      const anotacionDocRef = doc(anotacionesSubCollection, anotacion.auto);
+                      const anotacionData = Object.fromEntries(
+                          Object.entries(anotacion).filter(([_,v]) => v != null)
+                      );
+                      batch.set(anotacionDocRef, anotacionData);
+                  }
+              });
+          }
+
         });
 
         await batch.commit();
@@ -258,6 +295,7 @@ export default function GestionDemandasPage() {
         
        <AnotacionesModal
           proceso={selectedProcessForAnotaciones}
+          anotaciones={anotaciones[selectedProcessForAnotaciones?.num_registro] || []}
           isOpen={!!selectedProcessForAnotaciones}
           onClose={() => setSelectedProcessForAnotaciones(null)}
        />
