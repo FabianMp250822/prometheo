@@ -86,3 +86,39 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+    .tabla-procesos-scroll {
+        @apply w-full overflow-x-auto;
+    }
+    .tabla-procesos, .tabla-demandantes {
+        @apply min-w-full divide-y divide-gray-200 border border-gray-200;
+        font-size: 0.8rem;
+    }
+    .tabla-procesos th, .tabla-demandantes th {
+        @apply px-4 py-2 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
+    }
+    .tabla-procesos td, .tabla-demandantes td {
+        @apply px-4 py-2 whitespace-nowrap;
+    }
+    .tabla-procesos tbody tr:nth-child(even), .tabla-demandantes tbody tr:nth-child(even) {
+        @apply bg-gray-50;
+    }
+    .tabla-procesos tbody tr:hover, .tabla-demandantes tbody tr:hover {
+        @apply bg-gray-100;
+    }
+
+    /* Styles for react-select */
+    .react-select__control {
+        @apply bg-background border-input rounded-md shadow-sm;
+    }
+    .react-select__menu {
+        @apply bg-popover text-popover-foreground rounded-md shadow-lg;
+    }
+    .react-select__option--is-focused {
+        @apply bg-accent text-accent-foreground;
+    }
+    .react-select__option--is-selected {
+        @apply bg-primary text-primary-foreground;
+    }
+}
