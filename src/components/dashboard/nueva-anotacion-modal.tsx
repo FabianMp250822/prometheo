@@ -9,10 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Loader2, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Anotacion } from '@/lib/data';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-
-const ANOTACIONES_API = 'https://appdajusticia.com/anotaciones.php';
 
 interface NuevaAnotacionModalProps {
   isOpen: boolean;
@@ -61,46 +59,23 @@ export function NuevaAnotacionModal({ isOpen, onClose, proceso, anotacionExisten
     e.preventDefault();
     setIsSaving(true);
     
-    const action = anotacionExistente ? 'editAnotacion' : 'addAnotacion';
-    
-    const apiFormData = new FormData();
-    apiFormData.append('action', action);
-    apiFormData.append('num_registro', proceso.num_registro);
-    if (anotacionExistente) {
-      apiFormData.append('auto', anotacionExistente.auto);
-    }
-    Object.entries(formData).forEach(([key, value]) => {
-      apiFormData.append(key, value);
-    });
-
     try {
-      // 1. Save to external API
-      const response = await fetch(ANOTACIONES_API, {
-        method: 'POST',
-        body: apiFormData,
-      });
+      const anotacionesCollectionRef = collection(db, 'procesos', proceso.num_registro, 'anotaciones');
 
-      const data = await response.json();
-      if (data.error) throw new Error(`Error de la API: ${data.error}`);
-
-      // 2. Save to Firebase
-      // If it's a new anotacion, the API returns the new 'auto' id
-      const anotacionId = anotacionExistente ? anotacionExistente.auto : data.auto;
-      if (!anotacionId) throw new Error("No se recibió un ID para la anotación.");
-
-      const anotacionDocRef = doc(db, 'procesos', proceso.num_registro, 'anotaciones', anotacionId.toString());
-      const firebaseData = {
-          ...formData,
-          auto: anotacionId.toString(),
-          num_registro: proceso.num_registro,
-      };
-
-      await setDoc(anotacionDocRef, firebaseData, { merge: true });
-
-      toast({
-        title: 'Éxito',
-        description: `Anotación ${anotacionExistente ? 'actualizada' : 'creada'} correctamente en ambos sistemas.`,
-      });
+      if (anotacionExistente?.id) {
+        // Edit existing anotacion
+        const anotacionDocRef = doc(anotacionesCollectionRef, anotacionExistente.id);
+        await setDoc(anotacionDocRef, formData, { merge: true });
+        toast({ title: 'Éxito', description: 'Anotación actualizada correctamente en Firebase.' });
+      } else {
+        // Add new anotacion
+        await addDoc(anotacionesCollectionRef, {
+            ...formData,
+            num_registro: proceso.num_registro
+        });
+        toast({ title: 'Éxito', description: 'Anotación creada correctamente en Firebase.' });
+      }
+      
       onClose();
 
     } catch (err: any) {
@@ -121,7 +96,7 @@ export function NuevaAnotacionModal({ isOpen, onClose, proceso, anotacionExisten
           <DialogHeader>
             <DialogTitle>{anotacionExistente ? 'Editar Anotación' : 'Agregar Nueva Anotación'}</DialogTitle>
             <DialogDescription>
-              Complete los detalles de la anotación. Los cambios se guardarán en la API externa y en Firebase.
+              Complete los detalles de la anotación. Los cambios se guardarán en Firebase.
             </DialogDescription>
           </DialogHeader>
 

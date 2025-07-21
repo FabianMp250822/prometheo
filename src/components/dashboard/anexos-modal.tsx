@@ -1,14 +1,19 @@
 'use client';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Loader2, PlusCircle, Search, Trash2, Edit, FileDown, Upload, FileUp } from 'lucide-react';
+import { Loader2, Search, Trash2, FileDown, FileUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { NuevaAnexoModal } from './nueva-anexo-modal';
+import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { anadirPrefijoRuta } from '@/lib/anotaciones-helpers';
+import { DocumentViewerModal } from './document-viewer-modal';
 
 type Anexo = {
+  id: string;
   auto: string;
   nombre_documento: string;
   descripccion: string;
@@ -18,18 +23,38 @@ type Anexo = {
 export function AnexosModal({ proceso, isOpen, onClose }: { proceso: any | null; isOpen: boolean; onClose: () => void }) {
   const [anexos, setAnexos] = useState<Anexo[]>([]);
   const [cargando, setCargando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const [busqueda, setBusqueda] = useState('');
   const [showNuevoModal, setShowNuevoModal] = useState(false);
+  const [documentUrl, setDocumentUrl] = useState<string | null>(null);
+  const [documentTitle, setDocumentTitle] = useState<string | null>(null);
 
-  // useEffect(() => {
-  //   if (isOpen && proceso?.num_registro) {
-  //     // This fetch is disabled to prevent 403 Forbidden errors from the external server.
-  //     // The functionality will be migrated to Firebase.
-  //   }
-  // }, [isOpen, proceso]);
+  const fetchAnexosFromFirebase = useCallback(async (numRegistro: string) => {
+    setCargando(true);
+    try {
+      const anexosCollectionRef = collection(db, 'procesos', numRegistro, 'anexos');
+      const querySnapshot = await getDocs(anexosCollectionRef);
+      const anexosData = querySnapshot.docs.map(doc => ({ 
+          id: doc.id,
+          ...doc.data(),
+          ruta_archivo: doc.data().ruta_archivo ? anadirPrefijoRuta(doc.data().ruta_archivo) : null
+      } as Anexo));
+      setAnexos(anexosData);
+    } catch (err: any) {
+      console.error(err);
+      toast({ variant: 'destructive', title: 'Error', description: 'Ocurrió un error al cargar los anexos desde Firebase.' });
+    } finally {
+      setCargando(false);
+    }
+  }, [toast]);
+  
+  useEffect(() => {
+    if (isOpen && proceso?.num_registro) {
+      fetchAnexosFromFirebase(proceso.num_registro);
+    }
+  }, [isOpen, proceso, fetchAnexosFromFirebase]);
+
 
   const anexosFiltrados = useMemo(() => {
     if (!busqueda) return anexos;
@@ -39,15 +64,31 @@ export function AnexosModal({ proceso, isOpen, onClose }: { proceso: any | null;
     );
   }, [busqueda, anexos]);
   
-  const handleEliminar = async (auto: string) => {
-    // Logic to delete from Firebase will be implemented here.
-    toast({ title: 'En desarrollo', description: 'La eliminación de anexos se conectará a Firebase.' });
+  const handleEliminar = async (anexoId: string) => {
+    if (!proceso?.num_registro || !anexoId) return;
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este anexo de Firebase?')) return;
+    
+    try {
+        const anexoDocRef = doc(db, 'procesos', proceso.num_registro, 'anexos', anexoId);
+        await deleteDoc(anexoDocRef);
+        toast({ title: 'Éxito', description: 'Anexo eliminado de Firebase.' });
+        fetchAnexosFromFirebase(proceso.num_registro);
+    } catch (err: any) {
+        toast({ variant: 'destructive', title: 'Error al Eliminar', description: err.message });
+    }
   };
 
 
   const handleCloseNuevoModal = () => {
     setShowNuevoModal(false);
-    // Logic to refresh from Firebase will be implemented here.
+    if (proceso?.num_registro) {
+      fetchAnexosFromFirebase(proceso.num_registro);
+    }
+  };
+
+  const handleViewDocument = (url: string, title: string) => {
+    setDocumentUrl(url);
+    setDocumentTitle(title);
   };
 
   if (!proceso) return null;
@@ -58,7 +99,7 @@ export function AnexosModal({ proceso, isOpen, onClose }: { proceso: any | null;
         <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Anexos del Proceso #{proceso.num_registro}</DialogTitle>
-            <DialogDescription>Gestiona los documentos adjuntos a este proceso.</DialogDescription>
+            <DialogDescription>Gestiona los documentos adjuntos a este proceso desde Firebase.</DialogDescription>
           </DialogHeader>
 
           <div className="flex items-center justify-between gap-4">
@@ -91,17 +132,19 @@ export function AnexosModal({ proceso, isOpen, onClose }: { proceso: any | null;
                 </TableHeader>
                 <TableBody>
                   {anexosFiltrados.length > 0 ? anexosFiltrados.map((anexo) => (
-                    <TableRow key={anexo.auto}>
+                    <TableRow key={anexo.id}>
                       <TableCell className="font-medium">{anexo.nombre_documento}</TableCell>
                       <TableCell className="text-muted-foreground">{anexo.descripccion}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
-                          <Button asChild variant="outline" size="sm">
-                            <a href={`https://appdajusticia.com/${anexo.ruta_archivo}`} target="_blank" rel="noopener noreferrer">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            disabled={!anexo.ruta_archivo}
+                            onClick={() => handleViewDocument(anexo.ruta_archivo, anexo.nombre_documento)}>
                               <FileDown className="h-3 w-3 mr-1" /> Ver
-                            </a>
                           </Button>
-                          <Button variant="destructive" size="sm" onClick={() => handleEliminar(anexo.auto)}>
+                          <Button variant="destructive" size="sm" onClick={() => handleEliminar(anexo.id)}>
                             <Trash2 className="h-3 w-3 mr-1"/> Eliminar
                           </Button>
                         </div>
@@ -127,6 +170,14 @@ export function AnexosModal({ proceso, isOpen, onClose }: { proceso: any | null;
           isOpen={showNuevoModal}
           onClose={handleCloseNuevoModal}
           proceso={proceso}
+        />
+      )}
+
+      {documentUrl && (
+        <DocumentViewerModal
+          url={documentUrl}
+          title={documentTitle || "Visor de Documento"}
+          onClose={() => setDocumentUrl(null)}
         />
       )}
     </>

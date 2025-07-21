@@ -17,7 +17,6 @@ import { Input } from '../ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { AnexosModal } from './anexos-modal';
 
 interface ProcessDetailsSheetProps {
   process: any | null;
@@ -25,6 +24,7 @@ interface ProcessDetailsSheetProps {
   onOpenChange: (isOpen: boolean) => void;
   onViewDemandantes: (process: any) => void;
   onViewAnotaciones: (process: any) => void;
+  onViewAnexos: (process: any) => void;
   onDataSaved: () => void;
 }
 
@@ -84,19 +84,18 @@ export function ProcessDetailsSheet({
   onOpenChange,
   onViewDemandantes,
   onViewAnotaciones,
+  onViewAnexos,
   onDataSaved
 }: ProcessDetailsSheetProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editedData, setEditedData] = useState<any | null>(null);
-  const [showAnexosModal, setShowAnexosModal] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     if (process) {
       setEditedData(process);
     }
-    // Reset editing state when a new process is selected or sheet is closed
     setIsEditing(false); 
   }, [process, isOpen]);
   
@@ -110,7 +109,7 @@ export function ProcessDetailsSheet({
 
   const handleCancelClick = () => {
     setIsEditing(false);
-    setEditedData(process); // Reset changes
+    setEditedData(process);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -124,35 +123,16 @@ export function ProcessDetailsSheet({
   const handleSaveChanges = async () => {
       setIsSaving(true);
       try {
-        // 1. Save to external API
-        const apiBody = {
-            action: 'editProceso',
-            num_registro: editedData.num_registro,
-            cambios: editedData,
-        };
-        
-        const apiResponse = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(apiBody),
-        });
-
-        const apiResult = await apiResponse.json();
-        if (apiResult.error) {
-            throw new Error(`Error de la API externa: ${apiResult.error}`);
-        }
-
-        // 2. Save to Firebase
         const processDocRef = doc(db, 'procesos', editedData.num_registro);
         await updateDoc(processDocRef, editedData);
 
         toast({
             title: 'Guardado Exitoso',
-            description: 'El proceso ha sido actualizado en ambos sistemas.',
+            description: 'El proceso ha sido actualizado en Firebase.',
         });
         
         setIsEditing(false);
-        onDataSaved(); // Notify parent to refetch data
+        onDataSaved();
 
       } catch (error: any) {
           toast({
@@ -248,7 +228,7 @@ export function ProcessDetailsSheet({
                           <FileText className="mr-2 h-4 w-4" />
                           Anotaciones
                       </Button>
-                      <Button variant="outline" className="w-full sm:w-auto" onClick={() => setShowAnexosModal(true)}>
+                      <Button variant="outline" className="w-full sm:w-auto" onClick={() => onViewAnexos(process)}>
                           <Briefcase className="mr-2 h-4 w-4" />
                           Anexos
                       </Button>
@@ -261,12 +241,6 @@ export function ProcessDetailsSheet({
           </SheetFooter>
         </SheetContent>
       </Sheet>
-      
-      <AnexosModal
-        proceso={process}
-        isOpen={showAnexosModal}
-        onClose={() => setShowAnexosModal(false)}
-      />
     </>
   );
 }

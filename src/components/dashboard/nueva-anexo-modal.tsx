@@ -6,9 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Loader2, Save, FileUp } from 'lucide-react';
+import { Loader2, FileUp } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { addAnexo } from '@/app/actions/anexos-api';
+import { collection, addDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+// Note: Firebase Storage logic would be added here in a real scenario
+// For now, we'll just save the metadata to Firestore.
 
 interface NuevaAnexoModalProps {
   isOpen: boolean;
@@ -43,18 +46,23 @@ export function NuevaAnexoModal({ isOpen, onClose, proceso }: NuevaAnexoModalPro
     }
     setIsSaving(true);
     
-    const apiFormData = new FormData();
-    apiFormData.append('num_registro', proceso.num_registro);
-    apiFormData.append('descripccion', formData.descripccion);
-    apiFormData.append('archivo_adjunto', file);
-
     try {
-      const result = await addAnexo(apiFormData);
-      if (result.error) {
-        throw new Error(result.error);
-      }
+      // In a real implementation, you would upload the file to Firebase Storage here
+      // and get a downloadURL. For now, we simulate this by just storing metadata.
+      const anexoData = {
+        num_registro: proceso.num_registro,
+        nombre_documento: file.name,
+        descripccion: formData.descripccion,
+        tipo_archivo: file.type,
+        // ruta_archivo: downloadURL, // This would be the URL from Firebase Storage
+        ruta_archivo: `(simulado) informes/${proceso.num_registro}/${file.name}`,
+        fecha_subida: new Date().toISOString(),
+      };
+
+      const anexosCollectionRef = collection(db, 'procesos', proceso.num_registro, 'anexos');
+      await addDoc(anexosCollectionRef, anexoData);
       
-      toast({ title: 'Éxito', description: 'Anexo agregado correctamente.' });
+      toast({ title: 'Éxito', description: 'Metadatos del anexo guardados en Firebase.' });
       onClose();
 
     } catch (err: any) {
@@ -73,9 +81,9 @@ export function NuevaAnexoModal({ isOpen, onClose, proceso }: NuevaAnexoModalPro
       <DialogContent className="sm:max-w-[500px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Agregar Nuevo Anexo</DialogTitle>
+            <DialogTitle>Agregar Nuevo Anexo a Firebase</DialogTitle>
             <DialogDescription>
-              Seleccione un archivo y añada una descripción. El anexo se guardará en el sistema externo.
+              Seleccione un archivo y añada una descripción.
             </DialogDescription>
           </DialogHeader>
 

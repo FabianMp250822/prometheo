@@ -96,6 +96,7 @@ export interface ProcesoCancelado {
 
 // Types for Gestion de Demandas
 export interface Anotacion {
+    id?: string; // Document ID from Firebase
     auto: string;
     num_registro: string;
     fecha: string;

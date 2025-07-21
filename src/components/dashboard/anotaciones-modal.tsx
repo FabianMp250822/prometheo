@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -9,17 +9,13 @@ import { useToast } from '@/hooks/use-toast';
 import type { Anotacion } from '@/lib/data';
 import { corregirTexto, transformarFecha, convertirAFormatoOrdenable, convertirHoraLimite, anadirPrefijoRuta } from '@/lib/anotaciones-helpers';
 import { NuevaAnotacionModal } from './nueva-anotacion-modal';
-import { collection, deleteDoc, doc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { DocumentViewerModal } from './document-viewer-modal';
 
-
-const ANOTACIONES_API = 'https://appdajusticia.com/anotaciones.php';
-
-export function AnotacionesModal({ proceso, anotaciones: initialAnotaciones, isOpen, onClose }: { proceso: any | null; anotaciones: any[]; isOpen: boolean; onClose: () => void }) {
+export function AnotacionesModal({ proceso, isOpen, onClose }: { proceso: any | null; isOpen: boolean; onClose: () => void }) {
   const [anotaciones, setAnotaciones] = useState<Anotacion[]>([]);
   const [cargando, setCargando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const [busqueda, setBusqueda] = useState('');
@@ -29,34 +25,38 @@ export function AnotacionesModal({ proceso, anotaciones: initialAnotaciones, isO
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [documentTitle, setDocumentTitle] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen && Array.isArray(initialAnotaciones)) {
-        const anotacionesCorregidas = initialAnotaciones.map((a: any) => ({
-        ...a,
-        fecha: transformarFecha(a.fecha),
-        fecha_limite: transformarFecha(a.fecha_limite),
-        detalle: corregirTexto(a.detalle),
-        archivo_url: anadirPrefijoRuta(a.archivo_url),
-      }));
-
-      // Sort ascending (oldest first)
-      anotacionesCorregidas.sort((a, b) => {
-        const fechaA = convertirAFormatoOrdenable(a.fecha);
-        const fechaB = convertirAFormatoOrdenable(b.fecha);
-        if (fechaA < fechaB) return -1;
-        if (fechaA > fechaB) return 1;
-        
-        const horaA = convertirHoraLimite(a.hora_limite);
-        const horaB = convertirHoraLimite(b.hora_limite);
-        if (horaA < horaB) return -1;
-        if (horaA > horaB) return 1;
-        
-        return 0;
+  const fetchAnotacionesFromFirebase = useCallback(async (numRegistro: string) => {
+    setCargando(true);
+    try {
+      const q = query(collection(db, 'procesos', numRegistro, 'anotaciones'), orderBy('fecha'));
+      const querySnapshot = await getDocs(q);
+      const anotacionesData = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          ...data,
+          id: doc.id,
+          // Apply same corrections as before
+          detalle: corregirTexto(data.detalle),
+          fecha: transformarFecha(data.fecha),
+          fecha_limite: transformarFecha(data.fecha_limite),
+          archivo_url: data.archivo_url ? anadirPrefijoRuta(data.archivo_url) : null,
+        } as Anotacion;
       });
-
-      setAnotaciones(anotacionesCorregidas);
+      setAnotaciones(anotacionesData);
+    } catch (err: any) {
+      console.error(err);
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudieron cargar las anotaciones desde Firebase.' });
+    } finally {
+      setCargando(false);
     }
-  }, [isOpen, initialAnotaciones]);
+  }, [toast]);
+
+  useEffect(() => {
+    if (isOpen && proceso?.num_registro) {
+      fetchAnotacionesFromFirebase(proceso.num_registro);
+    }
+  }, [isOpen, proceso, fetchAnotacionesFromFirebase]);
+
 
   const anotacionesFiltradas = useMemo(() => {
     if (!busqueda) return anotaciones;
@@ -70,27 +70,15 @@ export function AnotacionesModal({ proceso, anotaciones: initialAnotaciones, isO
     setShowNuevoModal(true);
   };
 
-  const handleEliminar = async (auto: string) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar esta anotación?')) return;
+  const handleEliminar = async (anotacionId: string) => {
+    if (!proceso?.num_registro || !anotacionId) return;
+    if (!window.confirm('¿Estás seguro de que deseas eliminar esta anotación de Firebase?')) return;
 
     try {
-        const formData = new FormData();
-        formData.append('action', 'deleteAnotacion');
-        formData.append('auto', auto);
-
-        const response = await fetch(ANOTACIONES_API, { method: 'POST', body: formData });
-        const data = await response.json();
-        if (data.error) throw new Error(`Error de la API: ${data.error}`);
-        
-        // Also delete from Firebase
-        const anotacionDocRef = doc(db, 'procesos', proceso.num_registro, 'anotaciones', auto);
+        const anotacionDocRef = doc(db, 'procesos', proceso.num_registro, 'anotaciones', anotacionId);
         await deleteDoc(anotacionDocRef);
-        
-        toast({ title: 'Éxito', description: 'Anotación eliminada de ambos sistemas.' });
-        // TODO: Need a way to refresh the data in the parent component
-        onClose();
-
-
+        toast({ title: 'Éxito', description: 'Anotación eliminada de Firebase.' });
+        fetchAnotacionesFromFirebase(proceso.num_registro);
     } catch (err: any) {
         toast({ variant: 'destructive', title: 'Error al Eliminar', description: err.message });
     }
@@ -104,8 +92,9 @@ export function AnotacionesModal({ proceso, anotaciones: initialAnotaciones, isO
   const handleCloseNuevoModal = () => {
     setShowNuevoModal(false);
     setAnotacionParaEditar(null);
-    // TODO: Need a way to refresh the data in the parent component
-    onClose();
+    if(proceso?.num_registro) {
+        fetchAnotacionesFromFirebase(proceso.num_registro);
+    }
   };
 
   if (!proceso) return null;
@@ -116,7 +105,7 @@ export function AnotacionesModal({ proceso, anotaciones: initialAnotaciones, isO
         <DialogContent className="max-w-6xl h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Anotaciones del Proceso #{proceso.num_registro}</DialogTitle>
-            <DialogDescription>Gestiona las anotaciones, recordatorios y documentos asociados a este proceso.</DialogDescription>
+            <DialogDescription>Gestiona las anotaciones, recordatorios y documentos asociados a este proceso desde Firebase.</DialogDescription>
           </DialogHeader>
           
           <div className="flex items-center justify-between gap-4">
@@ -137,9 +126,8 @@ export function AnotacionesModal({ proceso, anotaciones: initialAnotaciones, isO
 
           <div className="flex-1 overflow-y-auto border rounded-md">
             {cargando && <div className="flex justify-center items-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>}
-            {error && <p className="text-red-500 p-4">Error: {error}</p>}
             
-            {!cargando && !error && (
+            {!cargando && (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -153,7 +141,7 @@ export function AnotacionesModal({ proceso, anotaciones: initialAnotaciones, isO
                 </TableHeader>
                 <TableBody>
                   {anotacionesFiltradas.length > 0 ? anotacionesFiltradas.map((anotacion) => (
-                    <TableRow key={anotacion.auto}>
+                    <TableRow key={anotacion.id}>
                       <TableCell>{anotacion.fecha || '-'}</TableCell>
                       <TableCell className="max-w-sm whitespace-pre-wrap">{anotacion.detalle}</TableCell>
                       <TableCell>{anotacion.clase}</TableCell>
@@ -175,7 +163,7 @@ export function AnotacionesModal({ proceso, anotaciones: initialAnotaciones, isO
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
                           <Button variant="outline" size="sm" onClick={() => handleEditar(anotacion)}><Edit className="h-3 w-3 mr-1"/> Editar</Button>
-                          <Button variant="destructive" size="sm" onClick={() => handleEliminar(anotacion.auto)}><Trash2 className="h-3 w-3 mr-1"/> Eliminar</Button>
+                          <Button variant="destructive" size="sm" onClick={() => handleEliminar(anotacion.id!)}><Trash2 className="h-3 w-3 mr-1"/> Eliminar</Button>
                         </div>
                        </TableCell>
                     </TableRow>

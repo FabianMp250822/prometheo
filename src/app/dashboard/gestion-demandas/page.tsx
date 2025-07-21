@@ -1,38 +1,88 @@
 'use client';
 
-import { useState, useTransition, useCallback } from 'react';
+import { useState, useTransition, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileClock, Loader2, ServerCrash, Download, Save } from 'lucide-react';
+import { FileClock, Loader2, ServerCrash, Download, Save, RefreshCw } from 'lucide-react';
 import { ExternalDemandsTable } from '@/components/dashboard/external-demands-table';
 import { ProcessDetailsSheet } from '@/components/dashboard/process-details-sheet';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { writeBatch, collection, doc } from 'firebase/firestore';
+import { writeBatch, collection, doc, getDocs, query, orderBy, limit, startAfter, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/auth-provider';
 import { DemandantesModal } from '@/components/dashboard/demandantes-modal';
 import { AnotacionesModal } from '@/components/dashboard/anotaciones-modal';
+import { AnexosModal } from '@/components/dashboard/anexos-modal';
 
+const ITEMS_PER_PAGE = 20;
 
 export default function GestionDemandasPage() {
-  const [procesos, setProcesos] = useState<any[]>([]);
-  const [demandantes, setDemandantes] = useState<{ [key: string]: any[] }>({});
-  const [anotaciones, setAnotaciones] = useState<{ [key: string]: any[] }>({});
+  // State for data from external API (for syncing)
+  const [externalProcesos, setExternalProcesos] = useState<any[]>([]);
+  const [externalDemandantes, setExternalDemandantes] = useState<{ [key: string]: any[] }>({});
+  const [externalAnotaciones, setExternalAnotaciones] = useState<{ [key: string]: any[] }>({});
+  const [externalAnexos, setExternalAnexos] = useState<{ [key: string]: any[] }>({});
   const [error, setError] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
 
-  const [selectedProcessForDetails, setSelectedProcessForDetails] = useState<any | null>(null);
-  const [selectedProcessForDemandantes, setSelectedProcessForDemandantes] = useState<any | null>(null);
-  const [selectedProcessForAnotaciones, setSelectedProcessForAnotaciones] = useState<any | null>(null);
+  // State for data displayed from Firebase
+  const [firebaseProcesos, setFirebaseProcesos] = useState<any[]>([]);
+  const [isLoadingFirebase, setIsLoadingFirebase] = useState(true);
+  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+  const [hasMore, setHasMore] = useState(true);
 
+  // Modals and sheets state
+  const [selectedProcess, setSelectedProcess] = useState<any | null>(null);
+  const [isDetailsSheetOpen, setIsDetailsSheetOpen] = useState(false);
+  const [isDemandantesModalOpen, setIsDemandantesModalOpen] = useState(false);
+  const [isAnotacionesModalOpen, setIsAnotacionesModalOpen] = useState(false);
+  const [isAnexosModalOpen, setIsAnexosModalOpen] = useState(false);
+
+  // Transitions for async operations
   const [isFetching, startFetching] = useTransition();
   const [isSaving, startSaving] = useTransition();
   const [savingProgress, setSavingProgress] = useState<{current: number, total: number} | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   
+  // --- Data Fetching from Firebase ---
+  const fetchProcesosFromFirebase = useCallback(async (loadMore = false) => {
+    if (!loadMore) {
+      setIsLoadingFirebase(true);
+      setFirebaseProcesos([]);
+      setLastDoc(null);
+    }
+    
+    try {
+      let q = query(collection(db, 'procesos'), orderBy('num_registro'), limit(ITEMS_PER_PAGE));
+      if (loadMore && lastDoc) {
+        q = query(q, startAfter(lastDoc));
+      }
+      
+      const querySnapshot = await getDocs(q);
+      const newProcesos = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
+
+      setLastDoc(lastVisible || null);
+      setHasMore(newProcesos.length === ITEMS_PER_PAGE);
+
+      setFirebaseProcesos(prev => loadMore ? [...prev, ...newProcesos] : newProcesos);
+
+    } catch (err: any) {
+      console.error("Error fetching from Firebase:", err);
+      toast({ variant: 'destructive', title: 'Error de Firebase', description: `No se pudieron cargar los procesos: ${err.message}` });
+    } finally {
+      setIsLoadingFirebase(false);
+    }
+  }, [lastDoc, toast]);
+  
+  useEffect(() => {
+    fetchProcesosFromFirebase();
+  }, []); // Initial fetch from Firebase
+
+  // --- External API Data Fetching for Syncing ---
   const fetchExternalData = async (url: string) => {
     const response = await fetch(url, {
         headers: {
@@ -42,148 +92,117 @@ export default function GestionDemandasPage() {
     if (!response.ok) {
         throw new Error(`Error en la respuesta de la red: ${response.statusText}`);
     }
-    const data = await response.json();
-    if (data.error) {
-        throw new Error(`Error de la API: ${data.error}`);
+    const textResponse = await response.text();
+    // Clean response before parsing JSON
+    const jsonStart = textResponse.indexOf('[');
+    const jsonEnd = textResponse.lastIndexOf(']');
+    if (jsonStart === -1 || jsonEnd === -1) {
+      return []; // Return empty array if not a valid JSON array structure
     }
-    return data;
+    const jsonString = textResponse.substring(jsonStart, jsonEnd + 1);
+    try {
+        const data = JSON.parse(jsonString);
+        if (data.error) throw new Error(`Error de la API: ${data.error}`);
+        return data;
+    } catch (e) {
+        console.error("JSON parsing error", e);
+        throw new Error("La respuesta de la API no es un JSON válido.");
+    }
   }
 
   const handleFetchData = useCallback(() => {
     startFetching(async () => {
       setError(null);
-      setProcesos([]);
-      setDemandantes({});
-      setAnotaciones({});
-      setLoadingMessage('Obteniendo lista de procesos...');
-      
-      try {
-        const procesosData = await fetchExternalData('https://appdajusticia.com/procesos.php?all=true');
+      setExternalProcesos([]);
+      setExternalDemandantes({});
+      setExternalAnotaciones({});
+      setExternalAnexos({});
 
-        if (!Array.isArray(procesosData)) {
-            throw new Error('La respuesta de la API de procesos no es un array válido.');
-        }
+      try {
+        setLoadingMessage('Obteniendo lista de procesos...');
+        const procesosData = await fetchExternalData('https://appdajusticia.com/procesos.php?all=true');
+        if (!Array.isArray(procesosData)) throw new Error('La respuesta de la API de procesos no es un array válido.');
+        setExternalProcesos(procesosData);
         
         const registrosUnicos = [...new Set(procesosData.map((p: any) => p.num_registro))];
         
-        setLoadingMessage(`Obteniendo detalles de demandantes para ${registrosUnicos.length} procesos...`);
+        // Fetch Demandantes
+        setLoadingMessage(`Obteniendo demandantes para ${registrosUnicos.length} procesos...`);
         const demandantesData: { [key: string]: any[] } = {};
+        await Promise.all(registrosUnicos.map(async (numRegistro) => {
+          demandantesData[numRegistro] = await fetchExternalData(`https://appdajusticia.com/procesos.php?num_registro=${numRegistro}`);
+        }));
+        setExternalDemandantes(demandantesData);
 
-        await Promise.all(
-            registrosUnicos.map(async (numRegistro) => {
-                 try {
-                    const res = await fetchExternalData(`https://appdajusticia.com/procesos.php?num_registro=${numRegistro}`);
-                    if (res && !res.error && Array.isArray(res)) {
-                        demandantesData[numRegistro] = res;
-                    } else {
-                        demandantesData[numRegistro] = [];
-                    }
-                 } catch (e) {
-                    console.warn(`No se pudieron cargar demandantes para el registro ${numRegistro}`, e);
-                    demandantesData[numRegistro] = [];
-                 }
-            })
-        );
-        
+        // Fetch Anotaciones
         setLoadingMessage(`Obteniendo anotaciones para ${registrosUnicos.length} procesos...`);
         const anotacionesData: { [key: string]: any[] } = {};
-        await Promise.all(
-            registrosUnicos.map(async (numRegistro) => {
-                try {
-                    const res = await fetchExternalData(`https://appdajusticia.com/anotaciones.php?num_registro=${numRegistro}`);
-                    if(res && !res.error && Array.isArray(res)) {
-                        anotacionesData[numRegistro] = res;
-                    } else {
-                        anotacionesData[numRegistro] = [];
-                    }
-                } catch (e) {
-                    console.warn(`No se pudieron cargar anotaciones para el registro ${numRegistro}`, e);
-                    anotacionesData[numRegistro] = [];
-                }
-            })
-        );
+        await Promise.all(registrosUnicos.map(async (numRegistro) => {
+          anotacionesData[numRegistro] = await fetchExternalData(`https://appdajusticia.com/anotaciones.php?num_registro=${numRegistro}`);
+        }));
+        setExternalAnotaciones(anotacionesData);
 
-        setProcesos(procesosData);
-        setDemandantes(demandantesData);
-        setAnotaciones(anotacionesData);
+        // Fetch Anexos
+        setLoadingMessage(`Obteniendo anexos para ${registrosUnicos.length} procesos...`);
+        const anexosData: { [key: string]: any[] } = {};
+        await Promise.all(registrosUnicos.map(async (numRegistro) => {
+          anexosData[numRegistro] = await fetchExternalData(`https://appdajusticia.com/crud_anexos.php?num_registro=${numRegistro}`);
+        }));
+        setExternalAnexos(anexosData);
 
-        toast({
-          title: 'Datos Obtenidos',
-          description: `Se encontraron ${procesosData.length} procesos, con sus demandantes y anotaciones.`,
-        });
+        toast({ title: 'Datos Externos Obtenidos', description: `Se encontraron ${procesosData.length} procesos con todos sus datos asociados.` });
 
       } catch (err: any) {
-        setError(`Error al conectar con el servicio externo: ${err.message}. Por favor, verifique que el servicio esté disponible.`);
+        setError(`Error al conectar con el servicio externo: ${err.message}.`);
       } finally {
         setLoadingMessage(null);
       }
     });
   }, [toast]);
 
+  // --- Data Saving to Firebase ---
   const handleSaveData = () => {
     if (!user) {
-        toast({
-            variant: 'destructive',
-            title: 'No Autenticado',
-            description: 'Debe iniciar sesión para guardar datos.',
-        });
+        toast({ variant: 'destructive', title: 'No Autenticado', description: 'Debe iniciar sesión para guardar datos.' });
         return;
     }
 
-    if (procesos.length === 0) {
-      toast({
-        variant: 'destructive',
-        title: 'No hay datos para guardar',
-        description: 'Primero debes obtener los datos del servidor externo.',
-      });
+    if (externalProcesos.length === 0) {
+      toast({ variant: 'destructive', title: 'No hay datos para guardar', description: 'Primero debes obtener los datos del servidor externo.' });
       return;
     }
 
     startSaving(async () => {
-      const BATCH_SIZE = 100; // Procesar 100 procesos por lote
-      const totalBatches = Math.ceil(procesos.length / BATCH_SIZE);
+      const BATCH_SIZE = 100;
+      const totalBatches = Math.ceil(externalProcesos.length / BATCH_SIZE);
       setSavingProgress({ current: 0, total: totalBatches });
 
       try {
-        for (let i = 0; i < procesos.length; i += BATCH_SIZE) {
-            const batchChunk = procesos.slice(i, i + BATCH_SIZE);
+        for (let i = 0; i < externalProcesos.length; i += BATCH_SIZE) {
+            const batchChunk = externalProcesos.slice(i, i + BATCH_SIZE);
             const batch = writeBatch(db);
-            const procesosCollection = collection(db, 'procesos');
-
+            
             batchChunk.forEach(proceso => {
-                const procesoDocRef = doc(procesosCollection, proceso.num_registro);
-                
-                const procesoData = Object.fromEntries(
-                    Object.entries(proceso).filter(([_, v]) => v != null)
-                );
-                batch.set(procesoDocRef, procesoData);
+                const procesoDocRef = doc(db, 'procesos', proceso.num_registro);
+                batch.set(procesoDocRef, Object.fromEntries(Object.entries(proceso).filter(([_, v]) => v != null)));
 
-                const demandantesDeProceso = demandantes[proceso.num_registro];
-                if (demandantesDeProceso && demandantesDeProceso.length > 0) {
-                    const demandantesSubCollection = collection(procesoDocRef, 'demandantes');
-                    demandantesDeProceso.forEach(demandante => {
-                    if (demandante.identidad_demandante) {
-                        const demandanteDocRef = doc(demandantesSubCollection, demandante.identidad_demandante);
-                        const demandanteData = Object.fromEntries(
-                            Object.entries(demandante).filter(([_, v]) => v != null)
-                        );
-                        batch.set(demandanteDocRef, demandanteData);
-                    }
-                    });
-                }
+                const subCollections = {
+                  demandantes: externalDemandantes[proceso.num_registro],
+                  anotaciones: externalAnotaciones[proceso.num_registro],
+                  anexos: externalAnexos[proceso.num_registro]
+                };
 
-                const anotacionesDeProceso = anotaciones[proceso.num_registro];
-                if (anotacionesDeProceso && anotacionesDeProceso.length > 0) {
-                    const anotacionesSubCollection = collection(procesoDocRef, 'anotaciones');
-                    anotacionesDeProceso.forEach(anotacion => {
-                        if(anotacion.auto) {
-                            const anotacionDocRef = doc(anotacionesSubCollection, anotacion.auto);
-                            const anotacionData = Object.fromEntries(
-                                Object.entries(anotacion).filter(([_,v]) => v != null)
-                            );
-                            batch.set(anotacionDocRef, anotacionData);
-                        }
-                    });
+                for (const [key, items] of Object.entries(subCollections)) {
+                  if (items && items.length > 0) {
+                      const subCollectionRef = collection(procesoDocRef, key);
+                      items.forEach(item => {
+                          const itemId = item.identidad_demandante || item.auto;
+                          if (itemId) {
+                              const itemDocRef = doc(subCollectionRef, itemId.toString());
+                              batch.set(itemDocRef, Object.fromEntries(Object.entries(item).filter(([_, v]) => v != null)));
+                          }
+                      });
+                  }
                 }
             });
 
@@ -191,35 +210,23 @@ export default function GestionDemandasPage() {
             setSavingProgress({ current: (i / BATCH_SIZE) + 1, total: totalBatches });
         }
 
-        toast({
-            title: 'Guardado Exitoso',
-            description: `${procesos.length} procesos y sus datos asociados han sido guardados en Firebase.`,
-        });
+        toast({ title: 'Guardado Exitoso', description: `${externalProcesos.length} procesos y sus datos asociados han sido guardados en Firebase.` });
+        await fetchProcesosFromFirebase(); // Refresh the list from Firebase
 
       } catch (error: any) {
-         toast({
-            variant: 'destructive',
-            title: 'Error al Guardar',
-            description: `Error de Firestore: ${error.message}`,
-        });
+         toast({ variant: 'destructive', title: 'Error al Guardar', description: `Error de Firestore: ${error.message}` });
       } finally {
         setSavingProgress(null);
+        setExternalProcesos([]); // Clear memory
       }
     });
   };
 
+  // --- UI Handlers ---
   const handleViewDetails = (process: any) => {
-    setSelectedProcessForDetails(process);
+    setSelectedProcess(process);
+    setIsDetailsSheetOpen(true);
   };
-  
-  const handleViewDemandantes = (process: any) => {
-    setSelectedProcessForDemandantes(process);
-  };
-
-  const handleViewAnotaciones = (process: any) => {
-    setSelectedProcessForAnotaciones(process);
-  }
-
 
   return (
     <div className="p-4 md:p-8 space-y-4">
@@ -229,28 +236,20 @@ export default function GestionDemandasPage() {
             <div>
               <CardTitle className="text-2xl font-headline flex items-center gap-2">
                 <FileClock className="h-6 w-6" />
-                Gestión de Demandas Externas
+                Gestión de Demandas
               </CardTitle>
               <CardDescription>
-                Obtenga y guarde los datos de procesos y demandantes externos.
+                Visualice datos desde Firebase o sincronice desde el sistema externo.
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <Button onClick={handleFetchData} disabled={isFetching || isSaving}>
-                {isFetching ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Download className="mr-2 h-4 w-4" />
-                )}
+                {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
                 Obtener Datos Externos
               </Button>
-              {procesos.length > 0 && (
+              {externalProcesos.length > 0 && (
                  <Button onClick={handleSaveData} disabled={isFetching || isSaving}>
-                  {isSaving ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="mr-2 h-4 w-4" />
-                  )}
+                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                   Guardar en Firebase
                 </Button>
               )}
@@ -282,47 +281,77 @@ export default function GestionDemandasPage() {
       {error && (
          <Alert variant="destructive">
             <ServerCrash className="h-4 w-4" />
-            <AlertTitle>Error al Obtener Datos</AlertTitle>
+            <AlertTitle>Error de Sincronización</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      {procesos.length > 0 && !isFetching && !isSaving && (
-         <ExternalDemandsTable 
-            procesos={procesos} 
-            demandantes={demandantes}
-            onViewDetails={handleViewDetails}
-          />
+      {isLoadingFirebase ? (
+        <div className="flex justify-center items-center p-10">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        </div>
+      ) : (
+         <Card>
+            <CardHeader className='flex-row items-center justify-between'>
+                <div>
+                    <CardTitle>Procesos en Firebase</CardTitle>
+                    <CardDescription>Mostrando {firebaseProcesos.length} registros.</CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => fetchProcesosFromFirebase()}>
+                    <RefreshCw className="mr-2 h-4 w-4"/>
+                    Refrescar
+                </Button>
+            </CardHeader>
+            <CardContent>
+                <ExternalDemandsTable 
+                    procesos={firebaseProcesos} 
+                    onViewDetails={handleViewDetails}
+                />
+                 <div className="flex justify-center py-4">
+                    {hasMore && (
+                        <Button onClick={() => fetchProcesosFromFirebase(true)} disabled={isLoadingFirebase}>
+                            {isLoadingFirebase && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Cargar más
+                        </Button>
+                    )}
+                    {!hasMore && firebaseProcesos.length > 0 && (
+                        <p className="text-sm text-muted-foreground">Has llegado al final de la lista.</p>
+                    )}
+                </div>
+            </CardContent>
+         </Card>
       )}
 
       <ProcessDetailsSheet
-        process={selectedProcessForDetails}
-        isOpen={!!selectedProcessForDetails}
-        onOpenChange={(isOpen) => {
-            if (!isOpen) {
-                setSelectedProcessForDetails(null);
-            }
-        }}
-        onViewDemandantes={handleViewDemandantes}
-        onViewAnotaciones={handleViewAnotaciones}
+        process={selectedProcess}
+        isOpen={isDetailsSheetOpen}
+        onOpenChange={setIsDetailsSheetOpen}
+        onViewDemandantes={() => setIsDemandantesModalOpen(true)}
+        onViewAnotaciones={() => setIsAnotacionesModalOpen(true)}
+        onViewAnexos={() => setIsAnexosModalOpen(true)}
         onDataSaved={() => {
-          setSelectedProcessForDetails(null);
-          handleFetchData();
+          setIsDetailsSheetOpen(false);
+          fetchProcesosFromFirebase();
         }}
        />
        
        <DemandantesModal
-          proceso={selectedProcessForDemandantes}
-          isOpen={!!selectedProcessForDemandantes}
-          onClose={() => setSelectedProcessForDemandantes(null)}
+          proceso={selectedProcess}
+          isOpen={isDemandantesModalOpen}
+          onClose={() => setIsDemandantesModalOpen(false)}
         />
         
        <AnotacionesModal
-          proceso={selectedProcessForAnotaciones}
-          anotaciones={anotaciones[selectedProcessForAnotaciones?.num_registro] || []}
-          isOpen={!!selectedProcessForAnotaciones}
-          onClose={() => setSelectedProcessForAnotaciones(null)}
+          proceso={selectedProcess}
+          isOpen={isAnotacionesModalOpen}
+          onClose={() => setIsAnotacionesModalOpen(false)}
        />
+       
+       <AnexosModal
+          proceso={selectedProcess}
+          isOpen={isAnexosModalOpen}
+          onClose={() => setIsAnexosModalOpen(false)}
+        />
     </div>
   );
 }
