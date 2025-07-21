@@ -101,6 +101,7 @@ export interface Anotacion {
     num_registro: string;
     fecha: string;
     fecha_limite: string;
+    fecha_limite_ordenable?: string; // YYYY-MM-DD format for querying
     hora_limite: string;
     detalle: string;
     clase: string;

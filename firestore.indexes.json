@@ -1,6 +1,20 @@
 {
   "indexes": [
     {
+      "collectionGroup": "anotaciones",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "fecha_limite_ordenable",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "hora_limite",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "extractedText",
       "queryScope": "COLLECTION",
       "fields": [

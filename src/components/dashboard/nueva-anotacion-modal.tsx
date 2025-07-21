@@ -85,11 +85,14 @@ export function NuevaAnotacionModal({ isOpen, onClose, proceso, anotacionExisten
         fileName = file.name;
       }
       
+      const fechaLimiteOrdenable = convertirAFormatoOrdenable(formData.fecha_limite);
+      
       const dataToSave = {
         ...formData,
         archivo_url: fileUrl,
         nombre_documento: fileName,
         num_registro: proceso.num_registro,
+        fecha_limite_ordenable: fechaLimiteOrdenable
       };
 
       const anotacionesCollectionRef = collection(db, 'procesos', proceso.num_registro, 'anotaciones');
