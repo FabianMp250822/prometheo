@@ -27,11 +27,11 @@ const DetailItem = ({ label, value, fullWidth = false, isTextArea = false }: { l
         <Textarea
             readOnly
             value={value as string || 'No disponible'}
-            className="mt-1 text-sm bg-muted/30"
+            className="mt-1 text-sm bg-muted/30 text-foreground"
             rows={4}
         />
     ) : (
-        <div className="mt-1 p-2 bg-muted/30 rounded-md text-sm min-h-[36px]">
+        <div className="mt-1 p-2 bg-muted/30 rounded-md text-sm min-h-[36px] text-foreground flex items-center">
             {value || <span className="text-gray-400">No disponible</span>}
         </div>
     )}
@@ -63,73 +63,67 @@ export function ProcessDetailsSheet({
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                 <h2 className="text-xl font-bold col-span-1 md:col-span-2 text-foreground mb-2">DATOS DEL PROCESO</h2>
+                 <h2 className="text-xl font-bold col-span-1 md:col-span-2 text-foreground mb-2 border-b pb-2">DATOS DEL PROCESO</h2>
                  
-                 {/* Fila 1 */}
                  <DetailItem label="Nº REGISTRO" value={process.num_registro} />
                  <DetailItem label="FECHA DE CREACIÓN" value={process.fecha_creacion} />
                  
-                 {/* Fila 2 */}
                  <DetailItem label="N° CARPETA 1" value={process.num_carpeta} />
                  <DetailItem label="No. CARPETA 2" value={process.num_carpeta2} />
                  
-                 {/* Fila 3 */}
                  <DetailItem label="DESPACHO ORIGEN" value={process.despacho} />
                  <DetailItem label="NOMBRES DEL DEMANDANTE" value={process.nombres_demandante} />
                  
-                 {/* Fila 4 */}
                  <DetailItem label="N° DEL RADICADO INICIAL" value={process.num_radicado_ini} />
                  <DetailItem label="N° DE DOCUMENTO DEMANDANTE" value={process.identidad_clientes} />
                  
-                 {/* Fila 5 */}
                  <DetailItem label="FECHA DEL RADICADO INICIAL" value={process.fecha_radicado_ini} />
                  <DetailItem label="NOMBRES DEL DEMANDADO" value={process.nombres_demandado} />
 
-                 {/* Fila 6 */}
                  <DetailItem label="N° DEL RADICADO DEL TRIBUNAL" value={process.radicado_tribunal} />
                  <DetailItem label="N° DE DOCUMENTO DEMANDADO O NIT" value={process.identidad_demandado} />
                  
-                 {/* Fila 7 */}
                  <DetailItem label="MAGISTRADO DEL TRIBUNAL" value={process.magistrado} />
                  <DetailItem label="NOMBRES DEL APODERADO" value={process.nombres_apoderado} />
 
-                 {/* Fila 8 */}
                  <DetailItem label="JURISDICCIÓN" value={process.jurisdiccion} />
                  <DetailItem label="N° DE DOCUMENTO DEL APODERADO" value={process.identidad_abogados} />
 
-                 {/* Fila 9 */}
                  <DetailItem label="CLASE DE PROCESO" value={process.clase_proceso} />
                  <DetailItem label="NEGOCIO" value={process.negocio} />
 
-                 {/* Fila 10 */}
                  <DetailItem label="ESTADO DE PROCESO" value={process.estado} />
                  <DetailItem label="NÚMERO RADICACIÓN (COMPLETO)" value={process.num_radicado_ult} />
 
-                 {/* Fila 11 */}
                  <DetailItem label="SENTENCIA DEL JUZGADO" value={process.sentencia_juzgado} />
                  <DetailItem label="RADICADO DE LA CORTE" value={process.radicado_corte} />
 
-                 {/* Fila 12 */}
                  <DetailItem label="SENTENCIA DEL TRIBUNAL" value={process.sentencia_tribunal} />
                  <DetailItem label="MAGISTRADO DE LA CORTE" value={process.magistrado_corte} />
                  
-                 {/* Fila 13 */}
                  <div></div> {/* Placeholder for alignment */}
                  <DetailItem label="CASACIÓN" value={process.casacion} />
 
-                 {/* Descripcion */}
                  <DetailItem label="DESCRIPCIÓN" value={process.descripcion} fullWidth isTextArea />
             </div>
         </div>
 
-        <SheetFooter className="p-4 bg-muted/50 border-t flex justify-end">
-            <Button variant="outline">
-                <Pencil className="mr-2 h-4 w-4" />
-                Modificar
+        <SheetFooter className="p-4 bg-muted/50 border-t flex-col md:flex-row justify-center md:justify-start gap-2">
+            <Button variant="outline" className="w-full md:w-auto">
+                <Users className="mr-2 h-4 w-4" />
+                Ver Demandantes
             </Button>
-            <Button>
-                <Save className="mr-2 h-4 w-4" />
-                Guardar
+             <Button variant="outline" className="w-full md:w-auto">
+                <FileText className="mr-2 h-4 w-4" />
+                Anotaciones
+            </Button>
+             <Button variant="outline" className="w-full md:w-auto">
+                <Briefcase className="mr-2 h-4 w-4" />
+                Anexos
+            </Button>
+             <Button variant="default" className="bg-green-600 hover:bg-green-700 w-full md:w-auto">
+                <Pencil className="mr-2 h-4 w-4" />
+                Editar
             </Button>
         </SheetFooter>
       </SheetContent>
