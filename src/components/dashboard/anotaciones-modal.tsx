@@ -11,6 +11,8 @@ import { corregirTexto, transformarFecha, convertirAFormatoOrdenable, convertirH
 import { NuevaAnotacionModal } from './nueva-anotacion-modal';
 import { collection, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { DocumentViewerModal } from './document-viewer-modal';
+
 
 const ANOTACIONES_API = 'https://appdajusticia.com/anotaciones.php';
 
@@ -23,6 +25,9 @@ export function AnotacionesModal({ proceso, anotaciones: initialAnotaciones, isO
   const [busqueda, setBusqueda] = useState('');
   const [showNuevoModal, setShowNuevoModal] = useState(false);
   const [anotacionParaEditar, setAnotacionParaEditar] = useState<Anotacion | null>(null);
+
+  const [documentUrl, setDocumentUrl] = useState<string | null>(null);
+  const [documentTitle, setDocumentTitle] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen && Array.isArray(initialAnotaciones)) {
@@ -90,6 +95,11 @@ export function AnotacionesModal({ proceso, anotaciones: initialAnotaciones, isO
         toast({ variant: 'destructive', title: 'Error al Eliminar', description: err.message });
     }
   };
+  
+  const handleViewDocument = (url: string, title: string) => {
+    setDocumentUrl(url);
+    setDocumentTitle(title);
+  };
 
   const handleCloseNuevoModal = () => {
     setShowNuevoModal(false);
@@ -149,13 +159,15 @@ export function AnotacionesModal({ proceso, anotaciones: initialAnotaciones, isO
                       <TableCell>{anotacion.clase}</TableCell>
                       <TableCell>{anotacion.fecha_limite || '-'}</TableCell>
                       <TableCell>
-                        {anotacion.archivo_url ? (
-                            <Button asChild variant="outline" size="sm">
-                                <a href={`https://appdajusticia.com/${anotacion.archivo_url}`} target="_blank" rel="noopener noreferrer">
+                        {anotacion.archivo_url && anotacion.nombre_documento ? (
+                           <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleViewDocument(anotacion.archivo_url!, anotacion.nombre_documento!)}
+                            >
                                 <FileDown className="h-3 w-3 mr-1" />
                                 Ver
-                                </a>
-                            </Button>
+                           </Button>
                         ) : (
                             <span className="text-xs text-muted-foreground">No adjunto</span>
                         )}
@@ -188,6 +200,14 @@ export function AnotacionesModal({ proceso, anotaciones: initialAnotaciones, isO
           onClose={handleCloseNuevoModal}
           proceso={proceso}
           anotacionExistente={anotacionParaEditar}
+        />
+      )}
+
+      {documentUrl && (
+        <DocumentViewerModal
+          url={documentUrl}
+          title={documentTitle || "Visor de Documento"}
+          onClose={() => setDocumentUrl(null)}
         />
       )}
     </>

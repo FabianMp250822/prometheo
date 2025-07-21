@@ -95,7 +95,7 @@ export const convertirHoraLimite = (hora: string): string => {
 
 export const anadirPrefijoRuta = (ruta: string): string | null => {
     if (!ruta) return null;
-    const baseUrl = 'https://appdajusticia.com/private/';
+    const baseUrl = 'https://www.appdajusticia.com/private/';
     
     if (ruta.startsWith(baseUrl)) {
       return ruta;
