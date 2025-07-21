@@ -4,12 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Loader2, Search, Trash2, FileDown, FileUp } from 'lucide-react';
+import { Loader2, Search, Trash2, FileDown, FileUp, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { NuevaAnexoModal } from './nueva-anexo-modal';
 import { collection, getDocs, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { anadirPrefijoRuta } from '@/lib/anotaciones-helpers';
 import { DocumentViewerModal } from './document-viewer-modal';
 
 type Anexo = {
@@ -37,8 +36,7 @@ export function AnexosModal({ proceso, isOpen, onClose }: { proceso: any | null;
       const querySnapshot = await getDocs(anexosCollectionRef);
       const anexosData = querySnapshot.docs.map(doc => ({ 
           id: doc.id,
-          ...doc.data(),
-          ruta_archivo: doc.data().ruta_archivo ? anadirPrefijoRuta(doc.data().ruta_archivo) : null
+          ...doc.data()
       } as Anexo));
       setAnexos(anexosData);
     } catch (err: any) {
@@ -66,12 +64,13 @@ export function AnexosModal({ proceso, isOpen, onClose }: { proceso: any | null;
   
   const handleEliminar = async (anexoId: string) => {
     if (!proceso?.num_registro || !anexoId) return;
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este anexo de Firebase?')) return;
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este anexo de Firebase? Esto no se puede deshacer.')) return;
     
     try {
         const anexoDocRef = doc(db, 'procesos', proceso.num_registro, 'anexos', anexoId);
         await deleteDoc(anexoDocRef);
-        toast({ title: 'Éxito', description: 'Anexo eliminado de Firebase.' });
+        // Note: This does not delete the file from Storage, only the Firestore record.
+        toast({ title: 'Éxito', description: 'Registro del anexo eliminado de Firebase.' });
         fetchAnexosFromFirebase(proceso.num_registro);
     } catch (err: any) {
         toast({ variant: 'destructive', title: 'Error al Eliminar', description: err.message });
@@ -137,13 +136,18 @@ export function AnexosModal({ proceso, isOpen, onClose }: { proceso: any | null;
                       <TableCell className="text-muted-foreground">{anexo.descripccion}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            disabled={!anexo.ruta_archivo}
-                            onClick={() => handleViewDocument(anexo.ruta_archivo, anexo.nombre_documento)}>
-                              <FileDown className="h-3 w-3 mr-1" /> Ver
-                          </Button>
+                           <Button 
+                              variant="outline" 
+                              size="sm"
+                              disabled={!anexo.ruta_archivo}
+                              onClick={() => handleViewDocument(anexo.ruta_archivo, anexo.nombre_documento)}>
+                                <FileDown className="h-3 w-3 mr-1" /> Ver
+                           </Button>
+                           <a href={anexo.ruta_archivo} target="_blank" rel="noopener noreferrer" download={anexo.nombre_documento}>
+                              <Button variant="ghost" size="sm">
+                                <Download className="h-3 w-3 mr-1" /> Descargar
+                              </Button>
+                            </a>
                           <Button variant="destructive" size="sm" onClick={() => handleEliminar(anexo.id)}>
                             <Trash2 className="h-3 w-3 mr-1"/> Eliminar
                           </Button>

@@ -28,8 +28,6 @@ interface ProcessDetailsSheetProps {
   onDataSaved: () => void;
 }
 
-const API_URL = 'https://appdajusticia.com/procesos.php';
-
 const DetailItem = ({ label, value, fullWidth = false, isEditing = false, onChange, name }: { label: string; value: React.ReactNode, fullWidth?: boolean, isEditing?: boolean, onChange?: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void, name?: string }) => {
   const isTextarea = label === "DESCRIPCIÓN";
   const readOnlyFields = ['Nº REGISTRO', 'FECHA DE CREACIÓN'];
@@ -121,10 +119,19 @@ export function ProcessDetailsSheet({
   };
 
   const handleSaveChanges = async () => {
+      if (!editedData?.num_registro) {
+        toast({ variant: 'destructive', title: 'Error', description: 'No se puede guardar sin un número de registro.' });
+        return;
+      }
       setIsSaving(true);
       try {
         const processDocRef = doc(db, 'procesos', editedData.num_registro);
-        await updateDoc(processDocRef, editedData);
+        
+        // Create a copy of the data and remove the ID field to avoid saving it in the document
+        const dataToSave = { ...editedData };
+        delete dataToSave.id;
+
+        await updateDoc(processDocRef, dataToSave);
 
         toast({
             title: 'Guardado Exitoso',

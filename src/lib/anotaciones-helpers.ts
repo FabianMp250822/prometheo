@@ -1,5 +1,20 @@
 'use client';
 
+// This function is now deprecated as the prefixing is handled by Firebase Storage URLs.
+// It is kept for historical reference or if old data paths need to be handled.
+export const anadirPrefijoRuta = (ruta: string): string | null => {
+    if (!ruta) return null;
+    const baseUrl = 'https://www.appdajusticia.com/private/';
+    
+    // If it's already a full URL (from Firebase Storage or otherwise), return it.
+    if (ruta.startsWith('http://') || ruta.startsWith('https://')) {
+      return ruta;
+    }
+  
+    const cleanRuta = ruta.startsWith('/') ? ruta.substring(1) : ruta;
+    return `${baseUrl}${cleanRuta}`; 
+};
+
 export const corregirTexto = (texto: string): string => {
     if (!texto) return '';
     // This seems to be correcting double-UTF8 encoding issues.
@@ -92,16 +107,3 @@ export const convertirHoraLimite = (hora: string): string => {
     
     return `${hours.toString().padStart(2, '0')}:${(minutes || 0).toString().padStart(2, '0')}`;
   };
-
-export const anadirPrefijoRuta = (ruta: string): string | null => {
-    if (!ruta) return null;
-    const baseUrl = 'https://www.appdajusticia.com/private/';
-    
-    if (ruta.startsWith(baseUrl)) {
-      return ruta;
-    }
-  
-    // Remove potential leading slashes and ensure correct path joining
-    const cleanRuta = ruta.startsWith('/') ? ruta.substring(1) : ruta;
-    return `${baseUrl}${cleanRuta}`; 
-};

@@ -6,11 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Upload } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Anotacion } from '@/lib/data';
 import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 interface NuevaAnotacionModalProps {
   isOpen: boolean;
@@ -26,7 +27,10 @@ export function NuevaAnotacionModal({ isOpen, onClose, proceso, anotacionExisten
     fecha: '',
     fecha_limite: '',
     hora_limite: '',
+    nombre_documento: '',
+    archivo_url: ''
   });
+  const [file, setFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
 
@@ -38,6 +42,8 @@ export function NuevaAnotacionModal({ isOpen, onClose, proceso, anotacionExisten
         fecha: anotacionExistente.fecha || '',
         fecha_limite: anotacionExistente.fecha_limite || '',
         hora_limite: anotacionExistente.hora_limite || '',
+        nombre_documento: anotacionExistente.nombre_documento || '',
+        archivo_url: anotacionExistente.archivo_url || '',
       });
     } else {
       setFormData({
@@ -46,6 +52,8 @@ export function NuevaAnotacionModal({ isOpen, onClose, proceso, anotacionExisten
         fecha: '',
         fecha_limite: '',
         hora_limite: '',
+        nombre_documento: '',
+        archivo_url: '',
       });
     }
   }, [anotacionExistente]);
@@ -55,25 +63,43 @@ export function NuevaAnotacionModal({ isOpen, onClose, proceso, anotacionExisten
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     
     try {
+      let fileUrl = anotacionExistente?.archivo_url || '';
+      let fileName = anotacionExistente?.nombre_documento || '';
+
+      if (file) {
+        const storageRef = ref(storage, `anotaciones/${proceso.num_registro}/${Date.now()}_${file.name}`);
+        const uploadResult = await uploadBytes(storageRef, file);
+        fileUrl = await getDownloadURL(uploadResult.ref);
+        fileName = file.name;
+      }
+      
+      const dataToSave = {
+        ...formData,
+        archivo_url: fileUrl,
+        nombre_documento: fileName,
+        num_registro: proceso.num_registro,
+      };
+
       const anotacionesCollectionRef = collection(db, 'procesos', proceso.num_registro, 'anotaciones');
 
       if (anotacionExistente?.id) {
-        // Edit existing anotacion
         const anotacionDocRef = doc(anotacionesCollectionRef, anotacionExistente.id);
-        await setDoc(anotacionDocRef, formData, { merge: true });
-        toast({ title: 'Éxito', description: 'Anotación actualizada correctamente en Firebase.' });
+        await setDoc(anotacionDocRef, dataToSave, { merge: true });
+        toast({ title: 'Éxito', description: 'Anotación actualizada correctamente.' });
       } else {
-        // Add new anotacion
-        await addDoc(anotacionesCollectionRef, {
-            ...formData,
-            num_registro: proceso.num_registro
-        });
-        toast({ title: 'Éxito', description: 'Anotación creada correctamente en Firebase.' });
+        await addDoc(anotacionesCollectionRef, dataToSave);
+        toast({ title: 'Éxito', description: 'Anotación creada correctamente.' });
       }
       
       onClose();
@@ -96,7 +122,7 @@ export function NuevaAnotacionModal({ isOpen, onClose, proceso, anotacionExisten
           <DialogHeader>
             <DialogTitle>{anotacionExistente ? 'Editar Anotación' : 'Agregar Nueva Anotación'}</DialogTitle>
             <DialogDescription>
-              Complete los detalles de la anotación. Los cambios se guardarán en Firebase.
+              Complete los detalles. Los cambios se guardarán en Firebase.
             </DialogDescription>
           </DialogHeader>
 
@@ -121,6 +147,17 @@ export function NuevaAnotacionModal({ isOpen, onClose, proceso, anotacionExisten
                 <Label htmlFor="hora_limite" className="text-right">Hora Límite</Label>
                 <Input id="hora_limite" name="hora_limite" type="text" placeholder="HH:MM am/pm" value={formData.hora_limite} onChange={handleChange} className="col-span-3" />
             </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="file" className="text-right">Archivo</Label>
+              <Input id="file" type="file" onChange={handleFileChange} className="col-span-3" />
+            </div>
+            {formData.archivo_url && !file && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <div className="col-start-2 col-span-3 text-sm text-muted-foreground">
+                  Archivo actual: {formData.nombre_documento}
+                </div>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
