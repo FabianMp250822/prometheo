@@ -11,7 +11,7 @@ import { CalendarSearch, Loader2, Search, CalendarOff, AlertTriangle } from 'luc
 import type { Anotacion } from '@/lib/data';
 import { format, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { convertirAFormatoOrdenable, transformarFecha, convertirHoraLimite } from '@/lib/anotaciones-helpers';
+import { transformarFecha, convertirHoraLimite } from '@/lib/anotaciones-helpers';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -95,6 +95,10 @@ export default function PorFechaPage() {
     }, []); 
 
     const handleSearch = () => {
+        if (!dateRange.from || !dateRange.to) {
+            setError("Por favor seleccione un rango de fechas válido.");
+            return;
+        }
         fetchTasksByDate(dateRange.from, dateRange.to);
     };
     
