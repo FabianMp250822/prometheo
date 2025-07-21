@@ -2,15 +2,23 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { FileClock, Loader2, Circle } from 'lucide-react';
+import { FileClock, Loader2, Circle, AlertCircle } from 'lucide-react';
 import { checkDbConnection } from '@/app/actions/get-external-demands';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function GestionDemandasPage() {
   const [connectionStatus, setConnectionStatus] = useState<'pending' | 'success' | 'error'>('pending');
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
     checkDbConnection().then(result => {
-      setConnectionStatus(result.success ? 'success' : 'error');
+      if (result.success) {
+        setConnectionStatus('success');
+        setConnectionError(null);
+      } else {
+        setConnectionStatus('error');
+        setConnectionError(result.error || 'Ocurrió un error desconocido.');
+      }
     });
   }, []);
 
@@ -41,7 +49,7 @@ export default function GestionDemandasPage() {
   }
 
   return (
-    <div className="p-4 md:p-8">
+    <div className="p-4 md:p-8 space-y-4">
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center gap-2">
@@ -59,6 +67,15 @@ export default function GestionDemandasPage() {
           </p>
         </CardContent>
       </Card>
+      {connectionStatus === 'error' && connectionError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Detalle del Error de Conexión</AlertTitle>
+          <AlertDescription>
+            {connectionError}
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }
