@@ -1,7 +1,6 @@
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
-import * as adminFirestore from 'firebase-admin/firestore';
 
 /**
  * Guarda los procesos y sus demandantes en la base de datos de Firebase.

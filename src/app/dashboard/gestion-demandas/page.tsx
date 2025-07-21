@@ -1,19 +1,20 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FileClock, Loader2, ServerCrash, Download, Save } from 'lucide-react';
 import { ExternalDemandsTable } from '@/components/dashboard/external-demands-table';
-import { getExternalDemands } from '@/app/actions/get-external-demands';
 import { saveProcessesToFirebase } from '@/app/actions/save-processes-to-firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import axios from 'axios';
 
 export default function GestionDemandasPage() {
   const [procesos, setProcesos] = useState<any[]>([]);
   const [demandantes, setDemandantes] = useState<{ [key: string]: any[] }>({});
   const [error, setError] = useState<string | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
 
   const [isFetching, startFetching] = useTransition();
   const [isSaving, startSaving] = useTransition();
@@ -24,16 +25,45 @@ export default function GestionDemandasPage() {
       setError(null);
       setProcesos([]);
       setDemandantes({});
-      const result = await getExternalDemands();
-      if (result.success) {
-        setProcesos(result.procesos || []);
-        setDemandantes(result.demandantes || {});
+      setLoadingMessage('Obteniendo lista de procesos...');
+      
+      try {
+        const response = await axios.get('https://appdajusticia.com/procesos.php?all=true');
+        if (!Array.isArray(response.data)) {
+            throw new Error("La respuesta de la API de procesos no es un array válido.");
+        }
+        setProcesos(response.data);
+        
+        setLoadingMessage('Obteniendo detalles de demandantes...');
+        const registrosUnicos = [...new Set(response.data.map((p: any) => p.num_registro))];
+        const demandantesData: { [key: string]: any[] } = {};
+
+        // Fetch demandantes in parallel
+        await Promise.all(
+          registrosUnicos.map(async (numRegistro) => {
+            try {
+              const res = await axios.get(`https://appdajusticia.com/procesos.php?num_registro=${numRegistro}`);
+              if (res.data && !res.data.error) {
+                demandantesData[numRegistro] = res.data;
+              } else {
+                demandantesData[numRegistro] = [];
+              }
+            } catch {
+              demandantesData[numRegistro] = [];
+            }
+          })
+        );
+        setDemandantes(demandantesData);
+
         toast({
           title: 'Datos Obtenidos',
-          description: `Se encontraron ${result.procesos?.length || 0} procesos.`,
+          description: `Se encontraron ${response.data.length || 0} procesos.`,
         });
-      } else {
-        setError(result.error || 'Ocurrió un error desconocido.');
+
+      } catch (err: any) {
+        setError(`Error al conectar con el servicio externo: ${err.message}.`);
+      } finally {
+        setLoadingMessage(null);
       }
     });
   };
@@ -105,7 +135,7 @@ export default function GestionDemandasPage() {
       {isFetching && (
         <div className="flex justify-center items-center p-10 gap-4">
           <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <p className="text-muted-foreground">Cargando datos del servicio externo...</p>
+          <p className="text-muted-foreground">{loadingMessage || 'Cargando...'}</p>
         </div>
       )}
 
@@ -117,7 +147,7 @@ export default function GestionDemandasPage() {
         </Alert>
       )}
 
-      {procesos.length > 0 && (
+      {procesos.length > 0 && !isFetching && (
          <ExternalDemandsTable procesos={procesos} demandantes={demandantes} />
       )}
     </div>
