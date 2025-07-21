@@ -8,10 +8,11 @@ import { ExternalDemandsTable } from '@/components/dashboard/external-demands-ta
 import { ProcessDetailsSheet } from '@/components/dashboard/process-details-sheet';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import axios from 'axios';
-import { useAuth } from '@/context/auth-provider';
-import { db } from '@/lib/firebase';
+import { getExternalDemands } from '@/app/actions/get-external-demands';
 import { writeBatch, collection, doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useAuth } from '@/context/auth-provider';
+import { DemandantesModal } from '@/components/dashboard/demandantes-modal';
 
 
 export default function GestionDemandasPage() {
@@ -20,7 +21,8 @@ export default function GestionDemandasPage() {
   const [error, setError] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
 
-  const [selectedProcess, setSelectedProcess] = useState<any | null>(null);
+  const [selectedProcessForDetails, setSelectedProcessForDetails] = useState<any | null>(null);
+  const [selectedProcessForDemandantes, setSelectedProcessForDemandantes] = useState<any | null>(null);
 
   const [isFetching, startFetching] = useTransition();
   const [isSaving, startSaving] = useTransition();
@@ -35,44 +37,18 @@ export default function GestionDemandasPage() {
       setLoadingMessage('Obteniendo lista de procesos...');
       
       try {
-        const response = await axios.get('https://appdajusticia.com/procesos.php?all=true', {
-           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-           }
-        });
+        const result = await getExternalDemands();
 
-        if (response.data.error || !Array.isArray(response.data)) {
-            throw new Error(response.data.error || "La respuesta de la API de procesos no es un array válido.");
+        if (!result.success) {
+          throw new Error(result.error || "Error desconocido al obtener datos externos.");
         }
-        setProcesos(response.data);
         
-        setLoadingMessage('Obteniendo detalles de demandantes...');
-        const registrosUnicos = [...new Set(response.data.map((p: any) => p.num_registro))];
-        const demandantesData: { [key: string]: any[] } = {};
-
-        await Promise.all(
-          registrosUnicos.map(async (numRegistro) => {
-            try {
-              const res = await axios.get(`https://appdajusticia.com/procesos.php?num_registro=${numRegistro}`, {
-                 headers: {
-                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                 }
-              });
-              if (res.data && !res.data.error && Array.isArray(res.data)) {
-                demandantesData[numRegistro] = res.data;
-              } else {
-                demandantesData[numRegistro] = [];
-              }
-            } catch {
-              demandantesData[numRegistro] = [];
-            }
-          })
-        );
-        setDemandantes(demandantesData);
+        setProcesos(result.procesos || []);
+        setDemandantes(result.demandantes || {});
 
         toast({
           title: 'Datos Obtenidos',
-          description: `Se encontraron ${response.data.length || 0} procesos.`,
+          description: `Se encontraron ${result.procesos?.length || 0} procesos.`,
         });
 
       } catch (err: any) {
@@ -148,7 +124,12 @@ export default function GestionDemandasPage() {
   };
 
   const handleViewDetails = (process: any) => {
-    setSelectedProcess(process);
+    setSelectedProcessForDetails(process);
+  };
+  
+  const handleViewDemandantes = (process: any) => {
+    setSelectedProcessForDemandantes(process);
+    setSelectedProcessForDetails(null); // Cierra el otro modal si está abierto
   };
 
 
@@ -214,15 +195,21 @@ export default function GestionDemandasPage() {
       )}
 
       <ProcessDetailsSheet
-        process={selectedProcess}
-        demandantes={selectedProcess ? demandantes[selectedProcess.num_registro] : []}
-        isOpen={!!selectedProcess}
+        process={selectedProcessForDetails}
+        isOpen={!!selectedProcessForDetails}
         onOpenChange={(isOpen) => {
             if (!isOpen) {
-                setSelectedProcess(null);
+                setSelectedProcessForDetails(null);
             }
         }}
+        onViewDemandantes={handleViewDemandantes}
        />
+       
+       <DemandantesModal
+          proceso={selectedProcessForDemandantes}
+          isOpen={!!selectedProcessForDemandantes}
+          onClose={() => setSelectedProcessForDemandantes(null)}
+        />
     </div>
   );
 }

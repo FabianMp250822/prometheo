@@ -10,39 +10,40 @@ import {
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, FileText, Briefcase, Pencil, Info, Save } from 'lucide-react';
+import { Users, FileText, Briefcase, Pencil, Info } from 'lucide-react';
 import { Textarea } from '../ui/textarea';
 
 interface ProcessDetailsSheetProps {
   process: any | null;
-  demandantes: any[];
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
+  onViewDemandantes: (process: any) => void;
 }
 
-const DetailItem = ({ label, value, fullWidth = false, isTextArea = false }: { label: string; value: React.ReactNode, fullWidth?: boolean, isTextArea?: boolean }) => (
+const DetailItem = ({ label, value, fullWidth = false }: { label: string; value: React.ReactNode, fullWidth?: boolean }) => (
   <div className={fullWidth ? "col-span-1 md:col-span-2" : ""}>
-    <p className="text-xs font-semibold text-muted-foreground uppercase">{label}</p>
-    {isTextArea ? (
+    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</p>
+    {label === "DESCRIPCIÓN" ? (
         <Textarea
             readOnly
             value={value as string || 'No disponible'}
-            className="mt-1 text-sm bg-muted/30 text-foreground"
+            className="mt-1 text-sm bg-muted/50 text-foreground"
             rows={4}
         />
     ) : (
-        <div className="mt-1 p-2 bg-muted/30 rounded-md text-sm min-h-[36px] text-foreground flex items-center">
-            {value || <span className="text-gray-400">No disponible</span>}
+        <div className="mt-1 p-2 bg-muted/50 rounded-md text-sm min-h-[38px] text-foreground flex items-center border border-transparent">
+            {value || <span className="text-muted-foreground/80">No disponible</span>}
         </div>
     )}
   </div>
 );
 
+
 export function ProcessDetailsSheet({
   process,
-  demandantes,
   isOpen,
   onOpenChange,
+  onViewDemandantes,
 }: ProcessDetailsSheetProps) {
   if (!process) {
     return null;
@@ -63,12 +64,12 @@ export function ProcessDetailsSheet({
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                 <h2 className="text-xl font-bold col-span-1 md:col-span-2 text-foreground mb-2 border-b pb-2">DATOS DEL PROCESO</h2>
+                 <h2 className="text-lg font-bold col-span-1 md:col-span-2 text-foreground mb-2 border-b pb-2">DATOS DEL PROCESO</h2>
                  
                  <DetailItem label="Nº REGISTRO" value={process.num_registro} />
                  <DetailItem label="FECHA DE CREACIÓN" value={process.fecha_creacion} />
                  
-                 <DetailItem label="N° CARPETA 1" value={process.num_carpeta} />
+                 <DetailItem label="N° CARPETA" value={process.num_carpeta} />
                  <DetailItem label="No. CARPETA 2" value={process.num_carpeta2} />
                  
                  <DetailItem label="DESPACHO ORIGEN" value={process.despacho} />
@@ -101,15 +102,15 @@ export function ProcessDetailsSheet({
                  <DetailItem label="SENTENCIA DEL TRIBUNAL" value={process.sentencia_tribunal} />
                  <DetailItem label="MAGISTRADO DE LA CORTE" value={process.magistrado_corte} />
                  
-                 <div></div> {/* Placeholder for alignment */}
+                 <div/>
                  <DetailItem label="CASACIÓN" value={process.casacion} />
 
-                 <DetailItem label="DESCRIPCIÓN" value={process.descripcion} fullWidth isTextArea />
+                 <DetailItem label="DESCRIPCIÓN" value={process.descripcion} fullWidth />
             </div>
         </div>
 
         <SheetFooter className="p-4 bg-muted/50 border-t flex-col md:flex-row justify-center md:justify-start gap-2">
-            <Button variant="outline" className="w-full md:w-auto">
+            <Button variant="outline" className="w-full md:w-auto" onClick={() => onViewDemandantes(process)}>
                 <Users className="mr-2 h-4 w-4" />
                 Ver Demandantes
             </Button>
@@ -121,7 +122,7 @@ export function ProcessDetailsSheet({
                 <Briefcase className="mr-2 h-4 w-4" />
                 Anexos
             </Button>
-             <Button variant="default" className="bg-green-600 hover:bg-green-700 w-full md:w-auto">
+             <Button className="bg-accent hover:bg-accent/90 text-accent-foreground w-full md:w-auto">
                 <Pencil className="mr-2 h-4 w-4" />
                 Editar
             </Button>
