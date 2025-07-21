@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FileClock, Loader2, ServerCrash, Download, Save } from 'lucide-react';
@@ -29,7 +29,11 @@ export default function GestionDemandasPage() {
   const { user } = useAuth();
   
   const fetchExternalData = async (url: string) => {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        },
+    });
     if (!response.ok) {
         throw new Error(`Error en la respuesta de la red: ${response.statusText}`);
     }
@@ -40,7 +44,7 @@ export default function GestionDemandasPage() {
     return data;
   }
 
-  const handleFetchData = () => {
+  const handleFetchData = useCallback(() => {
     startFetching(async () => {
       setError(null);
       setProcesos([]);
@@ -88,7 +92,7 @@ export default function GestionDemandasPage() {
         setLoadingMessage(null);
       }
     });
-  };
+  }, [toast]);
 
   const handleSaveData = () => {
     if (!user) {
@@ -234,6 +238,10 @@ export default function GestionDemandasPage() {
             }
         }}
         onViewDemandantes={handleViewDemandantes}
+        onDataSaved={() => {
+          setSelectedProcessForDetails(null);
+          handleFetchData();
+        }}
        />
        
        <DemandantesModal
