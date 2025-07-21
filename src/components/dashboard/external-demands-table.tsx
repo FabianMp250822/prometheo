@@ -6,16 +6,16 @@ import { utils, write } from 'xlsx';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Download, ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight, Pencil, Ban, Check } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '../ui/badge';
 import { useToast } from '@/hooks/use-toast';
 
 const DemandantesTabla = ({ demandantes }: { demandantes: any[] }) => (
-    <div className="tabla-procesos-scroll">
+    <div className="max-h-[60vh] overflow-y-auto">
       <Table>
-        <TableHeader>
+        <TableHeader className="sticky top-0 bg-secondary z-10">
           <TableRow>
             <TableHead>Nombre</TableHead>
             <TableHead>Documento</TableHead>
@@ -25,14 +25,14 @@ const DemandantesTabla = ({ demandantes }: { demandantes: any[] }) => (
           </TableRow>
         </TableHeader>
         <TableBody>
-          {demandantes.map((demandante) => (
-            <tr key={demandante.identidad_demandante}>
+          {demandantes.map((demandante, index) => (
+            <TableRow key={demandante.identidad_demandante || index}>
               <TableCell>{demandante.nombre_demandante}</TableCell>
               <TableCell>{demandante.identidad_demandante}</TableCell>
               <TableCell>{demandante.telefonos}</TableCell>
               <TableCell>{demandante.direccion}</TableCell>
               <TableCell>{demandante.correo}</TableCell>
-            </tr>
+            </TableRow>
           ))}
         </TableBody>
       </Table>
@@ -86,13 +86,10 @@ export const ExternalDemandsTable = ({ procesos, demandantes }: { procesos: any[
         toast({
             variant: "destructive",
             title: "Función Deshabilitada",
-            description: "La edición de apoderados no está permitida en el modo de carga directa.",
+            description: "La edición de apoderados no está permitida en este modo. Las actualizaciones deben realizarse en el sistema de origen.",
         });
-        setEditableApoderado(prev => {
-            const newState = { ...prev };
-            delete newState[numRegistro];
-            return newState;
-        });
+        // Note: We don't actually save, just revert the UI state
+        handleCancelEdit(numRegistro);
     };
 
     const handleCancelEdit = (numRegistro: string) => {
@@ -160,7 +157,6 @@ export const ExternalDemandsTable = ({ procesos, demandantes }: { procesos: any[
         utils.book_append_sheet(wb, ws, 'Procesos');
         const wbout = write(wb, { bookType: 'xlsx', type: 'array' });
         
-        // Use browser-native download method
         const blob = new Blob([wbout], {type: 'application/octet-stream'});
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -250,11 +246,11 @@ export const ExternalDemandsTable = ({ procesos, demandantes }: { procesos: any[
                          <TableCell>
                             {editableApoderado.hasOwnProperty(proceso.num_registro) ? (
                                 <div className="flex gap-2">
-                                    <Button size="sm" onClick={() => handleSaveApoderado(proceso.num_registro)}>Guardar</Button>
-                                    <Button size="sm" variant="ghost" onClick={() => handleCancelEdit(proceso.num_registro)}>Cancelar</Button>
+                                    <Button size="sm" onClick={() => handleSaveApoderado(proceso.num_registro)}><Check className="h-4 w-4" /> Guardar</Button>
+                                    <Button size="sm" variant="ghost" onClick={() => handleCancelEdit(proceso.num_registro)}><Ban className="h-4 w-4" /> Cancelar</Button>
                                 </div>
                             ) : (
-                                <Button size="sm" variant="outline" onClick={() => handleApoderadoChange(proceso.num_registro, proceso.nombres_apoderado)}>Editar</Button>
+                                <Button size="sm" variant="outline" onClick={() => handleApoderadoChange(proceso.num_registro, proceso.nombres_apoderado)}><Pencil className="h-4 w-4" /> Editar</Button>
                             )}
                         </TableCell>
                       </TableRow>
@@ -275,14 +271,15 @@ export const ExternalDemandsTable = ({ procesos, demandantes }: { procesos: any[
             </div>
              <div className="flex items-center space-x-1">
                  <Select
-                    className="w-24"
+                    className="w-24 text-sm"
+                    classNamePrefix="react-select-sm"
                     options={[
-                        {value: 10, label: '10 / página'},
-                        {value: 20, label: '20 / página'},
-                        {value: 50, label: '50 / página'},
-                        {value: 100, label: '100 / página'},
+                        {value: 10, label: '10 / pág'},
+                        {value: 20, label: '20 / pág'},
+                        {value: 50, label: '50 / pág'},
+                        {value: 100, label: '100 / pág'},
                     ]}
-                    defaultValue={{value: 10, label: '10 / página'}}
+                    defaultValue={{value: 10, label: '10 / pág'}}
                     onChange={(option: any) => setPagination(p => ({...p, pageSize: option.value, pageIndex: 0}))}
                  />
                 <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => setPagination(p => ({ ...p, pageIndex: 0 }))} disabled={pagination.pageIndex === 0}>

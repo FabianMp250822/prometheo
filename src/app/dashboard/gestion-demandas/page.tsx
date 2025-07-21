@@ -1,51 +1,38 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { FileClock, Loader2, ServerCrash, CheckCircle } from 'lucide-react';
-import { checkDbConnection, getAllExternalDemands, getDemandantesByRegistro } from '@/app/actions/get-external-demands';
+import { FileClock, Loader2, ServerCrash } from 'lucide-react';
 import { ExternalDemandsTable } from '@/components/dashboard/external-demands-table';
 
-type LoadingStep = 'idle' | 'checkingConnection' | 'fetchingProcesos' | 'fetchingDemandantes' | 'done' | 'error';
+type LoadingStep = 'idle' | 'fetchingProcesos' | 'fetchingDemandantes' | 'done' | 'error';
 
 export default function GestionDemandasPage() {
   const [procesos, setProcesos] = useState([]);
   const [demandantes, setDemandantes] = useState({});
   const [error, setError] = useState<string | null>(null);
   
-  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'ok' | 'error'>('checking');
-  const [connectionError, setConnectionError] = useState<string | null>(null);
-  
   const [loadingStep, setLoadingStep] = useState<LoadingStep>('idle');
   const [progress, setProgress] = useState({ current: 0, total: 0 });
 
   useEffect(() => {
-    const verifyConnectionAndFetch = async () => {
-      // 1. Check connection status
-      setLoadingStep('checkingConnection');
-      setConnectionStatus('checking');
-      const conn = await checkDbConnection();
-      if (!conn.success) {
-        setConnectionStatus('error');
-        setConnectionError(conn.error || 'Error desconocido al verificar la conexión.');
-        setLoadingStep('error');
-        return;
-      }
-      setConnectionStatus('ok');
-      
-      // 2. Fetch all processes
+    const fetchAllData = async () => {
       setLoadingStep('fetchingProcesos');
       setError(null);
+
       try {
-        const { success, data: procesosData, error: procesosError } = await getAllExternalDemands();
-        if (!success || !procesosData) {
-          setError(procesosError || 'Error al cargar los datos de procesos.');
+        // 1. Fetch all processes
+        const procesosResponse = await axios.get('https://appdajusticia.com/procesos.php?all=true');
+        if (procesosResponse.data.error) {
+          setError(`API Error: ${procesosResponse.data.error}`);
           setLoadingStep('error');
           return;
         }
+        const procesosData = procesosResponse.data;
         setProcesos(procesosData);
 
-        // 3. Fetch demandantes for each process
+        // 2. Fetch demandantes for each process
         setLoadingStep('fetchingDemandantes');
         const registrosUnicos = [...new Set(procesosData.map((p: any) => p.num_registro))];
         const demandantesData: { [key: string]: any[] } = {};
@@ -55,37 +42,38 @@ export default function GestionDemandasPage() {
         for (let i = 0; i < registrosUnicos.length; i++) {
           const numRegistro = registrosUnicos[i];
           try {
-            const res = await getDemandantesByRegistro(numRegistro);
-            if (res.success && res.data) {
+            const res = await axios.get(`https://appdajusticia.com/procesos.php?num_registro=${numRegistro}`);
+            if (res.data && !res.data.error) {
               demandantesData[numRegistro] = res.data;
             } else {
               demandantesData[numRegistro] = [];
             }
-            setProgress(p => ({ ...p, current: i + 1 }));
-          } catch {
+          } catch (e) {
+            console.warn(`Could not fetch demandantes for ${numRegistro}`, e);
             demandantesData[numRegistro] = [];
           }
+          setProgress(p => ({ ...p, current: i + 1 }));
         }
+
         setDemandantes(demandantesData);
         setLoadingStep('done');
 
       } catch (err: any) {
-        setError('Error al cargar los datos: ' + err.message);
+        console.error('Failed to fetch data from external API', err);
+        setError('Error al cargar los datos desde el servicio externo. Por favor, verifique su conexión y que el servicio esté disponible.');
         setLoadingStep('error');
       }
     };
     
-    verifyConnectionAndFetch();
+    fetchAllData();
   }, []);
 
-  const renderLoadingState = () => {
+  const renderContent = () => {
     switch(loadingStep) {
-        case 'checkingConnection':
-            return <div className="flex justify-center items-center p-10 gap-4"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="text-muted-foreground">Verificando conexión con el servicio externo...</p></div>;
         case 'fetchingProcesos':
             return <div className="flex justify-center items-center p-10 gap-4"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="text-muted-foreground">Cargando lista de procesos...</p></div>;
         case 'fetchingDemandantes':
-            return <div className="flex justify-center items-center p-10 gap-4"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="text-muted-foreground">Cargando demandantes ({progress.current} de {progress.total})...</p></div>;
+            return <div className="flex justify-center items-center p-10 gap-4"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="text-muted-foreground">Cargando detalles de demandantes ({progress.current} de {progress.total})...</p></div>;
         case 'error':
             return (
                 <div className="flex flex-col items-center justify-center p-10 gap-2 text-center">
@@ -95,9 +83,9 @@ export default function GestionDemandasPage() {
                 </div>
             );
         case 'done':
-            return <ExternalDemandsTable procesosOriginales={procesos} demandantesIniciales={demandantes} />;
+            return <ExternalDemandsTable procesos={procesos} demandantes={demandantes} />;
         default:
-            return null;
+             return <div className="flex justify-center items-center p-10 gap-4"><Loader2 className="h-10 w-10 animate-spin text-primary" /><p className="text-muted-foreground">Iniciando carga de datos...</p></div>;
     }
   }
 
@@ -110,21 +98,12 @@ export default function GestionDemandasPage() {
             Gestión de Demandas Externas
           </CardTitle>
            <CardDescription>
-             Consulte, filtre y exporte los datos de procesos y demandantes externos.
+             Consulte, filtre y exporte los datos de procesos y demandantes externos. Los datos se cargan directamente desde el servicio externo.
           </CardDescription>
-           <div className="pt-2">
-            <div className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">Estado del Servicio Externo:</span>
-                {connectionStatus === 'checking' && <span className="flex items-center gap-1.5"><Loader2 className="h-4 w-4 animate-spin" /> Comprobando...</span>}
-                {connectionStatus === 'ok' && <div className="flex items-center gap-1.5"><CheckCircle className="h-4 w-4 text-green-500" /><span className="text-green-600 font-medium">Conexión Establecida</span></div>}
-                {connectionStatus === 'error' && <div className="flex items-center gap-1.5"><ServerCrash className="h-4 w-4 text-red-500" /><span className="text-red-600 font-medium">Falló la Conexión</span></div>}
-            </div>
-            {connectionError && <p className="text-xs text-destructive mt-1">{connectionError}</p>}
-          </div>
         </CardHeader>
       </Card>
       
-      {connectionStatus === 'ok' && renderLoadingState()}
+      {renderContent()}
     </div>
   );
 }

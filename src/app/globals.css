@@ -109,16 +109,25 @@ body {
     }
 
     /* Styles for react-select */
+    .react-select-container {
+      @apply text-sm;
+    }
     .react-select__control {
         @apply bg-background border-input rounded-md shadow-sm;
     }
     .react-select__menu {
-        @apply bg-popover text-popover-foreground rounded-md shadow-lg;
+        @apply bg-popover text-popover-foreground rounded-md shadow-lg z-20;
     }
     .react-select__option--is-focused {
         @apply bg-accent text-accent-foreground;
     }
     .react-select__option--is-selected {
         @apply bg-primary text-primary-foreground;
+    }
+    .react-select-sm__control {
+      @apply min-h-[32px] h-8;
+    }
+    .react-select-sm__value-container {
+      @apply h-8;
     }
 }
