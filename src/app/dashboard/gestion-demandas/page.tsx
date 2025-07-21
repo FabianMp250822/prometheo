@@ -8,6 +8,7 @@ import { ExternalDemandsTable } from '@/components/dashboard/external-demands-ta
 import { ProcessDetailsSheet } from '@/components/dashboard/process-details-sheet';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
 import { writeBatch, collection, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/auth-provider';
@@ -28,6 +29,7 @@ export default function GestionDemandasPage() {
 
   const [isFetching, startFetching] = useTransition();
   const [isSaving, startSaving] = useTransition();
+  const [savingProgress, setSavingProgress] = useState<{current: number, total: number} | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -138,53 +140,60 @@ export default function GestionDemandasPage() {
     }
 
     startSaving(async () => {
+      const BATCH_SIZE = 100; // Procesar 100 procesos por lote
+      const totalBatches = Math.ceil(procesos.length / BATCH_SIZE);
+      setSavingProgress({ current: 0, total: totalBatches });
+
       try {
-        const batch = writeBatch(db);
-        const procesosCollection = collection(db, 'procesos');
+        for (let i = 0; i < procesos.length; i += BATCH_SIZE) {
+            const batchChunk = procesos.slice(i, i + BATCH_SIZE);
+            const batch = writeBatch(db);
+            const procesosCollection = collection(db, 'procesos');
 
-        procesos.forEach(proceso => {
-          const procesoDocRef = doc(procesosCollection, proceso.num_registro);
-          
-          const procesoData = Object.fromEntries(
-            Object.entries(proceso).filter(([_, v]) => v != null)
-          );
-          batch.set(procesoDocRef, procesoData);
-
-          const demandantesDeProceso = demandantes[proceso.num_registro];
-          if (demandantesDeProceso && demandantesDeProceso.length > 0) {
-            const demandantesSubCollection = collection(procesoDocRef, 'demandantes');
-            demandantesDeProceso.forEach(demandante => {
-              if (demandante.identidad_demandante) {
-                const demandanteDocRef = doc(demandantesSubCollection, demandante.identidad_demandante);
-                const demandanteData = Object.fromEntries(
-                    Object.entries(demandante).filter(([_, v]) => v != null)
+            batchChunk.forEach(proceso => {
+                const procesoDocRef = doc(procesosCollection, proceso.num_registro);
+                
+                const procesoData = Object.fromEntries(
+                    Object.entries(proceso).filter(([_, v]) => v != null)
                 );
-                batch.set(demandanteDocRef, demandanteData);
-              }
+                batch.set(procesoDocRef, procesoData);
+
+                const demandantesDeProceso = demandantes[proceso.num_registro];
+                if (demandantesDeProceso && demandantesDeProceso.length > 0) {
+                    const demandantesSubCollection = collection(procesoDocRef, 'demandantes');
+                    demandantesDeProceso.forEach(demandante => {
+                    if (demandante.identidad_demandante) {
+                        const demandanteDocRef = doc(demandantesSubCollection, demandante.identidad_demandante);
+                        const demandanteData = Object.fromEntries(
+                            Object.entries(demandante).filter(([_, v]) => v != null)
+                        );
+                        batch.set(demandanteDocRef, demandanteData);
+                    }
+                    });
+                }
+
+                const anotacionesDeProceso = anotaciones[proceso.num_registro];
+                if (anotacionesDeProceso && anotacionesDeProceso.length > 0) {
+                    const anotacionesSubCollection = collection(procesoDocRef, 'anotaciones');
+                    anotacionesDeProceso.forEach(anotacion => {
+                        if(anotacion.auto) {
+                            const anotacionDocRef = doc(anotacionesSubCollection, anotacion.auto);
+                            const anotacionData = Object.fromEntries(
+                                Object.entries(anotacion).filter(([_,v]) => v != null)
+                            );
+                            batch.set(anotacionDocRef, anotacionData);
+                        }
+                    });
+                }
             });
-          }
 
-          const anotacionesDeProceso = anotaciones[proceso.num_registro];
-          if (anotacionesDeProceso && anotacionesDeProceso.length > 0) {
-              const anotacionesSubCollection = collection(procesoDocRef, 'anotaciones');
-              anotacionesDeProceso.forEach(anotacion => {
-                  if(anotacion.auto) {
-                      const anotacionDocRef = doc(anotacionesSubCollection, anotacion.auto);
-                      const anotacionData = Object.fromEntries(
-                          Object.entries(anotacion).filter(([_,v]) => v != null)
-                      );
-                      batch.set(anotacionDocRef, anotacionData);
-                  }
-              });
-          }
-
-        });
-
-        await batch.commit();
+            await batch.commit();
+            setSavingProgress({ current: (i / BATCH_SIZE) + 1, total: totalBatches });
+        }
 
         toast({
             title: 'Guardado Exitoso',
-            description: `${procesos.length} procesos han sido guardados en Firebase.`,
+            description: `${procesos.length} procesos y sus datos asociados han sido guardados en Firebase.`,
         });
 
       } catch (error: any) {
@@ -193,6 +202,8 @@ export default function GestionDemandasPage() {
             title: 'Error al Guardar',
             description: `Error de Firestore: ${error.message}`,
         });
+      } finally {
+        setSavingProgress(null);
       }
     });
   };
@@ -225,7 +236,7 @@ export default function GestionDemandasPage() {
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Button onClick={handleFetchData} disabled={isFetching}>
+              <Button onClick={handleFetchData} disabled={isFetching || isSaving}>
                 {isFetching ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
@@ -234,7 +245,7 @@ export default function GestionDemandasPage() {
                 Obtener Datos Externos
               </Button>
               {procesos.length > 0 && (
-                 <Button onClick={handleSaveData} disabled={isSaving}>
+                 <Button onClick={handleSaveData} disabled={isFetching || isSaving}>
                   {isSaving ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
@@ -248,11 +259,24 @@ export default function GestionDemandasPage() {
         </CardHeader>
       </Card>
       
-      {isFetching && (
-        <div className="flex justify-center items-center p-10 gap-4">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <p className="text-muted-foreground">{loadingMessage || 'Cargando...'}</p>
-        </div>
+      {(isFetching || isSaving) && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex justify-center items-center p-4 gap-4">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              <div>
+                <p className="font-semibold">{isSaving ? 'Guardando datos en Firebase...' : 'Obteniendo datos externos...'}</p>
+                <p className="text-sm text-muted-foreground">{loadingMessage}</p>
+                {savingProgress && (
+                  <div className='mt-2'>
+                    <p className='text-sm text-muted-foreground'>Guardando lote {savingProgress.current} de {savingProgress.total}</p>
+                    <Progress value={(savingProgress.current / savingProgress.total) * 100} className="w-full mt-1" />
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {error && (
@@ -263,7 +287,7 @@ export default function GestionDemandasPage() {
         </Alert>
       )}
 
-      {procesos.length > 0 && !isFetching && (
+      {procesos.length > 0 && !isFetching && !isSaving && (
          <ExternalDemandsTable 
             procesos={procesos} 
             demandantes={demandantes}
