@@ -23,6 +23,7 @@ interface ProcessDetailsSheetProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onViewDemandantes: (process: any) => void;
+  onViewAnotaciones: (process: any) => void;
   onDataSaved: () => void;
 }
 
@@ -81,6 +82,7 @@ export function ProcessDetailsSheet({
   isOpen,
   onOpenChange,
   onViewDemandantes,
+  onViewAnotaciones,
   onDataSaved
 }: ProcessDetailsSheetProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -239,7 +241,7 @@ export function ProcessDetailsSheet({
                         <Users className="mr-2 h-4 w-4" />
                         Ver Demandantes
                     </Button>
-                    <Button variant="outline" className="w-full sm:w-auto" disabled>
+                    <Button variant="outline" className="w-full sm:w-auto" onClick={() => onViewAnotaciones(process)}>
                         <FileText className="mr-2 h-4 w-4" />
                         Anotaciones
                     </Button>

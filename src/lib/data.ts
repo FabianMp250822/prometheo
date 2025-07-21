@@ -94,6 +94,20 @@ export interface ProcesoCancelado {
     totalAmount: number;
 }
 
+// Types for Gestion de Demandas
+export interface Anotacion {
+    auto: string;
+    num_registro: string;
+    fecha: string;
+    fecha_limite: string;
+    hora_limite: string;
+    detalle: string;
+    clase: string;
+    nombre_documento: string | null;
+    archivo_url: string | null;
+}
+
+
 // Types for Pensioner Profile Page
 export interface Parris1 {
   id: string;

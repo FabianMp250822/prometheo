@@ -12,6 +12,7 @@ import { writeBatch, collection, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/auth-provider';
 import { DemandantesModal } from '@/components/dashboard/demandantes-modal';
+import { AnotacionesModal } from '@/components/dashboard/anotaciones-modal';
 
 
 export default function GestionDemandasPage() {
@@ -22,6 +23,7 @@ export default function GestionDemandasPage() {
 
   const [selectedProcessForDetails, setSelectedProcessForDetails] = useState<any | null>(null);
   const [selectedProcessForDemandantes, setSelectedProcessForDemandantes] = useState<any | null>(null);
+  const [selectedProcessForAnotaciones, setSelectedProcessForAnotaciones] = useState<any | null>(null);
 
   const [isFetching, startFetching] = useTransition();
   const [isSaving, startSaving] = useTransition();
@@ -164,8 +166,11 @@ export default function GestionDemandasPage() {
   
   const handleViewDemandantes = (process: any) => {
     setSelectedProcessForDemandantes(process);
-    setSelectedProcessForDetails(null); // Cierra el otro modal si está abierto
   };
+
+  const handleViewAnotaciones = (process: any) => {
+    setSelectedProcessForAnotaciones(process);
+  }
 
 
   return (
@@ -238,6 +243,7 @@ export default function GestionDemandasPage() {
             }
         }}
         onViewDemandantes={handleViewDemandantes}
+        onViewAnotaciones={handleViewAnotaciones}
         onDataSaved={() => {
           setSelectedProcessForDetails(null);
           handleFetchData();
@@ -249,6 +255,12 @@ export default function GestionDemandasPage() {
           isOpen={!!selectedProcessForDemandantes}
           onClose={() => setSelectedProcessForDemandantes(null)}
         />
+        
+       <AnotacionesModal
+          proceso={selectedProcessForAnotaciones}
+          isOpen={!!selectedProcessForAnotaciones}
+          onClose={() => setSelectedProcessForAnotaciones(null)}
+       />
     </div>
   );
 }
