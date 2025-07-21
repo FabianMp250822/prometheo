@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { FileClock, Loader2 } from 'lucide-react';
-import { getAllExternalDemands, getDemandantesByRegistro } from '@/app/actions/get-external-demands';
+import { checkDbConnection, getAllExternalDemands, getDemandantesByRegistro } from '@/app/actions/get-external-demands';
 import { ExternalDemandsTable } from '@/components/dashboard/external-demands-table';
 
 export default function GestionDemandasPage() {
@@ -11,9 +11,23 @@ export default function GestionDemandasPage() {
   const [demandantes, setDemandantes] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  const [connectionStatus, setConnectionStatus] = useState<'checking' | 'ok' | 'error'>('checking');
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchProcesos = async () => {
+    const verifyConnectionAndFetch = async () => {
+      // 1. Check connection status first
+      const conn = await checkDbConnection();
+      if (!conn.success) {
+        setConnectionStatus('error');
+        setConnectionError(conn.error || 'Error desconocido al verificar la conexión.');
+        setLoading(false);
+        return;
+      }
+      setConnectionStatus('ok');
+
+      // 2. If connection is OK, fetch all data
       setLoading(true);
       setError(null);
       try {
@@ -49,7 +63,8 @@ export default function GestionDemandasPage() {
         setLoading(false);
       }
     };
-    fetchProcesos();
+    
+    verifyConnectionAndFetch();
   }, []);
 
   return (
@@ -63,19 +78,32 @@ export default function GestionDemandasPage() {
            <CardDescription>
              Consulte, filtre y exporte los datos de procesos y demandantes externos.
           </CardDescription>
+           <div className="pt-2">
+            <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Estado del Servicio Externo:</span>
+                {connectionStatus === 'checking' && <Loader2 className="h-4 w-4 animate-spin" />}
+                {connectionStatus === 'ok' && <div className="flex items-center gap-1.5"><div className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse"></div><span className="text-green-600 font-medium">Conexión Establecida</span></div>}
+                {connectionStatus === 'error' && <div className="flex items-center gap-1.5"><div className="h-2.5 w-2.5 rounded-full bg-red-500"></div><span className="text-red-600 font-medium">Falló la Conexión</span></div>}
+            </div>
+            {connectionError && <p className="text-xs text-destructive mt-1">{connectionError}</p>}
+          </div>
         </CardHeader>
       </Card>
-
-      {loading && (
-        <div className="flex justify-center items-center p-10">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <p className="ml-4 text-muted-foreground">Cargando procesos y demandantes...</p>
-        </div>
-      )}
-      {error && <p className="text-destructive p-4">{error}</p>}
       
-      {!loading && !error && (
-        <ExternalDemandsTable procesosOriginales={procesos} demandantesIniciales={demandantes} />
+      {connectionStatus === 'ok' && (
+        <>
+          {loading && (
+            <div className="flex justify-center items-center p-10">
+              <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              <p className="ml-4 text-muted-foreground">Cargando procesos y demandantes...</p>
+            </div>
+          )}
+          {error && <p className="text-destructive p-4">{error}</p>}
+          
+          {!loading && !error && (
+            <ExternalDemandsTable procesosOriginales={procesos} demandantesIniciales={demandantes} />
+          )}
+        </>
       )}
     </div>
   );
