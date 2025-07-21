@@ -255,10 +255,10 @@ export default function PorFechaPage() {
                               <TableHead>Día</TableHead>
                               <TableHead>Hora</TableHead>
                               <TableHead>Despacho</TableHead>
+                              <TableHead>Ciudad</TableHead>
                               <TableHead>Radicado</TableHead>
                               <TableHead>Demandante</TableHead>
                               <TableHead>Demandado</TableHead>
-                              <TableHead>Estado Procesal</TableHead>
                           </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -268,10 +268,10 @@ export default function PorFechaPage() {
                                   <TableCell>{getDayOfWeek(task.fecha_limite)}</TableCell>
                                   <TableCell>{task.hora_limite || 'N/A'}</TableCell>
                                   <TableCell>{task.proceso?.despacho || 'N/A'}</TableCell>
+                                  <TableCell>{task.proceso?.jurisdiccion || 'N/A'}</TableCell>
                                   <TableCell>{task.proceso?.num_radicado_ult || task.proceso?.num_radicado_ini || 'N/A'}</TableCell>
                                   <TableCell>{task.proceso?.nombres_demandante || 'N/A'}</TableCell>
                                   <TableCell>{task.proceso?.nombres_demandado || 'N/A'}</TableCell>
-                                  <TableCell className="max-w-xs whitespace-pre-wrap">{task.detalle}</TableCell>
                               </TableRow>
                           ))}
                       </TableBody>
