@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Download, ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '../ui/badge';
-import { useToast } from '@/hooks/use-toast';
 
 export const ExternalDemandsTable = ({ 
     procesos, 
@@ -20,24 +19,26 @@ export const ExternalDemandsTable = ({
     demandantes: { [key: string]: any[] },
     onViewDetails: (process: any) => void;
 }) => {
-    const { toast } = useToast();
-    const [negocioSearch, setNegocioSearch] = useState('');
+    const [unifiedSearch, setUnifiedSearch] = useState('');
     const [selectedEstados, setSelectedEstados] = useState<string[]>([]);
     
     const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
     
     const filteredProcesos = useMemo(() => {
         let results = procesos;
-        if (negocioSearch) {
+        if (unifiedSearch) {
+            const searchTerm = unifiedSearch.toLowerCase();
             results = results.filter((p) =>
-                p.negocio?.toLowerCase().includes(negocioSearch.toLowerCase())
+                Object.values(p).some(val => 
+                    String(val).toLowerCase().includes(searchTerm)
+                )
             );
         }
         if (selectedEstados.length > 0) {
             results = results.filter((p) => selectedEstados.includes(p.estado));
         }
         return results;
-    }, [procesos, negocioSearch, selectedEstados]);
+    }, [procesos, unifiedSearch, selectedEstados]);
     
     const paginatedData = useMemo(() => {
         const start = pagination.pageIndex * pagination.pageSize;
@@ -131,10 +132,10 @@ export const ExternalDemandsTable = ({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
             <Input
                 type="text"
-                placeholder="Buscar por negocio..."
-                value={negocioSearch}
+                placeholder="Búsqueda unificada..."
+                value={unifiedSearch}
                 onChange={(e) => {
-                    setNegocioSearch(e.target.value);
+                    setUnifiedSearch(e.target.value);
                     setPagination(p => ({...p, pageIndex: 0}));
                 }}
                 className="md:col-span-1"
@@ -159,20 +160,24 @@ export const ExternalDemandsTable = ({
             <Table>
                 <TableHeader>
                     <TableRow>
-                        <TableHead># Registro</TableHead>
-                        <TableHead>Estado</TableHead>
-                        <TableHead>Negocio</TableHead>
-                        <TableHead>Apoderado</TableHead>
-                        <TableHead className="text-right">Acciones</TableHead>
+                        <TableHead>NO. RADICADO</TableHead>
+                        <TableHead>DEMANDANTE</TableHead>
+                        <TableHead>DEMANDADO</TableHead>
+                        <TableHead>TÍTULO DE LA DEMANDA</TableHead>
+                        <TableHead>NEGOCIO</TableHead>
+                        <TableHead>DESPACHO</TableHead>
+                        <TableHead className="text-right">REVISAR</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {paginatedData.map((proceso) => (
                       <TableRow key={proceso.num_registro} className="hover:bg-muted/50">
-                        <TableCell>{proceso.num_registro}</TableCell>
-                        <TableCell><Badge variant="outline">{proceso.estado}</Badge></TableCell>
+                        <TableCell>{proceso.num_radicado_ult || proceso.num_radicado_ini}</TableCell>
+                        <TableCell>{proceso.nombres_demandante}</TableCell>
+                        <TableCell>{proceso.nombres_demandado}</TableCell>
+                        <TableCell>{proceso.clase_proceso}</TableCell>
                         <TableCell>{proceso.negocio}</TableCell>
-                        <TableCell>{proceso.nombres_apoderado}</TableCell>
+                        <TableCell>{proceso.despacho}</TableCell>
                         <TableCell className="text-right">
                            <Button 
                               variant="outline" 
@@ -180,14 +185,14 @@ export const ExternalDemandsTable = ({
                               onClick={() => onViewDetails(proceso)}
                            >
                               <Eye className="mr-2 h-4 w-4" />
-                              Ver Detalles
+                              Ver
                            </Button>
                         </TableCell>
                       </TableRow>
                     ))}
                     {filteredProcesos.length === 0 && (
                         <TableRow>
-                            <TableCell colSpan={5} className="text-center h-24">
+                            <TableCell colSpan={7} className="text-center h-24">
                                 No se encontraron procesos con los filtros aplicados.
                             </TableCell>
                         </TableRow>
