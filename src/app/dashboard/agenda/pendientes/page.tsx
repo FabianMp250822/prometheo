@@ -6,11 +6,11 @@ import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { ListTodo, Loader2, Search, CalendarOff } from 'lucide-react';
 import type { Anotacion } from '@/lib/data';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { convertirAFormatoOrdenable, transformarFecha, convertirHoraLimite } from '@/lib/anotaciones-helpers';
 
 interface PendingTask extends Anotacion {
   proceso?: any;
@@ -20,6 +20,7 @@ const getDayOfWeek = (dateString: string) => {
     if (!dateString) return '';
     try {
         const [day, month, year] = dateString.split('-').map(Number);
+        if (isNaN(day) || isNaN(month) || isNaN(year)) return '';
         const date = new Date(year, month - 1, day);
         return format(date, 'E', { locale: es });
     } catch {
@@ -36,30 +37,56 @@ export default function PendientesPage() {
         const fetchPendingTasks = async () => {
             setIsLoading(true);
             try {
-                const today = format(new Date(), 'yyyy-MM-dd');
-                
+                // Step 1: Query all annotations that have a non-empty `fecha_limite`.
                 const anotacionesQuery = query(
                     collectionGroup(db, 'anotaciones'),
-                    where('fecha_limite_ordenable', '>=', today),
-                    orderBy('fecha_limite_ordenable'),
-                    orderBy('hora_limite')
+                    where('fecha_limite', '!=', '')
                 );
 
                 const querySnapshot = await getDocs(anotacionesQuery);
-                const pendingAnotaciones = querySnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Anotacion));
+                const allAnotaciones = querySnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Anotacion));
+                
+                const today = format(new Date(), 'yyyy-MM-dd');
 
+                // Step 2: Filter in the client-side.
+                const pendingAnotaciones = allAnotaciones.filter(anotacion => {
+                    const formattedDate = convertirAFormatoOrdenable(transformarFecha(anotacion.fecha_limite));
+                    return formattedDate >= today;
+                });
+                
+                // Step 3: Fetch process data for each pending annotation.
                 const tasksWithProcesos: PendingTask[] = await Promise.all(
                     pendingAnotaciones.map(async (anotacion) => {
                         if (anotacion.num_registro) {
                             const procesoDocRef = doc(db, 'procesos', anotacion.num_registro);
                             const procesoDoc = await getDoc(procesoDocRef);
                             if (procesoDoc.exists()) {
-                                return { ...anotacion, proceso: procesoDoc.data() };
+                                return { 
+                                  ...anotacion,
+                                  // Ensure dates are standardized for sorting
+                                  fecha_limite: transformarFecha(anotacion.fecha_limite),
+                                  proceso: procesoDoc.data() 
+                                };
                             }
                         }
                         return anotacion;
                     })
                 );
+
+                // Step 4: Sort client-side
+                tasksWithProcesos.sort((a, b) => {
+                    const dateA = convertirAFormatoOrdenable(a.fecha_limite);
+                    const dateB = convertirAFormatoOrdenable(b.fecha_limite);
+                    if (dateA < dateB) return -1;
+                    if (dateA > dateB) return 1;
+
+                    const timeA = convertirHoraLimite(a.hora_limite);
+                    const timeB = convertirHoraLimite(b.hora_limite);
+                    if (timeA < timeB) return -1;
+                    if (timeA > timeB) return 1;
+
+                    return 0;
+                });
                 
                 setTasks(tasksWithProcesos);
             } catch (error) {
