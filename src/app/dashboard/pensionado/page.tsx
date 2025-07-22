@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users } from 'lucide-react';
 import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parseDepartmentName, parsePaymentDetailName, parsePeriodoPago, formatFirebaseTimestamp } from '@/lib/helpers';
-import { Payment, Parris1, LegalProcess } from '@/lib/data';
+import { Payment, Parris1, LegalProcess, CausanteRecord } from '@/lib/data';
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, where, doc, getDoc } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -43,6 +43,7 @@ export default function PensionadoPage() {
     const [payments, setPayments] = useState<Payment[]>([]);
     const [legalProcesses, setLegalProcesses] = useState<LegalProcess[]>([]);
     const [parris1Data, setParris1Data] = useState<Parris1 | null>(null);
+    const [historicalPayment, setHistoricalPayment] = useState<CausanteRecord | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -53,20 +54,34 @@ export default function PensionadoPage() {
             setPayments([]);
             setLegalProcesses([]);
             setParris1Data(null);
+            setHistoricalPayment(null);
             
             const fetchAllData = async () => {
                 try {
-                    // Fetch Payments
+                    // Fetch Payments from subcollection
                     const paymentsQuery = query(collection(db, 'pensionados', selectedPensioner.id, 'pagos'));
                     const paymentsSnapshot = await getDocs(paymentsQuery);
                     let paymentsData = paymentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
                     
-                    paymentsData.sort((a, b) => {
-                        const dateA = parsePeriodoPago(a.periodoPago)?.endDate || new Date(0);
-                        const dateB = parsePeriodoPago(b.periodoPago)?.endDate || new Date(0);
-                        return dateB.getTime() - dateA.getTime();
-                    });
-                    setPayments(paymentsData);
+                    if (paymentsData.length > 0) {
+                        paymentsData.sort((a, b) => {
+                            const dateA = parsePeriodoPago(a.periodoPago)?.endDate || new Date(0);
+                            const dateB = parsePeriodoPago(b.periodoPago)?.endDate || new Date(0);
+                            return dateB.getTime() - dateA.getTime();
+                        });
+                        setPayments(paymentsData);
+                    } else {
+                        // Fallback to pagosHistorico collection
+                        const historicalDocRef = doc(db, 'pagosHistorico', selectedPensioner.documento);
+                        const historicalDoc = await getDoc(historicalDocRef);
+                        if (historicalDoc.exists()) {
+                            const data = historicalDoc.data();
+                            if (data.records && Array.isArray(data.records) && data.records.length > 0) {
+                                const sortedRecords = [...data.records].sort((a, b) => (b.ANO_RET || 0) - (a.ANO_RET || 0));
+                                setHistoricalPayment(sortedRecords[0] as CausanteRecord);
+                            }
+                        }
+                    }
 
                     // Fetch Legal Processes
                     const processesQuery = query(
@@ -89,7 +104,6 @@ export default function PensionadoPage() {
                          setParris1Data({ id: parris1Doc.id, ...parris1Doc.data() } as Parris1);
                     }
 
-
                 } catch (e) {
                     console.error(e);
                     setError('Ocurrió un error al buscar los datos del pensionado.');
@@ -102,6 +116,7 @@ export default function PensionadoPage() {
             setPayments([]);
             setLegalProcesses([]);
             setParris1Data(null);
+            setHistoricalPayment(null);
             setIsLoading(false);
         }
     }, [selectedPensioner]);
@@ -307,6 +322,27 @@ export default function PensionadoPage() {
                                                 </TableRow>
                                             )
                                         })}
+                                    </TableBody>
+                                </Table>
+                            ) : historicalPayment ? (
+                                 <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Año</TableHead>
+                                            <TableHead>Tipo Aumento</TableHead>
+                                            <TableHead>Porcentaje</TableHead>
+                                            <TableHead className="text-right">Valor Actual</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        <TableRow>
+                                            <TableCell>{historicalPayment.ANO_RET || 'N/A'}</TableCell>
+                                            <TableCell>{historicalPayment.TIPO_AUM || 'N/A'}</TableCell>
+                                             <TableCell>{historicalPayment.PORCENTAJE || 'N/A'}%</TableCell>
+                                            <TableCell className="text-right font-medium text-green-600">
+                                                {formatCurrency(parseFloat(historicalPayment.VALOR_ACT?.replace(',', '.') || '0'))}
+                                            </TableCell>
+                                        </TableRow>
                                     </TableBody>
                                 </Table>
                             ) : (

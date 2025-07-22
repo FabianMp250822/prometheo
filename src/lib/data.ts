@@ -133,13 +133,11 @@ export interface Parris1 {
 }
 
 export interface CausanteRecord {
-  cedula_beneficiario: string;
-  fecha_desde: string; // Changed from Timestamp
-  fecha_hasta: string; // Changed from Timestamp
-  observacion: string;
-  tipo_aum: string;
-  valor_empresa: number;
-  valor_iss: number;
+  ANO_RET?: number;
+  CEDULA?: number;
+  TIPO_AUM?: string;
+  PORCENTAJE?: string;
+  VALOR_ACT?: string;
 }
 
 export interface Causante {
