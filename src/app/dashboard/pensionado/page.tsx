@@ -5,9 +5,9 @@ import React, { useState, useEffect } from 'react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users } from 'lucide-react';
+import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight } from 'lucide-react';
 import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parseDepartmentName, parsePaymentDetailName, parsePeriodoPago, formatFirebaseTimestamp } from '@/lib/helpers';
-import { Payment, Parris1, LegalProcess, CausanteRecord } from '@/lib/data';
+import { Payment, Parris1, LegalProcess, Causante, CausanteRecord } from '@/lib/data';
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, where, doc, getDoc } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -44,6 +44,7 @@ export default function PensionadoPage() {
     const [payments, setPayments] = useState<Payment[]>([]);
     const [legalProcesses, setLegalProcesses] = useState<LegalProcess[]>([]);
     const [parris1Data, setParris1Data] = useState<Parris1 | null>(null);
+    const [causanteData, setCausanteData] = useState<Causante | null>(null);
     const [historicalPayment, setHistoricalPayment] = useState<CausanteRecord | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -56,6 +57,7 @@ export default function PensionadoPage() {
             setLegalProcesses([]);
             setParris1Data(null);
             setHistoricalPayment(null);
+            setCausanteData(null);
             
             const fetchAllData = async () => {
                 try {
@@ -105,6 +107,18 @@ export default function PensionadoPage() {
                          setParris1Data({ id: parris1Doc.id, ...parris1Doc.data() } as Parris1);
                     }
 
+                    // Fetch Causante Data
+                    const causanteQuery = query(
+                        collection(db, 'causante'),
+                        where("cedula_causante", "==", selectedPensioner.documento)
+                    );
+                    const causanteSnapshot = await getDocs(causanteQuery);
+                    if (!causanteSnapshot.empty) {
+                        const doc = causanteSnapshot.docs[0];
+                        setCausanteData({ id: doc.id, ...doc.data() } as Causante);
+                    }
+
+
                 } catch (e) {
                     console.error(e);
                     setError('Ocurrió un error al buscar los datos del pensionado.');
@@ -118,6 +132,7 @@ export default function PensionadoPage() {
             setLegalProcesses([]);
             setParris1Data(null);
             setHistoricalPayment(null);
+            setCausanteData(null);
             setIsLoading(false);
         }
     }, [selectedPensioner]);
@@ -220,6 +235,44 @@ export default function PensionadoPage() {
                             ) : (
                                 <p className="text-muted-foreground text-center py-4">
                                     No se encontraron datos de pensión en COLPENSIONES para este usuario.
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-xl flex items-center gap-2">
+                                <ChevronsRight className="h-5 w-5" /> Historial del Causante
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {causanteData && causanteData.records.length > 0 ? (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Periodo</TableHead>
+                                            <TableHead>Tipo Aumento</TableHead>
+                                            <TableHead className="text-right">Valor Empresa</TableHead>
+                                            <TableHead className="text-right">Valor ISS</TableHead>
+                                            <TableHead>Observación</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {causanteData.records.map((record, index) => (
+                                            <TableRow key={index}>
+                                                <TableCell>{`${formatFirebaseTimestamp(record.fecha_desde, 'dd/MM/yy')} - ${formatFirebaseTimestamp(record.fecha_hasta, 'dd/MM/yy')}`}</TableCell>
+                                                <TableCell>{record.tipo_aum}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(record.valor_empresa || 0)}</TableCell>
+                                                <TableCell className="text-right">{formatCurrency(record.valor_iss || 0)}</TableCell>
+                                                <TableCell>{record.observacion || 'N/A'}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            ) : (
+                                <p className="text-muted-foreground text-center py-4">
+                                    No se encontró información del causante.
                                 </p>
                             )}
                         </CardContent>

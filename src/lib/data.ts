@@ -138,6 +138,15 @@ export interface CausanteRecord {
   TIPO_AUM?: string;
   PORCENTAJE?: string;
   VALOR_ACT?: string;
+  VALOR_ANT?: string;
+  // Fields from the new causante collection structure
+  cedula_beneficiario?: string;
+  fecha_desde?: string;
+  fecha_hasta?: string;
+  observacion?: string;
+  tipo_aum?: string;
+  valor_empresa?: number;
+  valor_iss?: number;
 }
 
 export interface Causante {
