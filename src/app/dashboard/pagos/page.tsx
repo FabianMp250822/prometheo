@@ -35,6 +35,10 @@ export default function PagosPage() {
     const { setSelectedPensioner } = usePensioner();
     const [sheetPensioner, setSheetPensioner] = useState<Pensioner | null>(null);
 
+    // State for hybrid search
+    const [isDeepSearching, setIsDeepSearching] = useState(false);
+    const [searchResults, setSearchResults] = useState<Pensioner[] | null>(null);
+
     const buildQuery = useCallback((cursor?: QueryDocumentSnapshot<DocumentData>) => {
         let q = query(collection(db, "pensionados"), orderBy("documento"));
 
@@ -55,7 +59,7 @@ export default function PagosPage() {
     const fetchPensioners = useCallback(async (isInitial = true) => {
         if (isInitial) {
             setIsLoading(true);
-            setPensioners([]); // Reset on initial fetch
+            setPensioners([]); 
         } else {
             setIsLoadingMore(true);
         }
@@ -84,7 +88,6 @@ export default function PagosPage() {
         }
     }, [buildQuery, lastDoc]);
     
-    // Fetch unique filter values once on mount
     useEffect(() => {
         const fetchFilterValues = async () => {
              try {
@@ -106,29 +109,58 @@ export default function PagosPage() {
             }
         };
         fetchFilterValues();
-    }, []);
-
-    // Trigger initial fetch when filters change
-    useEffect(() => {
         fetchPensioners(true);
-    }, [filters.dependencia, filters.centroCosto]); // Do not re-run on 'fetchPensioners' change
+    }, [filters.dependencia, filters.centroCosto]);
 
     const filteredBySearch = useMemo(() => {
         if (!filters.searchTerm) return pensioners;
         return pensioners.filter(pensioner => 
-            parseEmployeeName(pensioner.empleado).toLowerCase().includes(filters.searchTerm.toLowerCase()) || 
-            pensioner.documento.includes(filters.searchTerm)
+            (pensioner.empleado || '').toLowerCase().includes(filters.searchTerm.toLowerCase()) || 
+            (pensioner.documento || '').toLowerCase().includes(filters.searchTerm.toLowerCase())
         );
     }, [pensioners, filters.searchTerm]);
 
     const handleFilterChange = (filterType: keyof typeof filters, value: string) => {
         setFilters(prev => ({ ...prev, [filterType]: value }));
+        // Reset deep search results when filters change
+        if (filterType !== 'searchTerm') {
+             setSearchResults(null);
+        }
+    };
+
+    const handleDeepSearch = async () => {
+        if (filters.searchTerm.length < 3) return;
+        setIsDeepSearching(true);
+        setSearchResults(null);
+
+        try {
+            const searchTermLower = filters.searchTerm.toLowerCase();
+            const allPensionersQuery = query(collection(db, 'pensionados'));
+            const querySnapshot = await getDocs(allPensionersQuery);
+            
+            const allDocs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
+
+            const results = allDocs.filter(pensioner => 
+                (pensioner.empleado || '').toLowerCase().includes(searchTermLower) ||
+                (pensioner.documento || '').toLowerCase().includes(searchTermLower)
+            );
+            
+            setSearchResults(results);
+
+        } catch (error) {
+            console.error("Error during deep search:", error);
+        } finally {
+            setIsDeepSearching(false);
+        }
     };
 
     const handleViewPayments = (pensioner: Pensioner) => {
         setSelectedPensioner(pensioner);
         setSheetPensioner(pensioner);
     };
+
+    const displayData = searchResults !== null ? searchResults : filteredBySearch;
+    const showDeepSearchButton = filters.searchTerm.length >= 3 && filteredBySearch.length === 0 && searchResults === null;
 
     return (
         <div className="p-4 md:p-8 space-y-6">
@@ -150,9 +182,12 @@ export default function PagosPage() {
                         <div className="relative md:col-span-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input 
-                                placeholder="Buscar en datos cargados..."
+                                placeholder="Buscar por nombre o documento..."
                                 value={filters.searchTerm}
-                                onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
+                                onChange={(e) => {
+                                    handleFilterChange('searchTerm', e.target.value);
+                                    setSearchResults(null); // Reset deep search on new input
+                                }}
                                 className="pl-10"
                             />
                         </div>
@@ -184,7 +219,10 @@ export default function PagosPage() {
                     ) : (
                     <>
                         <div className='mb-2 text-sm text-muted-foreground'>
-                            Mostrando {filteredBySearch.length} de {pensioners.length} pensionados cargados.
+                            {searchResults !== null 
+                                ? `Mostrando ${searchResults.length} resultados de la búsqueda profunda.`
+                                : `Mostrando ${filteredBySearch.length} de ${pensioners.length} pensionados cargados.`
+                            }
                         </div>
                         <Table>
                             <TableHeader>
@@ -197,7 +235,7 @@ export default function PagosPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {filteredBySearch.map(pensioner => (
+                                {displayData.map(pensioner => (
                                     <TableRow key={pensioner.id}>
                                         <TableCell className="font-medium">{parseEmployeeName(pensioner.empleado)}</TableCell>
                                         <TableCell>{pensioner.documento}</TableCell>
@@ -210,23 +248,35 @@ export default function PagosPage() {
                                         </TableCell>
                                     </TableRow>
                                 ))}
-                                {filteredBySearch.length === 0 && !isLoading && (
+                                {displayData.length === 0 && !isLoading && !isDeepSearching && (
                                     <TableRow>
                                         <TableCell colSpan={5} className="text-center text-muted-foreground">
-                                            No se encontraron pensionados con los criterios aplicados.
+                                             No se encontraron pensionados con los criterios aplicados.
+                                             {showDeepSearchButton && (
+                                                <Button variant="link" onClick={handleDeepSearch}>
+                                                    Buscar en toda la base de datos
+                                                </Button>
+                                             )}
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                                {isDeepSearching && (
+                                     <TableRow>
+                                        <TableCell colSpan={5} className="text-center">
+                                            <Loader2 className="mx-auto h-6 w-6 animate-spin" />
                                         </TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
                         </Table>
                          <div className="flex justify-center py-4">
-                            {hasMore && (
+                            {hasMore && searchResults === null && !filters.searchTerm && (
                                 <Button onClick={() => fetchPensioners(false)} disabled={isLoadingMore}>
                                     {isLoadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                     Cargar más
                                 </Button>
                             )}
-                            {!hasMore && pensioners.length > 0 && (
+                            {!hasMore && pensioners.length > 0 && searchResults === null && !filters.searchTerm && (
                                 <p className="text-sm text-muted-foreground">Has llegado al final de la lista.</p>
                             )}
                         </div>
