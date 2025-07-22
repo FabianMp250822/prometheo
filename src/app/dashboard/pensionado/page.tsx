@@ -172,14 +172,14 @@ export default function PensionadoPage() {
 
             {!isLoading && !error && (
                 <>
-                    {legalProcesses.length > 0 && (
-                        <Card>
-                             <CardHeader>
-                                <CardTitle className="text-xl flex items-center gap-2">
-                                    <Gavel className="h-5 w-5" /> Procesos Legales Asociados
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-xl flex items-center gap-2">
+                                <Gavel className="h-5 w-5" /> Procesos Legales Asociados
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {legalProcesses.length > 0 ? (
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
@@ -198,9 +198,13 @@ export default function PensionadoPage() {
                                         ))}
                                     </TableBody>
                                 </Table>
-                            </CardContent>
-                        </Card>
-                    )}
+                            ) : (
+                                <p className="text-muted-foreground text-center py-4">
+                                    No se encontraron procesos legales asociados actualmente.
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
 
                     {sentencePayments.length > 0 && (
                         <Card>
