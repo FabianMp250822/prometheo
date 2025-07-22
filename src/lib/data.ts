@@ -62,7 +62,7 @@ export interface PaymentDetail {
 }
 
 export interface Payment {
-  id: string;
+  id:string;
   año: string;
   periodoPago: string;
   fechaLiquidacion?: string;
@@ -132,14 +132,16 @@ export interface Parris1 {
   tranci: boolean;
 }
 
-export interface CausanteRecord {
+export interface PagosHistoricoRecord {
   ANO_RET?: number;
   CEDULA?: number;
   TIPO_AUM?: string;
   PORCENTAJE?: string;
   VALOR_ACT?: string;
   VALOR_ANT?: string;
-  // Fields from the new causante collection structure
+}
+
+export interface CausanteRecord {
   cedula_beneficiario?: string;
   fecha_desde?: string;
   fecha_hasta?: string;

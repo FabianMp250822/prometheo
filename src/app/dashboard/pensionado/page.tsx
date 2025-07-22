@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight } from 'lucide-react';
 import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parseDepartmentName, parsePaymentDetailName, parsePeriodoPago, formatFirebaseTimestamp } from '@/lib/helpers';
-import { Payment, Parris1, LegalProcess, Causante, CausanteRecord } from '@/lib/data';
+import { Payment, Parris1, LegalProcess, Causante, PagosHistoricoRecord } from '@/lib/data';
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, where, doc, getDoc } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -45,7 +45,7 @@ export default function PensionadoPage() {
     const [legalProcesses, setLegalProcesses] = useState<LegalProcess[]>([]);
     const [parris1Data, setParris1Data] = useState<Parris1 | null>(null);
     const [causanteData, setCausanteData] = useState<Causante | null>(null);
-    const [historicalPayment, setHistoricalPayment] = useState<CausanteRecord | null>(null);
+    const [historicalPayment, setHistoricalPayment] = useState<PagosHistoricoRecord | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -81,7 +81,7 @@ export default function PensionadoPage() {
                             const data = historicalDoc.data();
                             if (data.records && Array.isArray(data.records) && data.records.length > 0) {
                                 const sortedRecords = [...data.records].sort((a, b) => (b.ANO_RET || 0) - (a.ANO_RET || 0));
-                                setHistoricalPayment(sortedRecords[0] as CausanteRecord);
+                                setHistoricalPayment(sortedRecords[0] as PagosHistoricoRecord);
                             }
                         }
                     }
