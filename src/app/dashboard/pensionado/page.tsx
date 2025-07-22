@@ -285,8 +285,8 @@ export default function PensionadoPage() {
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead>Periodo</TableHead>
-                                            <TableHead>Año</TableHead>
-                                            <TableHead className="text-right">Mesada Pensional</TableHead>
+                                            <TableHead>Concepto</TableHead>
+                                            <TableHead className="text-right">Valor</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -296,10 +296,11 @@ export default function PensionadoPage() {
                                                 d.codigo === 'MESAD' ||
                                                 d.codigo === 'MESAD14'
                                             );
+                                            const concepto = mesada?.codigo === 'MESAD14' ? 'Mesada Adicional' : 'Mesada Pensional';
                                             return (
                                                 <TableRow key={payment.id}>
                                                     <TableCell>{payment.periodoPago}</TableCell>
-                                                    <TableCell>{payment.año}</TableCell>
+                                                    <TableCell>{concepto}</TableCell>
                                                     <TableCell className="text-right font-medium text-green-600">
                                                         {mesada ? formatCurrency(mesada.ingresos) : 'N/A'}
                                                     </TableCell>
