@@ -286,20 +286,19 @@ export default function PensionadoPage() {
                                         <TableRow>
                                             <TableHead>Periodo</TableHead>
                                             <TableHead>Año</TableHead>
-                                            <TableHead className="text-right">Total Ingresos</TableHead>
-                                            <TableHead className="text-right">Total Egresos</TableHead>
+                                            <TableHead className="text-right">Mesada Pensional</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {payments.slice(0, 2).map(payment => {
-                                            const totalIngresos = payment.detalles.reduce((sum, d) => sum + (d.ingresos || 0), 0);
-                                            const totalEgresos = payment.detalles.reduce((sum, d) => sum + (d.egresos || 0), 0);
+                                            const mesada = payment.detalles.find(d => d.nombre === 'Mesada Pensional');
                                             return (
                                                 <TableRow key={payment.id}>
                                                     <TableCell>{payment.periodoPago}</TableCell>
                                                     <TableCell>{payment.año}</TableCell>
-                                                    <TableCell className="text-right font-medium text-green-600">{formatCurrency(totalIngresos)}</TableCell>
-                                                    <TableCell className="text-right font-medium text-red-600">{formatCurrency(totalEgresos)}</TableCell>
+                                                    <TableCell className="text-right font-medium text-green-600">
+                                                        {mesada ? formatCurrency(mesada.ingresos) : 'N/A'}
+                                                    </TableCell>
                                                 </TableRow>
                                             )
                                         })}
