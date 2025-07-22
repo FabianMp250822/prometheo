@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -329,16 +330,16 @@ export default function PensionadoPage() {
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead>Año</TableHead>
-                                            <TableHead>Tipo Aumento</TableHead>
-                                            <TableHead>Porcentaje</TableHead>
+                                            <TableHead className="text-right">Valor Anterior</TableHead>
                                             <TableHead className="text-right">Valor Actual</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         <TableRow>
                                             <TableCell>{historicalPayment.ANO_RET || 'N/A'}</TableCell>
-                                            <TableCell>{historicalPayment.TIPO_AUM || 'N/A'}</TableCell>
-                                             <TableCell>{historicalPayment.PORCENTAJE || 'N/A'}%</TableCell>
+                                            <TableCell className="text-right text-muted-foreground">
+                                                {formatCurrency(parseFloat(historicalPayment.VALOR_ANT?.replace(',', '.') || '0'))}
+                                            </TableCell>
                                             <TableCell className="text-right font-medium text-green-600">
                                                 {formatCurrency(parseFloat(historicalPayment.VALOR_ACT?.replace(',', '.') || '0'))}
                                             </TableCell>
