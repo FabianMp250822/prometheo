@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { getPensionerAdditionalDetails, type LastPaymentData } from '@/app/actions/get-pensioner-additional-details';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
