@@ -1,5 +1,5 @@
 import { Sentence } from "./data";
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 
@@ -126,12 +126,29 @@ export const formatPeriodoToMonthYear = (periodoPago: string): string => {
     return periodoPago; // Return original if format is unexpected
 };
 
-export const formatFirebaseTimestamp = (timestamp: string | null | undefined, dateFormat = 'd MMMM yyyy'): string => {
+export const formatFirebaseTimestamp = (timestamp: any, dateFormat = 'd MMMM yyyy'): string => {
   if (!timestamp) {
     return 'N/A';
   }
+  
   try {
-    const date = new Date(timestamp);
+    let date: Date;
+    // It could be a Firestore Timestamp object with toDate() method
+    if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+      date = timestamp.toDate();
+    } 
+    // It could be an ISO string
+    else if (typeof timestamp === 'string') {
+      date = parseISO(timestamp);
+    } 
+    // It could be a regular Date object
+    else if (timestamp instanceof Date) {
+      date = timestamp;
+    } 
+    else {
+      return 'Fecha inválida';
+    }
+
     if (isNaN(date.getTime())) return 'Fecha inválida';
     return format(date, dateFormat, { locale: es });
   } catch (error) {

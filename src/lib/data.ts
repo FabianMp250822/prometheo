@@ -66,6 +66,7 @@ export interface Payment {
   año: string;
   periodoPago: string;
   fechaLiquidacion?: string;
+  fechaProcesado?: string; // Can be a string from older data
   detalles: PaymentDetail[];
 }
 
@@ -113,11 +114,11 @@ export interface Anotacion {
 // Types for Pensioner Profile Page
 export interface Parris1 {
   id: string;
-  fe_adquiere: string; // Changed from Timestamp
-  fe_causa: string; // Changed from Timestamp
-  fe_ingreso: string; // Changed from Timestamp
-  fe_nacido: string; // Changed from Timestamp
-  fe_vinculado: string; // Changed from Timestamp
+  fe_adquiere: string; 
+  fe_causa: string; 
+  fe_ingreso: string; 
+  fe_nacido: string;
+  fe_vinculado: string; 
   semanas: number;
   res_nro: string;
   res_ano: number;
@@ -137,6 +138,13 @@ export interface Causante {
   id: string;
   cedula_causante: string;
   records: CausanteRecord[];
+}
+
+export interface LegalProcess {
+    id: string;
+    num_radicado_ini: string;
+    clase_proceso: string;
+    estado: string;
 }
 
 export interface PensionerProfile {

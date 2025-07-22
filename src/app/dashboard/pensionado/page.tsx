@@ -4,11 +4,11 @@ import React, { useState, useEffect } from 'react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel } from 'lucide-react';
-import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parseDepartmentName, parsePaymentDetailName, parsePeriodoPago } from '@/lib/helpers';
-import { Payment, PaymentDetail } from '@/lib/data';
+import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey } from 'lucide-react';
+import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parseDepartmentName, parsePaymentDetailName, parsePeriodoPago, formatFirebaseTimestamp } from '@/lib/helpers';
+import { Payment, Parris1, LegalProcess } from '@/lib/data';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs, where } from 'firebase/firestore';
+import { collection, query, getDocs, where, doc, getDoc } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 function InfoField({ icon, label, value }: { icon: React.ReactNode, label: string, value: React.ReactNode }) {
@@ -37,18 +37,12 @@ interface SentencePayment {
     amount: number;
 }
 
-interface LegalProcess {
-    id: string;
-    num_radicado_ini: string;
-    clase_proceso: string;
-    estado: string;
-}
-
 
 export default function PensionadoPage() {
     const { selectedPensioner } = usePensioner();
     const [payments, setPayments] = useState<Payment[]>([]);
     const [legalProcesses, setLegalProcesses] = useState<LegalProcess[]>([]);
+    const [parris1Data, setParris1Data] = useState<Parris1 | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +52,7 @@ export default function PensionadoPage() {
             setError(null);
             setPayments([]);
             setLegalProcesses([]);
+            setParris1Data(null);
             
             const fetchAllData = async () => {
                 try {
@@ -86,6 +81,14 @@ export default function PensionadoPage() {
                         estado: doc.data().estado
                     } as LegalProcess));
                     setLegalProcesses(processesData);
+                    
+                    // Fetch Parris1 Data
+                    const parris1DocRef = doc(db, 'parris1', selectedPensioner.documento);
+                    const parris1Doc = await getDoc(parris1DocRef);
+                    if (parris1Doc.exists()) {
+                         setParris1Data({ id: parris1Doc.id, ...parris1Doc.data() } as Parris1);
+                    }
+
 
                 } catch (e) {
                     console.error(e);
@@ -98,6 +101,7 @@ export default function PensionadoPage() {
         } else {
             setPayments([]);
             setLegalProcesses([]);
+            setParris1Data(null);
             setIsLoading(false);
         }
     }, [selectedPensioner]);
@@ -172,6 +176,30 @@ export default function PensionadoPage() {
 
             {!isLoading && !error && (
                 <>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-xl flex items-center gap-2">
+                                <BookKey className="h-5 w-5" /> Datos de Jubilación (Parris1)
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {parris1Data ? (
+                                <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                                    <InfoField icon={<Calendar />} label="Fecha Adquisición" value={formatFirebaseTimestamp(parris1Data.fe_adquiere)} />
+                                    <InfoField icon={<Calendar />} label="Fecha Causación" value={formatFirebaseTimestamp(parris1Data.fe_causa)} />
+                                    <InfoField icon={<Calendar />} label="Fecha Ingreso" value={formatFirebaseTimestamp(parris1Data.fe_ingreso)} />
+                                    <InfoField icon={<Calendar />} label="Fecha Nacimiento" value={formatFirebaseTimestamp(parris1Data.fe_nacido)} />
+                                    <InfoField icon={<History />} label="Semanas" value={parris1Data.semanas} />
+                                    <InfoField icon={<FileText />} label="Resolución" value={`${parris1Data.res_nro} (${parris1Data.res_ano})`} />
+                                </div>
+                            ) : (
+                                <p className="text-muted-foreground text-center py-4">
+                                    No se encontraron datos de jubilación en Parris1 para este usuario.
+                                </p>
+                            )}
+                        </CardContent>
+                    </Card>
+
                     <Card>
                         <CardHeader>
                             <CardTitle className="text-xl flex items-center gap-2">
