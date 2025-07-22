@@ -11,7 +11,7 @@ import { Loader2, Upload, XCircle, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
 import { db } from '@/lib/firebase';
-import { collection, doc, getDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, writeBatch } from 'firebase/firestore';
 import { Timestamp } from 'firebase/firestore';
 
 interface ExcelDataUploaderProps {
@@ -19,10 +19,13 @@ interface ExcelDataUploaderProps {
   onClose: () => void;
 }
 
+// Custom type for rows to avoid 'any'
+type ExcelRow = { [key: string]: string | number | null };
+
 export function ExcelDataUploader({ isOpen, onClose }: ExcelDataUploaderProps) {
   const [file, setFile] = useState<File | null>(null);
   const [collectionName, setCollectionName] = useState('');
-  const [idColumnName, setIdColumnName] = useState('');
+  const [idColumnName, setIdColumnName] = useState('CEDULA'); // Default to CEDULA as requested
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -31,7 +34,6 @@ export function ExcelDataUploader({ isOpen, onClose }: ExcelDataUploaderProps) {
   const resetState = () => {
     setFile(null);
     setCollectionName('');
-    setIdColumnName('');
     setIsProcessing(false);
     setProgress(0);
     setResult(null);
@@ -42,21 +44,34 @@ export function ExcelDataUploader({ isOpen, onClose }: ExcelDataUploaderProps) {
     onClose();
   };
 
+  // Improved date parsing to handle Excel's numeric format and common string formats
   const parseDate = (excelDate: any): Timestamp | null => {
-      if (!excelDate) return null;
-      // XLSX can return dates as numbers (days since 1900) or strings.
-      if (typeof excelDate === 'number') {
-          // The formula adjusts for the Excel 1900 leap year bug.
-          const jsDate = new Date(Math.round((excelDate - 25569) * 86400 * 1000));
-          return Timestamp.fromDate(jsDate);
+      if (!excelDate && excelDate !== 0) return null;
+      
+      // XLSX 'cellDates: true' should return Date objects, but we double-check
+      if (excelDate instanceof Date) {
+          if (!isNaN(excelDate.getTime())) {
+              return Timestamp.fromDate(excelDate);
+          }
+          return null;
       }
+
+      // Handle Excel's numeric date format
+      if (typeof excelDate === 'number') {
+          const jsDate = XLSX.SSF.parse_date_code(excelDate);
+          if (jsDate) {
+              return Timestamp.fromDate(new Date(jsDate.y, jsDate.m - 1, jsDate.d, jsDate.H, jsDate.M, jsDate.S));
+          }
+      }
+      
+      // Handle common string formats as a fallback
       if (typeof excelDate === 'string') {
-          // Attempt to parse common string formats. This can be made more robust.
           const date = new Date(excelDate);
           if (!isNaN(date.getTime())) {
               return Timestamp.fromDate(date);
           }
       }
+
       return null;
   };
 
@@ -66,7 +81,7 @@ export function ExcelDataUploader({ isOpen, onClose }: ExcelDataUploaderProps) {
       toast({
         variant: 'destructive',
         title: 'Campos Incompletos',
-        description: 'Por favor, seleccione un archivo, ingrese un nombre de colección y el nombre de la columna ID.',
+        description: 'Por favor, seleccione un archivo e ingrese un nombre de colección y el nombre de la columna ID.',
       });
       return;
     }
@@ -75,56 +90,59 @@ export function ExcelDataUploader({ isOpen, onClose }: ExcelDataUploaderProps) {
     setProgress(0);
     setResult(null);
 
-    // 1. Check if collection exists
-    try {
-      const collectionRef = collection(db, collectionName);
-      const docSnap = await getDoc(doc(collectionRef));
-      // This is a simplified check. A more robust check might query for limit(1).
-      // For this use case, we'll proceed and let the user decide.
-      // A simple `getDoc` on a collection path doesn't work. Let's ask for confirmation.
-      if (!window.confirm(`¿Está seguro que desea escribir en la colección "${collectionName}"? Si no existe, se creará. Si existe, se podrían sobreescribir documentos.`)) {
-          setIsProcessing(false);
-          return;
-      }
-    } catch (e) {
-      // This part is tricky, as Firestore doesn't have a native "collection exists" check.
-      // We'll proceed with user confirmation.
+    if (!window.confirm(`¿Está seguro de que desea escribir en la colección "${collectionName}"? Si ya existen documentos con las mismas cédulas, se sobreescribirán por completo con los datos del archivo.`)) {
+        setIsProcessing(false);
+        return;
     }
 
-    // 2. Read and process Excel file
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true }); // cellDates is important for date parsing
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+        const jsonData: ExcelRow[] = XLSX.utils.sheet_to_json(worksheet, { defval: null });
 
         if (jsonData.length === 0) {
             throw new Error("El archivo Excel está vacío o tiene un formato incorrecto.");
         }
+        
+        // 1. Validate that the ID column exists
+        if (!jsonData[0] || !(idColumnName in jsonData[0])) {
+             throw new Error(`La columna ID especificada ("${idColumnName}") no se encontró en el archivo Excel.`);
+        }
 
-        // 3. Group data by ID column
-        const groupedData: { [key: string]: any[] } = {};
+        // 2. Group data by the ID column
+        const groupedData: { [key: string]: ExcelRow[] } = {};
         jsonData.forEach(row => {
-          const id = row[idColumnName];
-          if (id) {
-            if (!groupedData[id]) {
-              groupedData[id] = [];
-            }
-            // Sanitize row data and convert dates
-            const sanitizedRow = { ...row };
-            for (const key in sanitizedRow) {
-                if (key.toLowerCase().includes('fecha')) {
-                    sanitizedRow[key] = parseDate(sanitizedRow[key]);
-                }
-            }
-            groupedData[id].push(sanitizedRow);
+          const idValue = row[idColumnName];
+          if (idValue === null || idValue === undefined || idValue === '') {
+            // Skip rows with no ID
+            return;
           }
+          const id = String(idValue);
+
+          if (!groupedData[id]) {
+            groupedData[id] = [];
+          }
+          
+          // Sanitize each row, converting dates and ensuring all keys are present
+          const sanitizedRow: ExcelRow = {};
+          for (const key in row) {
+             if (Object.prototype.hasOwnProperty.call(row, key)) {
+                // Check if key contains 'FECHA' and parse it
+                if (key.toUpperCase().includes('FECHA')) {
+                    sanitizedRow[key] = parseDate(row[key]);
+                } else {
+                    sanitizedRow[key] = row[key];
+                }
+             }
+          }
+          groupedData[id].push(sanitizedRow);
         });
         
-        // 4. Upload data in batches
+        // 3. Upload data in batches
         const allIds = Object.keys(groupedData);
         const BATCH_SIZE = 250; 
         let recordsProcessed = 0;
@@ -133,18 +151,19 @@ export function ExcelDataUploader({ isOpen, onClose }: ExcelDataUploaderProps) {
           const batch = writeBatch(db);
           const chunkIds = allIds.slice(i, i + BATCH_SIZE);
 
-          chunkIds.forEach(id => {
+          for (const id of chunkIds) {
+            const docRef = doc(db, collectionName, id);
             const records = groupedData[id];
-            // Here, we assume the main document has one primary record and the rest are history.
-            // A simpler approach is to store all records in an array.
-            const docRef = doc(db, collectionName, id.toString());
+            
+            // The structure is one document per ID, containing an array of its historical records.
             const docData = {
-                id: id.toString(),
-                records: records,
-                createdAt: Timestamp.now()
+              [idColumnName]: id, // Store the ID field within the doc as well
+              records: records,
+              lastUpdatedAt: Timestamp.now()
             };
-            batch.set(docRef, docData);
-          });
+            
+            batch.set(docRef, docData, { merge: false }); // Use set with merge:false to completely overwrite
+          }
           
           await batch.commit();
           recordsProcessed += chunkIds.length;
@@ -155,6 +174,7 @@ export function ExcelDataUploader({ isOpen, onClose }: ExcelDataUploaderProps) {
 
       } catch (error: any) {
         setResult({ success: false, message: `Error: ${error.message}` });
+        console.error("Upload error:", error);
       } finally {
         setIsProcessing(false);
       }
@@ -164,29 +184,29 @@ export function ExcelDataUploader({ isOpen, onClose }: ExcelDataUploaderProps) {
 
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
+    <Dialog open={isOpen} onOpenChange={!isProcessing ? handleClose : undefined}>
+      <DialogContent className="sm:max-w-md" onInteractOutside={(e) => { if (isProcessing) e.preventDefault(); }}>
         <DialogHeader>
           <DialogTitle>Carga Masiva desde Excel</DialogTitle>
           <DialogDescription>
-            Sube un archivo Excel para crear o actualizar una colección en Firebase.
+            Suba un archivo Excel para crear o actualizar una colección en Firebase.
           </DialogDescription>
         </DialogHeader>
 
         {!isProcessing && !result && (
           <div className="space-y-4 py-4">
             <div className="grid w-full items-center gap-1.5">
-              <Label htmlFor="file-upload">1. Seleccione el archivo Excel</Label>
-              <Input id="file-upload" type="file" accept=".xlsx, .xls" onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)} />
-            </div>
-            <div className="grid w-full items-center gap-1.5">
-              <Label htmlFor="collection-name">2. Nombre de la Colección en Firebase</Label>
+              <Label htmlFor="collection-name">1. Nombre de la Colección en Firebase</Label>
               <Input id="collection-name" type="text" placeholder="Ej: causantes, parris1" value={collectionName} onChange={(e) => setCollectionName(e.target.value)} />
             </div>
              <div className="grid w-full items-center gap-1.5">
-              <Label htmlFor="id-column-name">3. Nombre de la Columna ID</Label>
-              <Input id="id-column-name" type="text" placeholder="Ej: CEDULA" value={idColumnName} onChange={(e) => setIdColumnName(e.target.value)} />
-               <p className="text-xs text-muted-foreground">Esta columna se usará como el ID del documento en Firebase.</p>
+              <Label htmlFor="id-column-name">2. Nombre de la Columna ID</Label>
+              <Input id="id-column-name" type="text" value={idColumnName} onChange={(e) => setIdColumnName(e.target.value)} />
+               <p className="text-xs text-muted-foreground">Esta columna se usará como el ID del documento en Firebase. Debe existir en el Excel.</p>
+            </div>
+             <div className="grid w-full items-center gap-1.5">
+              <Label htmlFor="file-upload">3. Seleccione el archivo Excel</Label>
+              <Input id="file-upload" type="file" accept=".xlsx, .xls" onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)} />
             </div>
           </div>
         )}
