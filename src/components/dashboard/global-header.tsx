@@ -32,7 +32,7 @@ export function GlobalHeader() {
 
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-    const searchPensioners = useCallback(async (searchVal: string) => {
+    const searchGlobal = useCallback(async (searchVal: string) => {
         if (searchVal.length < 3) {
             setSearchResults([]);
             return;
@@ -41,9 +41,10 @@ export function GlobalHeader() {
         try {
             const isNumeric = /^\d+$/.test(searchVal);
             
-            const searchPromises = [];
+            // --- Stage 1: Search in 'pensionados' collection ---
+            let pensionersData: Pensioner[] = [];
+            const pensionadosPromises = [];
 
-            // Query by document (starts with)
             if(isNumeric) {
                 const docQuery = query(
                     collection(db, "pensionados"),
@@ -51,27 +52,62 @@ export function GlobalHeader() {
                     where("documento", "<=", searchVal + '\uf8ff'),
                     limit(10)
                 );
-                searchPromises.push(getDocs(docQuery));
+                pensionadosPromises.push(getDocs(docQuery));
             }
             
-            // Query by name (case-insensitive)
             const nameQuery = query(
                 collection(db, "pensionados"),
                 where("empleado", ">=", searchVal.toUpperCase()),
                 where("empleado", "<=", searchVal.toUpperCase() + '\uf8ff'),
                 limit(10)
             );
-            searchPromises.push(getDocs(nameQuery));
+            pensionadosPromises.push(getDocs(nameQuery));
 
-            const snapshots = await Promise.all(searchPromises);
-            const pensionersData = snapshots.flatMap(snapshot => snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner)));
+            const pSnapshots = await Promise.all(pensionadosPromises);
+            pensionersData = pSnapshots.flatMap(snapshot => snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner)));
+            
+            let uniqueResults = Array.from(new Map(pensionersData.map(p => [p.id, p])).values());
 
-            // Remove duplicates
-            const uniquePensioners = Array.from(new Map(pensionersData.map(p => [p.id, p])).values());
-            setSearchResults(uniquePensioners);
+            // --- Stage 2: If no results, search in 'procesos' collection ---
+            if (uniqueResults.length === 0) {
+                 const procesosPromises = [];
+                 if(isNumeric) {
+                    const idClienteQuery = query(
+                        collection(db, "procesos"),
+                        where("identidad_clientes", ">=", searchVal),
+                        where("identidad_clientes", "<=", searchVal + '\uf8ff'),
+                        limit(10)
+                    );
+                    procesosPromises.push(getDocs(idClienteQuery));
+                 }
+
+                 const demandanteQuery = query(
+                    collection(db, "procesos"),
+                    where("nombres_demandante", ">=", searchVal.toUpperCase()),
+                    where("nombres_demandante", "<=", searchVal.toUpperCase() + '\uf8ff'),
+                    limit(10)
+                 );
+                 procesosPromises.push(getDocs(demandanteQuery));
+
+                 const procSnapshots = await Promise.all(procesosPromises);
+                 const procesosData = procSnapshots.flatMap(snapshot => snapshot.docs.map(doc => doc.data()));
+
+                 // Adapt 'proceso' data to 'Pensioner' structure for display
+                 const adaptedProcesos = procesosData.map(proc => ({
+                    id: proc.identidad_clientes || proc.num_registro,
+                    documento: proc.identidad_clientes,
+                    empleado: proc.nombres_demandante,
+                    dependencia1: proc.jurisdiccion || 'N/A',
+                    centroCosto: 'N/A'
+                 } as Pensioner));
+                 
+                 uniqueResults = Array.from(new Map(adaptedProcesos.map(p => [p.id, p])).values());
+            }
+
+            setSearchResults(uniqueResults);
 
         } catch (error) {
-            console.error("Error searching pensioners:", error);
+            console.error("Error searching:", error);
             setSearchResults([]);
         } finally {
             setIsSearching(false);
@@ -79,8 +115,8 @@ export function GlobalHeader() {
     }, []);
 
     useEffect(() => {
-        searchPensioners(debouncedSearchTerm);
-    }, [debouncedSearchTerm, searchPensioners]);
+        searchGlobal(debouncedSearchTerm);
+    }, [debouncedSearchTerm, searchGlobal]);
 
     const handleSelect = (pensioner: Pensioner) => {
         setSelectedPensioner(pensioner);
