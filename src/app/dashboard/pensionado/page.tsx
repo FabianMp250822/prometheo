@@ -291,7 +291,11 @@ export default function PensionadoPage() {
                                     </TableHeader>
                                     <TableBody>
                                         {payments.slice(0, 2).map(payment => {
-                                            const mesada = payment.detalles.find(d => d.nombre === 'Mesada Pensional');
+                                            const mesada = payment.detalles.find(d => 
+                                                d.nombre === 'Mesada Pensional' || 
+                                                d.codigo === 'MESAD' ||
+                                                d.codigo === 'MESAD14'
+                                            );
                                             return (
                                                 <TableRow key={payment.id}>
                                                     <TableCell>{payment.periodoPago}</TableCell>
