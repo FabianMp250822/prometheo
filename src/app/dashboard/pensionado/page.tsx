@@ -5,10 +5,11 @@ import { usePensioner } from '@/context/pensioner-provider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight } from 'lucide-react';
-import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parseDepartmentName, parsePaymentDetailName, formatFirebaseTimestamp } from '@/lib/helpers';
+import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parsePaymentDetailName, formatFirebaseTimestamp, parsePeriodoPago } from '@/lib/helpers';
 import type { Payment, Parris1, LegalProcess, Causante, PagosHistoricoRecord, PensionerProfileData } from '@/lib/data';
-import { getPensionerProfile } from '@/services/pensioner-service';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 function InfoField({ icon, label, value }: { icon: React.ReactNode, label: string, value: React.ReactNode }) {
     return (
@@ -48,8 +49,56 @@ export default function PensionadoPage() {
         setError(null);
         setProfileData(null);
         try {
-            const data = await getPensionerProfile(pensionerId, document);
-            setProfileData(data);
+            // 1. Fetch Payments
+            const paymentsQuery = query(collection(db, 'pensionados', pensionerId, 'pagos'));
+            const paymentsSnapshot = await getDocs(paymentsQuery);
+            let payments = paymentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
+            payments.sort((a, b) => {
+                const dateA = parsePeriodoPago(a.periodoPago)?.endDate || new Date(0);
+                const dateB = parsePeriodoPago(b.periodoPago)?.endDate || new Date(0);
+                return dateB.getTime() - dateA.getTime();
+            });
+
+            // 2. Fetch Historical Payment if no recent payments
+            let historicalPayment: PagosHistoricoRecord | null = null;
+            if (payments.length === 0) {
+                const historicalDocRef = doc(db, "pagosHistorico", document);
+                const historicalDoc = await getDoc(historicalDocRef);
+                if (historicalDoc.exists()) {
+                    const data = historicalDoc.data();
+                    if (data.records && Array.isArray(data.records) && data.records.length > 0) {
+                        const sortedRecords = [...data.records].sort((a, b) => (b.ANO_RET || 0) - (a.ANO_RET || 0));
+                        historicalPayment = sortedRecords[0] as PagosHistoricoRecord;
+                    }
+                }
+            }
+            
+            // 3. Fetch Legal Processes
+            const processesQuery = query(collection(db, 'procesos'), where("identidad_clientes", "==", document));
+            const processesSnapshot = await getDocs(processesQuery);
+            const legalProcesses = processesSnapshot.docs.map(doc => ({
+                id: doc.id, ...doc.data()
+            } as LegalProcess));
+
+            // 4. Fetch Parris1 Data
+            const parris1DocRef = doc(db, "parris1", document);
+            const parris1Doc = await getDoc(parris1DocRef);
+            const parris1Data = parris1Doc.exists() ? { id: parris1Doc.id, ...parris1Doc.data() } as Parris1 : null;
+            
+            // 5. Fetch Causante Data
+            const causanteQuery = query(collection(db, "causante"), where("cedula_causante", "==", document));
+            const causanteSnapshot = await getDocs(causanteQuery);
+            const causanteData = !causanteSnapshot.empty ? { id: causanteSnapshot.docs[0].id, ...causanteSnapshot.docs[0].data() } as Causante : null;
+
+
+            setProfileData({
+                payments,
+                legalProcesses,
+                parris1Data,
+                causanteData,
+                historicalPayment
+            });
+
         } catch (e) {
             console.error(e);
             setError('Ocurrió un error al buscar los datos del pensionado.');

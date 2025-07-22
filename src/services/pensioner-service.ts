@@ -2,78 +2,11 @@
 
 import { collection, query, getDocs, where, doc, getDoc, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Payment, Parris1, LegalProcess, Causante, PagosHistoricoRecord, Pensioner, ProcesoCancelado, PensionerProfileData } from '@/lib/data';
+import type { Pensioner, ProcesoCancelado } from '@/lib/data';
 import { parsePeriodoPago, parseEmployeeName } from '@/lib/helpers';
 
 const PENSIONADOS_COLLECTION = "pensionados";
-const PROCESOS_COLLECTION = "procesos";
-const PARRIS1_COLLECTION = "parris1";
-const CAUSANTE_COLLECTION = "causante";
-const PAGOS_HISTORICO_COLLECTION = "pagosHistorico";
 const PROCESOS_CANCELADOS_COLLECTION = "procesoscancelados";
-
-/**
- * Fetches the complete profile for a given pensioner, aggregating data from multiple collections.
- * @param pensionerId The document ID of the pensioner in the 'pensionados' collection.
- * @param document The document number (cédula) of the pensioner.
- * @returns An aggregated profile object.
- */
-export async function getPensionerProfile(pensionerId: string, document: string): Promise<PensionerProfileData> {
-    try {
-        // 1. Fetch Payments from subcollection, sorted client-side
-        const paymentsQuery = query(collection(db, PENSIONADOS_COLLECTION, pensionerId, 'pagos'));
-        const paymentsSnapshot = await getDocs(paymentsQuery);
-        let payments = paymentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
-        payments.sort((a, b) => {
-            const dateA = parsePeriodoPago(a.periodoPago)?.endDate || new Date(0);
-            const dateB = parsePeriodoPago(b.periodoPago)?.endDate || new Date(0);
-            return dateB.getTime() - dateA.getTime();
-        });
-
-        // 2. Fallback to historical payments if no recent payments are found
-        let historicalPayment: PagosHistoricoRecord | null = null;
-        if (payments.length === 0) {
-            const historicalDocRef = doc(db, PAGOS_HISTORICO_COLLECTION, document);
-            const historicalDoc = await getDoc(historicalDocRef);
-            if (historicalDoc.exists()) {
-                const data = historicalDoc.data();
-                if (data.records && Array.isArray(data.records) && data.records.length > 0) {
-                    const sortedRecords = [...data.records].sort((a, b) => (b.ANO_RET || 0) - (a.ANO_RET || 0));
-                    historicalPayment = sortedRecords[0] as PagosHistoricoRecord;
-                }
-            }
-        }
-
-        // 3. Fetch Legal Processes
-        const processesQuery = query(collection(db, PROCESOS_COLLECTION), where("identidad_clientes", "==", document));
-        const processesSnapshot = await getDocs(processesQuery);
-        const legalProcesses = processesSnapshot.docs.map(doc => ({
-            id: doc.id, ...doc.data() 
-        } as LegalProcess));
-
-        // 4. Fetch Parris1 Data
-        const parris1DocRef = doc(db, PARRIS1_COLLECTION, document);
-        const parris1Doc = await getDoc(parris1DocRef);
-        const parris1Data = parris1Doc.exists() ? { id: parris1Doc.id, ...parris1Doc.data() } as Parris1 : null;
-
-        // 5. Fetch Causante Data
-        const causanteQuery = query(collection(db, CAUSANTE_COLLECTION), where("cedula_causante", "==", document));
-        const causanteSnapshot = await getDocs(causanteQuery);
-        const causanteData = !causanteSnapshot.empty ? { id: causanteSnapshot.docs[0].id, ...causanteSnapshot.docs[0].data() } as Causante : null;
-        
-        return {
-            payments,
-            historicalPayment,
-            legalProcesses,
-            parris1Data,
-            causanteData,
-        };
-
-    } catch (error) {
-        console.error("Error fetching pensioner profile:", error);
-        throw new Error("Failed to fetch pensioner profile data.");
-    }
-}
 
 
 /**
