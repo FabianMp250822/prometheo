@@ -92,8 +92,8 @@ export default function DashboardLayout({
               </SidebarMenuItem>
                <SidebarMenuItem>
                   <Collapsible>
-                    <CollapsibleTrigger className="w-full">
-                      <SidebarMenuButton tooltip="Agenda" className="w-full justify-between">
+                    <CollapsibleTrigger asChild>
+                       <SidebarMenuButton tooltip="Agenda" className="w-full justify-between">
                          <div className="flex items-center gap-2">
                           <CalendarClock />
                           <span className="group-data-[collapsible=icon]:hidden">Agenda</span>
@@ -121,7 +121,7 @@ export default function DashboardLayout({
                           </SidebarMenuSubItem>
                            <SidebarMenuSubItem>
                              <Collapsible>
-                                <CollapsibleTrigger className="w-full">
+                                <CollapsibleTrigger asChild>
                                    <SidebarMenuSubButton className="w-full justify-between">
                                       <div className="flex items-center gap-2">
                                         <ListTodo />
