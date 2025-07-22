@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Upload, XCircle, CheckCircle } from 'lucide-react';
+import { Loader2, Upload, XCircle, CheckCircle, FileCheck2, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import * as XLSX from 'xlsx';
 import { db } from '@/lib/firebase';
@@ -19,231 +19,235 @@ interface ExcelDataUploaderProps {
   onClose: () => void;
 }
 
-// Custom type for rows to avoid 'any'
 type ExcelRow = { [key: string]: string | number | null };
+type GroupedData = { [key: string]: ExcelRow[] };
+type ComponentState = 'initial' | 'confirming' | 'processing' | 'result';
 
 export function ExcelDataUploader({ isOpen, onClose }: ExcelDataUploaderProps) {
   const [file, setFile] = useState<File | null>(null);
   const [collectionName, setCollectionName] = useState('');
-  const [idColumnName, setIdColumnName] = useState('CEDULA'); // Default to CEDULA as requested
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [idColumnName, setIdColumnName] = useState('CEDULA');
+  
+  const [state, setState] = useState<ComponentState>('initial');
   const [progress, setProgress] = useState(0);
+  const [progressText, setProgressText] = useState('');
+  
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [parsedData, setParsedData] = useState<GroupedData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
   const { toast } = useToast();
 
   const resetState = () => {
     setFile(null);
     setCollectionName('');
-    setIsProcessing(false);
+    setIdColumnName('CEDULA');
+    setState('initial');
     setProgress(0);
+    setProgressText('');
     setResult(null);
+    setParsedData(null);
+    setError(null);
   };
 
   const handleClose = () => {
+    if (state === 'processing') return; // Don't allow closing while processing
     resetState();
     onClose();
   };
 
-  // Improved date parsing to handle Excel's numeric format and common string formats
   const parseDate = (excelDate: any): Timestamp | null => {
       if (!excelDate && excelDate !== 0) return null;
-      
-      // XLSX 'cellDates: true' should return Date objects, but we double-check
       if (excelDate instanceof Date) {
-          if (!isNaN(excelDate.getTime())) {
-              return Timestamp.fromDate(excelDate);
-          }
+          if (!isNaN(excelDate.getTime())) return Timestamp.fromDate(excelDate);
           return null;
       }
-
-      // Handle Excel's numeric date format
       if (typeof excelDate === 'number') {
           const jsDate = XLSX.SSF.parse_date_code(excelDate);
-          if (jsDate) {
-              return Timestamp.fromDate(new Date(jsDate.y, jsDate.m - 1, jsDate.d, jsDate.H, jsDate.M, jsDate.S));
-          }
+          if (jsDate) return Timestamp.fromDate(new Date(jsDate.y, jsDate.m - 1, jsDate.d, jsDate.H, jsDate.M, jsDate.S));
       }
-      
-      // Handle common string formats as a fallback
       if (typeof excelDate === 'string') {
           const date = new Date(excelDate);
-          if (!isNaN(date.getTime())) {
-              return Timestamp.fromDate(date);
-          }
+          if (!isNaN(date.getTime())) return Timestamp.fromDate(date);
       }
-
       return null;
   };
 
-
-  const handleFileUpload = async () => {
+  const handlePrepareUpload = async () => {
     if (!file || !collectionName || !idColumnName) {
       toast({
         variant: 'destructive',
         title: 'Campos Incompletos',
-        description: 'Por favor, seleccione un archivo e ingrese un nombre de colección y el nombre de la columna ID.',
+        description: 'Por favor, complete todos los campos.',
       });
       return;
     }
-
-    setIsProcessing(true);
-    setProgress(0);
-    setResult(null);
-
-    if (!window.confirm(`¿Está seguro de que desea escribir en la colección "${collectionName}"? Si ya existen documentos con las mismas cédulas, se sobreescribirán por completo con los datos del archivo.`)) {
-        setIsProcessing(false);
-        return;
-    }
+    setError(null);
 
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array', cellDates: true }); // cellDates is important for date parsing
+        const workbook = XLSX.read(data, { type: 'array', cellDates: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const jsonData: ExcelRow[] = XLSX.utils.sheet_to_json(worksheet, { defval: null });
 
-        if (jsonData.length === 0) {
-            throw new Error("El archivo Excel está vacío o tiene un formato incorrecto.");
-        }
-        
-        // 1. Validate that the ID column exists
-        if (!jsonData[0] || !(idColumnName in jsonData[0])) {
-             throw new Error(`La columna ID especificada ("${idColumnName}") no se encontró en el archivo Excel.`);
-        }
+        if (jsonData.length === 0) throw new Error("El archivo Excel está vacío.");
+        if (!jsonData[0] || !(idColumnName in jsonData[0])) throw new Error(`La columna ID "${idColumnName}" no se encontró en el archivo.`);
 
-        // 2. Group data by the ID column
-        const groupedData: { [key: string]: ExcelRow[] } = {};
+        const groupedData: GroupedData = {};
         jsonData.forEach(row => {
           const idValue = row[idColumnName];
-          if (idValue === null || idValue === undefined || idValue === '') {
-            // Skip rows with no ID
-            return;
-          }
+          if (idValue === null || idValue === undefined || idValue === '') return;
           const id = String(idValue);
 
-          if (!groupedData[id]) {
-            groupedData[id] = [];
-          }
+          if (!groupedData[id]) groupedData[id] = [];
           
-          // Sanitize each row, converting dates and ensuring all keys are present
           const sanitizedRow: ExcelRow = {};
           for (const key in row) {
-             if (Object.prototype.hasOwnProperty.call(row, key)) {
-                // Check if key contains 'FECHA' and parse it
-                if (key.toUpperCase().includes('FECHA')) {
-                    sanitizedRow[key] = parseDate(row[key]);
-                } else {
-                    sanitizedRow[key] = row[key];
-                }
-             }
+            if (Object.prototype.hasOwnProperty.call(row, key)) {
+              sanitizedRow[key] = key.toUpperCase().includes('FECHA') ? parseDate(row[key]) : row[key];
+            }
           }
           groupedData[id].push(sanitizedRow);
         });
-        
-        // 3. Upload data in batches
-        const allIds = Object.keys(groupedData);
-        const BATCH_SIZE = 250; 
-        let recordsProcessed = 0;
 
-        for (let i = 0; i < allIds.length; i += BATCH_SIZE) {
-          const batch = writeBatch(db);
-          const chunkIds = allIds.slice(i, i + BATCH_SIZE);
-
-          for (const id of chunkIds) {
-            const docRef = doc(db, collectionName, id);
-            const records = groupedData[id];
-            
-            // The structure is one document per ID, containing an array of its historical records.
-            const docData = {
-              [idColumnName]: id, // Store the ID field within the doc as well
-              records: records,
-              lastUpdatedAt: Timestamp.now()
-            };
-            
-            batch.set(docRef, docData, { merge: false }); // Use set with merge:false to completely overwrite
-          }
-          
-          await batch.commit();
-          recordsProcessed += chunkIds.length;
-          setProgress((recordsProcessed / allIds.length) * 100);
-        }
-
-        setResult({ success: true, message: `Se procesaron y guardaron ${allIds.length} documentos en la colección "${collectionName}".` });
-
-      } catch (error: any) {
-        setResult({ success: false, message: `Error: ${error.message}` });
-        console.error("Upload error:", error);
-      } finally {
-        setIsProcessing(false);
+        setParsedData(groupedData);
+        setState('confirming');
+      } catch (err: any) {
+        setError(err.message);
       }
     };
     reader.readAsArrayBuffer(file);
   };
 
 
+  const handleStartUpload = async () => {
+    if (!parsedData) return;
+    setState('processing');
+
+    try {
+      const allIds = Object.keys(parsedData);
+      const BATCH_SIZE = 250;
+      const totalDocs = allIds.length;
+      let docsProcessed = 0;
+
+      for (let i = 0; i < totalDocs; i += BATCH_SIZE) {
+        const batch = writeBatch(db);
+        const chunkIds = allIds.slice(i, i + BATCH_SIZE);
+
+        for (const id of chunkIds) {
+          const docRef = doc(db, collectionName, id);
+          const records = parsedData[id];
+          const docData = {
+            [idColumnName]: id,
+            records: records,
+            lastUpdatedAt: Timestamp.now()
+          };
+          batch.set(docRef, docData, { merge: false });
+        }
+        
+        await batch.commit();
+        docsProcessed += chunkIds.length;
+        setProgress((docsProcessed / totalDocs) * 100);
+        setProgressText(`Lote ${Math.ceil(docsProcessed / BATCH_SIZE)} de ${Math.ceil(totalDocs / BATCH_SIZE)} guardado. Documentos: ${docsProcessed}/${totalDocs}`);
+      }
+
+      setResult({ success: true, message: `Se procesaron y guardaron ${totalDocs} documentos en la colección "${collectionName}".` });
+    } catch (error: any) {
+      setResult({ success: false, message: `Error: ${error.message}` });
+      console.error("Upload error:", error);
+    } finally {
+      setState('result');
+    }
+  };
+  
+  const totalDocuments = useMemo(() => parsedData ? Object.keys(parsedData).length : 0, [parsedData]);
+
+
   return (
-    <Dialog open={isOpen} onOpenChange={!isProcessing ? handleClose : undefined}>
-      <DialogContent className="sm:max-w-md" onInteractOutside={(e) => { if (isProcessing) e.preventDefault(); }}>
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-md" onInteractOutside={(e) => { if (state === 'processing') e.preventDefault(); }}>
         <DialogHeader>
           <DialogTitle>Carga Masiva desde Excel</DialogTitle>
-          <DialogDescription>
-            Suba un archivo Excel para crear o actualizar una colección en Firebase.
-          </DialogDescription>
+           {state === 'initial' && <DialogDescription>Suba un archivo para crear o actualizar una colección en Firebase.</DialogDescription>}
+           {state === 'confirming' && <DialogDescription>Verifique los detalles y confirme la carga de datos.</DialogDescription>}
+           {state === 'processing' && <DialogDescription>Procesando y guardando los datos en Firebase.</DialogDescription>}
+           {state === 'result' && <DialogDescription>Resumen de la operación de carga.</DialogDescription>}
         </DialogHeader>
 
-        {!isProcessing && !result && (
+        {state === 'initial' && (
           <div className="space-y-4 py-4">
             <div className="grid w-full items-center gap-1.5">
-              <Label htmlFor="collection-name">1. Nombre de la Colección en Firebase</Label>
-              <Input id="collection-name" type="text" placeholder="Ej: causantes, parris1" value={collectionName} onChange={(e) => setCollectionName(e.target.value)} />
+              <Label htmlFor="collection-name">1. Nombre de la Colección</Label>
+              <Input id="collection-name" type="text" placeholder="Ej: pensionados, causantes" value={collectionName} onChange={(e) => setCollectionName(e.target.value)} />
             </div>
              <div className="grid w-full items-center gap-1.5">
               <Label htmlFor="id-column-name">2. Nombre de la Columna ID</Label>
               <Input id="id-column-name" type="text" value={idColumnName} onChange={(e) => setIdColumnName(e.target.value)} />
-               <p className="text-xs text-muted-foreground">Esta columna se usará como el ID del documento en Firebase. Debe existir en el Excel.</p>
+               <p className="text-xs text-muted-foreground">Esta columna se usará como el ID del documento.</p>
             </div>
              <div className="grid w-full items-center gap-1.5">
               <Label htmlFor="file-upload">3. Seleccione el archivo Excel</Label>
               <Input id="file-upload" type="file" accept=".xlsx, .xls" onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)} />
             </div>
+            {error && <Alert variant="destructive"><AlertTriangle className="h-4 w-4" /><AlertTitle>Error de Preparación</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
           </div>
         )}
-
-        {isProcessing && (
-          <div className="flex flex-col items-center justify-center gap-4 p-8">
-            <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="text-muted-foreground">Procesando archivo, por favor espere...</p>
-            <Progress value={progress} className="w-full" />
-            <p className="text-sm font-medium">{Math.round(progress)}% completado</p>
-          </div>
-        )}
-
-        {result && (
-            <div className='p-4'>
-                 <Alert variant={result.success ? 'default' : 'destructive'}>
-                    {result.success ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                    <AlertTitle>{result.success ? 'Carga Completada' : 'Error en la Carga'}</AlertTitle>
+        
+        {state === 'confirming' && (
+            <div className="p-4 space-y-4">
+                <Alert variant="default" className='border-amber-500'>
+                    <FileCheck2 className="h-4 w-4" />
+                    <AlertTitle>Confirmar Carga</AlertTitle>
                     <AlertDescription>
-                        {result.message}
+                        <p>Se van a procesar <strong className='text-foreground'>{totalDocuments}</strong> documentos únicos.</p>
+                        <p>Los datos se guardarán en la colección: <strong className='text-foreground'>{collectionName}</strong>.</p>
+                        <p className='mt-2 text-xs'>Si un documento con la misma cédula ya existe, será **reemplazado por completo** con los datos del archivo.</p>
                     </AlertDescription>
                 </Alert>
             </div>
         )}
+        
+        {state === 'processing' && (
+          <div className="flex flex-col items-center justify-center gap-4 p-8">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            <p className="text-muted-foreground">Procesando archivo...</p>
+            <Progress value={progress} className="w-full" />
+            <p className="text-sm font-medium text-muted-foreground">{progressText}</p>
+          </div>
+        )}
 
-        <DialogFooter>
-          {result ? (
-            <Button variant="outline" onClick={handleClose}>Cerrar</Button>
-          ) : (
-            <>
-              <Button variant="outline" onClick={handleClose} disabled={isProcessing}>Cancelar</Button>
-              <Button onClick={handleFileUpload} disabled={isProcessing || !file || !collectionName || !idColumnName}>
-                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                Iniciar Carga
-              </Button>
-            </>
-          )}
+        {state === 'result' && result && (
+            <div className='p-4'>
+                 <Alert variant={result.success ? 'default' : 'destructive'}>
+                    {result.success ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                    <AlertTitle>{result.success ? 'Carga Completada' : 'Error en la Carga'}</AlertTitle>
+                    <AlertDescription>{result.message}</AlertDescription>
+                </Alert>
+            </div>
+        )}
+
+        <DialogFooter className='gap-2 sm:gap-0'>
+            {state === 'initial' && (
+                <>
+                    <Button variant="outline" onClick={handleClose}>Cancelar</Button>
+                    <Button onClick={handlePrepareUpload} disabled={!file || !collectionName || !idColumnName}>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Validar y Preparar
+                    </Button>
+                </>
+            )}
+            {state === 'confirming' && (
+                <>
+                    <Button variant="outline" onClick={() => setState('initial')}>Atrás</Button>
+                    <Button onClick={handleStartUpload}>Confirmar e Iniciar Carga</Button>
+                </>
+            )}
+            {state === 'result' && (
+                 <Button variant="outline" onClick={handleClose}>Cerrar</Button>
+            )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
