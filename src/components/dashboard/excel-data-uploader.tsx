@@ -129,7 +129,7 @@ export function ExcelDataUploader({ isOpen, onClose }: ExcelDataUploaderProps) {
 
     try {
       const allIds = Object.keys(parsedData);
-      const BATCH_SIZE = 250;
+      const BATCH_SIZE = 100; // Smaller batch size for safety
       const totalDocs = allIds.length;
       let docsProcessed = 0;
 
@@ -145,13 +145,16 @@ export function ExcelDataUploader({ isOpen, onClose }: ExcelDataUploaderProps) {
             records: records,
             lastUpdatedAt: Timestamp.now()
           };
-          batch.set(docRef, docData, { merge: false });
+          batch.set(docRef, docData); // Default set will overwrite
         }
         
         await batch.commit();
         docsProcessed += chunkIds.length;
         setProgress((docsProcessed / totalDocs) * 100);
         setProgressText(`Lote ${Math.ceil(docsProcessed / BATCH_SIZE)} de ${Math.ceil(totalDocs / BATCH_SIZE)} guardado. Documentos: ${docsProcessed}/${totalDocs}`);
+        
+        // PAUSE between batches to avoid overwhelming Firestore
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
 
       setResult({ success: true, message: `Se procesaron y guardaron ${totalDocs} documentos en la colección "${collectionName}".` });
