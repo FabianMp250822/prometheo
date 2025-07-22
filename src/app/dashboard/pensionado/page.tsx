@@ -2,15 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { usePensioner } from '@/context/pensioner-provider';
-import { getPensionerAdditionalDetails, type LastPaymentData } from '@/app/actions/get-pensioner-additional-details';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText } from 'lucide-react';
+import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel } from 'lucide-react';
 import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parseDepartmentName, parsePaymentDetailName, parsePeriodoPago } from '@/lib/helpers';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Payment, PaymentDetail } from '@/lib/data';
 import { db } from '@/lib/firebase';
-import { collection, query, getDocs } from 'firebase/firestore';
+import { collection, query, getDocs, where } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 function InfoField({ icon, label, value }: { icon: React.ReactNode, label: string, value: React.ReactNode }) {
@@ -39,10 +37,18 @@ interface SentencePayment {
     amount: number;
 }
 
+interface LegalProcess {
+    id: string;
+    num_radicado_ini: string;
+    clase_proceso: string;
+    estado: string;
+}
+
 
 export default function PensionadoPage() {
     const { selectedPensioner } = usePensioner();
     const [payments, setPayments] = useState<Payment[]>([]);
+    const [legalProcesses, setLegalProcesses] = useState<LegalProcess[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -51,30 +57,47 @@ export default function PensionadoPage() {
             setIsLoading(true);
             setError(null);
             setPayments([]);
+            setLegalProcesses([]);
             
-            const fetchPayments = async () => {
+            const fetchAllData = async () => {
                 try {
+                    // Fetch Payments
                     const paymentsQuery = query(collection(db, 'pensionados', selectedPensioner.id, 'pagos'));
-                    const querySnapshot = await getDocs(paymentsQuery);
-                    let paymentsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
+                    const paymentsSnapshot = await getDocs(paymentsQuery);
+                    let paymentsData = paymentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
                     
                     paymentsData.sort((a, b) => {
                         const dateA = parsePeriodoPago(a.periodoPago)?.endDate || new Date(0);
                         const dateB = parsePeriodoPago(b.periodoPago)?.endDate || new Date(0);
                         return dateB.getTime() - dateA.getTime();
                     });
-                    
                     setPayments(paymentsData);
+
+                    // Fetch Legal Processes
+                    const processesQuery = query(
+                        collection(db, 'procesos'),
+                        where("identidad_clientes", "==", selectedPensioner.documento)
+                    );
+                    const processesSnapshot = await getDocs(processesQuery);
+                    const processesData = processesSnapshot.docs.map(doc => ({
+                        id: doc.id,
+                        num_radicado_ini: doc.data().num_radicado_ini,
+                        clase_proceso: doc.data().clase_proceso,
+                        estado: doc.data().estado
+                    } as LegalProcess));
+                    setLegalProcesses(processesData);
+
                 } catch (e) {
                     console.error(e);
-                    setError('Ocurrió un error al buscar los datos de pagos del pensionado.');
+                    setError('Ocurrió un error al buscar los datos del pensionado.');
                 } finally {
                     setIsLoading(false);
                 }
             };
-            fetchPayments();
+            fetchAllData();
         } else {
             setPayments([]);
+            setLegalProcesses([]);
             setIsLoading(false);
         }
     }, [selectedPensioner]);
@@ -149,6 +172,36 @@ export default function PensionadoPage() {
 
             {!isLoading && !error && (
                 <>
+                    {legalProcesses.length > 0 && (
+                        <Card>
+                             <CardHeader>
+                                <CardTitle className="text-xl flex items-center gap-2">
+                                    <Gavel className="h-5 w-5" /> Procesos Legales Asociados
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Radicado</TableHead>
+                                            <TableHead>Clase de Proceso</TableHead>
+                                            <TableHead>Estado</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {legalProcesses.map((p) => (
+                                            <TableRow key={p.id}>
+                                                <TableCell className="font-medium">{p.num_radicado_ini || 'N/A'}</TableCell>
+                                                <TableCell>{p.clase_proceso || 'N/A'}</TableCell>
+                                                <TableCell>{p.estado || 'N/A'}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    )}
+
                     {sentencePayments.length > 0 && (
                         <Card>
                             <CardHeader>
