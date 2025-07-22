@@ -40,69 +40,69 @@ export function GlobalHeader() {
         setIsSearching(true);
         try {
             const isNumeric = /^\d+$/.test(searchVal);
-            
-            // --- Stage 1: Search in 'pensionados' collection ---
-            let pensionersData: Pensioner[] = [];
-            const pensionadosPromises = [];
+            const searchPromises = [];
 
-            if(isNumeric) {
+            // Stage 1: Search in 'pensionados' collection
+            if (isNumeric) {
                 const docQuery = query(
                     collection(db, "pensionados"),
                     where("documento", ">=", searchVal),
                     where("documento", "<=", searchVal + '\uf8ff'),
                     limit(10)
                 );
-                pensionadosPromises.push(getDocs(docQuery));
+                searchPromises.push(getDocs(docQuery));
             }
-            
             const nameQuery = query(
                 collection(db, "pensionados"),
                 where("empleado", ">=", searchVal.toUpperCase()),
                 where("empleado", "<=", searchVal.toUpperCase() + '\uf8ff'),
                 limit(10)
             );
-            pensionadosPromises.push(getDocs(nameQuery));
-
-            const pSnapshots = await Promise.all(pensionadosPromises);
-            pensionersData = pSnapshots.flatMap(snapshot => snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner)));
+            searchPromises.push(getDocs(nameQuery));
             
-            let uniqueResults = Array.from(new Map(pensionersData.map(p => [p.id, p])).values());
-
-            // --- Stage 2: If no results, search in 'procesos' collection ---
-            if (uniqueResults.length === 0) {
-                 const procesosPromises = [];
-                 if(isNumeric) {
-                    const idClienteQuery = query(
-                        collection(db, "procesos"),
-                        where("identidad_clientes", ">=", searchVal),
-                        where("identidad_clientes", "<=", searchVal + '\uf8ff'),
-                        limit(10)
-                    );
-                    procesosPromises.push(getDocs(idClienteQuery));
-                 }
-
-                 const demandanteQuery = query(
+            // Stage 2: Search in 'procesos' collection
+            if (isNumeric) {
+                const idClienteQuery = query(
                     collection(db, "procesos"),
-                    where("nombres_demandante", ">=", searchVal.toUpperCase()),
-                    where("nombres_demandante", "<=", searchVal.toUpperCase() + '\uf8ff'),
+                    where("identidad_clientes", ">=", searchVal),
+                    where("identidad_clientes", "<=", searchVal + '\uf8ff'),
                     limit(10)
-                 );
-                 procesosPromises.push(getDocs(demandanteQuery));
-
-                 const procSnapshots = await Promise.all(procesosPromises);
-                 const procesosData = procSnapshots.flatMap(snapshot => snapshot.docs.map(doc => doc.data()));
-
-                 // Adapt 'proceso' data to 'Pensioner' structure for display
-                 const adaptedProcesos = procesosData.map(proc => ({
-                    id: proc.identidad_clientes || proc.num_registro,
-                    documento: proc.identidad_clientes,
-                    empleado: proc.nombres_demandante,
-                    dependencia1: proc.jurisdiccion || 'N/A',
-                    centroCosto: 'N/A'
-                 } as Pensioner));
-                 
-                 uniqueResults = Array.from(new Map(adaptedProcesos.map(p => [p.id, p])).values());
+                );
+                searchPromises.push(getDocs(idClienteQuery));
             }
+            const demandanteQuery = query(
+                collection(db, "procesos"),
+                where("nombres_demandante", ">=", searchVal.toUpperCase()),
+                where("nombres_demandante", "<=", searchVal.toUpperCase() + '\uf8ff'),
+                limit(10)
+            );
+            searchPromises.push(getDocs(demandanteQuery));
+
+
+            const snapshots = await Promise.all(searchPromises);
+            
+            const pensionersData = snapshots.flatMap(snapshot =>
+                snapshot.docs
+                .filter(doc => doc.data().documento || doc.data().identidad_clientes) // Filter out docs without an ID
+                .map(doc => {
+                    const data = doc.data();
+                    if ('empleado' in data) { // It's from 'pensionados'
+                        return { id: doc.id, ...data } as Pensioner;
+                    }
+                    // It's from 'procesos', adapt it
+                    return {
+                        id: data.identidad_clientes || doc.id,
+                        documento: data.identidad_clientes,
+                        empleado: data.nombres_demandante,
+                        dependencia1: data.jurisdiccion || 'N/A',
+                        centroCosto: 'N/A',
+                        // Add other required Pensioner fields with default values
+                    } as Pensioner;
+                })
+            );
+            
+            // Remove duplicates based on the document/ID
+            const uniqueResults = Array.from(new Map(pensionersData.map(p => [p.documento, p])).values());
 
             setSearchResults(uniqueResults);
 
