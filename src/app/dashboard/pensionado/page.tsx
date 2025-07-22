@@ -1,15 +1,13 @@
-
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight } from 'lucide-react';
-import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parseDepartmentName, parsePaymentDetailName, parsePeriodoPago, formatFirebaseTimestamp } from '@/lib/helpers';
-import { Payment, Parris1, LegalProcess, Causante, PagosHistoricoRecord } from '@/lib/data';
-import { db } from '@/lib/firebase';
-import { collection, query, getDocs, where, doc, getDoc } from 'firebase/firestore';
+import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parseDepartmentName, parsePaymentDetailName, formatFirebaseTimestamp } from '@/lib/helpers';
+import type { Payment, Parris1, LegalProcess, Causante, PagosHistoricoRecord, PensionerProfileData } from '@/lib/data';
+import { getPensionerProfile } from '@/services/pensioner-service';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 function InfoField({ icon, label, value }: { icon: React.ReactNode, label: string, value: React.ReactNode }) {
@@ -41,106 +39,38 @@ interface SentencePayment {
 
 export default function PensionadoPage() {
     const { selectedPensioner } = usePensioner();
-    const [payments, setPayments] = useState<Payment[]>([]);
-    const [legalProcesses, setLegalProcesses] = useState<LegalProcess[]>([]);
-    const [parris1Data, setParris1Data] = useState<Parris1 | null>(null);
-    const [causanteData, setCausanteData] = useState<Causante | null>(null);
-    const [historicalPayment, setHistoricalPayment] = useState<PagosHistoricoRecord | null>(null);
+    const [profileData, setProfileData] = useState<PensionerProfileData | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (selectedPensioner?.id) {
-            setIsLoading(true);
-            setError(null);
-            setPayments([]);
-            setLegalProcesses([]);
-            setParris1Data(null);
-            setHistoricalPayment(null);
-            setCausanteData(null);
-            
-            const fetchAllData = async () => {
-                try {
-                    // Fetch Payments from subcollection
-                    const paymentsQuery = query(collection(db, 'pensionados', selectedPensioner.id, 'pagos'));
-                    const paymentsSnapshot = await getDocs(paymentsQuery);
-                    let paymentsData = paymentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
-                    
-                    if (paymentsData.length > 0) {
-                        paymentsData.sort((a, b) => {
-                            const dateA = parsePeriodoPago(a.periodoPago)?.endDate || new Date(0);
-                            const dateB = parsePeriodoPago(b.periodoPago)?.endDate || new Date(0);
-                            return dateB.getTime() - dateA.getTime();
-                        });
-                        setPayments(paymentsData);
-                    } else {
-                        // Fallback to pagosHistorico collection
-                        const historicalDocRef = doc(db, 'pagosHistorico', selectedPensioner.documento);
-                        const historicalDoc = await getDoc(historicalDocRef);
-                        if (historicalDoc.exists()) {
-                            const data = historicalDoc.data();
-                            if (data.records && Array.isArray(data.records) && data.records.length > 0) {
-                                const sortedRecords = [...data.records].sort((a, b) => (b.ANO_RET || 0) - (a.ANO_RET || 0));
-                                setHistoricalPayment(sortedRecords[0] as PagosHistoricoRecord);
-                            }
-                        }
-                    }
-
-                    // Fetch Legal Processes
-                    const processesQuery = query(
-                        collection(db, 'procesos'),
-                        where("identidad_clientes", "==", selectedPensioner.documento)
-                    );
-                    const processesSnapshot = await getDocs(processesQuery);
-                    const processesData = processesSnapshot.docs.map(doc => ({
-                        id: doc.id,
-                        num_radicado_ini: doc.data().num_radicado_ini,
-                        clase_proceso: doc.data().clase_proceso,
-                        estado: doc.data().estado
-                    } as LegalProcess));
-                    setLegalProcesses(processesData);
-                    
-                    // Fetch Parris1 Data
-                    const parris1DocRef = doc(db, 'parris1', selectedPensioner.documento);
-                    const parris1Doc = await getDoc(parris1DocRef);
-                    if (parris1Doc.exists()) {
-                         setParris1Data({ id: parris1Doc.id, ...parris1Doc.data() } as Parris1);
-                    }
-
-                    // Fetch Causante Data
-                    const causanteQuery = query(
-                        collection(db, 'causante'),
-                        where("cedula_causante", "==", selectedPensioner.documento)
-                    );
-                    const causanteSnapshot = await getDocs(causanteQuery);
-                    if (!causanteSnapshot.empty) {
-                        const doc = causanteSnapshot.docs[0];
-                        setCausanteData({ id: doc.id, ...doc.data() } as Causante);
-                    }
-
-
-                } catch (e) {
-                    console.error(e);
-                    setError('Ocurrió un error al buscar los datos del pensionado.');
-                } finally {
-                    setIsLoading(false);
-                }
-            };
-            fetchAllData();
-        } else {
-            setPayments([]);
-            setLegalProcesses([]);
-            setParris1Data(null);
-            setHistoricalPayment(null);
-            setCausanteData(null);
+    const fetchAllData = useCallback(async (pensionerId: string, document: string) => {
+        setIsLoading(true);
+        setError(null);
+        setProfileData(null);
+        try {
+            const data = await getPensionerProfile(pensionerId, document);
+            setProfileData(data);
+        } catch (e) {
+            console.error(e);
+            setError('Ocurrió un error al buscar los datos del pensionado.');
+        } finally {
             setIsLoading(false);
         }
-    }, [selectedPensioner]);
+    }, []);
+
+    useEffect(() => {
+        if (selectedPensioner?.id) {
+            fetchAllData(selectedPensioner.id, selectedPensioner.documento);
+        } else {
+            setProfileData(null);
+            setIsLoading(false);
+        }
+    }, [selectedPensioner, fetchAllData]);
 
     const sentencePayments = React.useMemo((): SentencePayment[] => {
-        if (!payments.length) return [];
+        if (!profileData?.payments.length) return [];
         const foundPayments: SentencePayment[] = [];
-        payments.forEach(payment => {
+        profileData.payments.forEach(payment => {
             payment.detalles.forEach(detail => {
                 const matchedCode = SENTENCE_CODES.find(code => detail.nombre?.startsWith(`${code}-`));
                 if (matchedCode && detail.ingresos > 0) {
@@ -154,7 +84,7 @@ export default function PensionadoPage() {
             });
         });
         return foundPayments;
-    }, [payments]);
+    }, [profileData?.payments]);
 
     if (isLoading) {
          return (
@@ -179,6 +109,8 @@ export default function PensionadoPage() {
             </div>
         );
     }
+
+    const { parris1Data, causanteData, legalProcesses, payments, historicalPayment } = profileData || {};
 
     return (
         <div className="p-4 md:p-8 space-y-6">
@@ -285,7 +217,7 @@ export default function PensionadoPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            {legalProcesses.length > 0 ? (
+                            {legalProcesses && legalProcesses.length > 0 ? (
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
@@ -349,7 +281,7 @@ export default function PensionadoPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                             {payments.length > 0 ? (
+                             {payments && payments.length > 0 ? (
                                 <Table>
                                     <TableHeader>
                                         <TableRow>

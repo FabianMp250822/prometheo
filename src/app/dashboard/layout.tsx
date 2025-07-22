@@ -104,14 +104,6 @@ export default function DashboardLayout({
                     <CollapsibleContent>
                        <SidebarMenuSub>
                           <SidebarMenuSubItem>
-                            <SidebarMenuSubButton asChild>
-                              <Link href="/dashboard/agenda/pendientes">
-                                <ListTodo />
-                                <span>Pendientes</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                          <SidebarMenuSubItem>
                              <SidebarMenuSubButton asChild>
                               <Link href="/dashboard/agenda/por-fecha">
                                 <CalendarSearch />

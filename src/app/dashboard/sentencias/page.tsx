@@ -1,21 +1,18 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, query, doc, getDoc, onSnapshot, orderBy } from 'firebase/firestore';
-import { ProcesoCancelado, Pensioner } from '@/lib/data';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { ProcesoCancelado } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Gavel, Loader2, Download, Search, Filter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { formatCurrency, parsePeriodoPago, parseEmployeeName, parsePaymentDetailName, formatPeriodoToMonthYear, parseDepartmentName } from '@/lib/helpers';
+import { formatCurrency, parsePeriodoToMonthYear, parsePaymentDetailName, parseDepartmentName } from '@/lib/helpers';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
-
-const PROCESOS_CANCELADOS_COLLECTION = "procesoscancelados";
-const PENSIONADOS_COLLECTION = "pensionados";
+import { getProcesosCancelados } from '@/services/pensioner-service';
+import { DataTableSkeleton } from '@/components/dashboard/data-table-skeleton';
 
 export default function SentenciasPage() {
     const [isLoading, setIsLoading] = useState(true);
@@ -30,68 +27,21 @@ export default function SentenciasPage() {
     const [uniqueYears, setUniqueYears] = useState<string[]>([]);
 
     useEffect(() => {
-        setIsLoading(true);
-        const q = query(collection(db, PROCESOS_CANCELADOS_COLLECTION), orderBy("creadoEn", "desc"));
-
-        const unsubscribe = onSnapshot(q, async (procesosSnapshot) => {
-            let procesosData = procesosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcesoCancelado));
-
-            if (procesosData.length === 0) {
-                setProcesos([]);
+        const unsubscribe = getProcesosCancelados(
+            (data, metadata) => {
+                setProcesos(data);
+                if (metadata) {
+                    setUniqueDepartments(metadata.departments);
+                    setUniqueYears(metadata.years);
+                }
                 setIsLoading(false);
-                return;
+            },
+            (error) => {
+                console.error("Error fetching data with listener:", error);
+                toast({ variant: 'destructive', title: "Error", description: "No se pudieron cargar los datos." });
+                setIsLoading(false);
             }
-
-            const pensionerIds = [...new Set(procesosData.map(p => p.pensionadoId).filter(Boolean))];
-            
-            const pensionersData: { [key: string]: Pensioner } = {};
-            const chunkSize = 30;
-            for (let i = 0; i < pensionerIds.length; i += chunkSize) {
-                const chunk = pensionerIds.slice(i, i + chunkSize);
-                if (chunk.length === 0) continue;
-                
-                const pensionerPromises = chunk.map(id => getDoc(doc(db, PENSIONADOS_COLLECTION, id)));
-                const pensionerDocs = await Promise.all(pensionerPromises);
-
-                pensionerDocs.forEach(pensionerDoc => {
-                    if (pensionerDoc.exists()) {
-                        const pensioner = { id: pensionerDoc.id, ...pensionerDoc.data() } as Pensioner;
-                        pensionersData[pensioner.id] = pensioner;
-                    }
-                });
-            }
-
-            let enrichedProcesos = procesosData.map(proceso => {
-                const pensioner = pensionersData[proceso.pensionadoId];
-                return {
-                    ...proceso,
-                    pensionerInfo: pensioner ? {
-                        name: parseEmployeeName(pensioner.empleado),
-                        document: pensioner.documento,
-                        department: pensioner.dependencia1
-                    } : undefined,
-                };
-            }).filter(p => p.pensionerInfo);
-
-            enrichedProcesos.sort((a, b) => {
-                const dateA = parsePeriodoPago(a.periodoPago)?.endDate || new Date(0);
-                const dateB = parsePeriodoPago(b.periodoPago)?.endDate || new Date(0);
-                return dateB.getTime() - dateA.getTime();
-            });
-
-            setProcesos(enrichedProcesos);
-
-            const depts = new Set(enrichedProcesos.map(p => p.pensionerInfo?.department).filter(Boolean) as string[]);
-            const years = new Set(enrichedProcesos.map(p => p.año).filter(Boolean));
-            setUniqueDepartments(Array.from(depts).sort());
-            setUniqueYears(Array.from(years).sort((a, b) => Number(b) - Number(a)));
-            
-            setIsLoading(false);
-        }, (error) => {
-            console.error("Error fetching data with listener:", error);
-            toast({ variant: 'destructive', title: "Error", description: "No se pudieron cargar los datos." });
-            setIsLoading(false);
-        });
+        );
 
         return () => unsubscribe();
     }, [toast]);
@@ -217,9 +167,7 @@ export default function SentenciasPage() {
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
-                        <div className="flex justify-center items-center p-10">
-                            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                        </div>
+                        <DataTableSkeleton columnCount={6} rowCount={5} />
                     ) : (
                         <div className="overflow-x-auto">
                             <Table>

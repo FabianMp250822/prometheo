@@ -164,10 +164,10 @@ export interface LegalProcess {
     estado: string;
 }
 
-export interface PensionerProfile {
-    pensioner: Pensioner;
+export interface PensionerProfileData {
+    payments: Payment[];
+    legalProcesses: LegalProcess[];
     parris1Data: Parris1 | null;
     causanteData: Causante | null;
-    procesosCancelados: ProcesoCancelado[];
-    lastPayment: Payment | null;
+    historicalPayment: PagosHistoricoRecord | null;
 }
