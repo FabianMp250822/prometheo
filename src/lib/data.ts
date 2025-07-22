@@ -118,10 +118,18 @@ export interface Parris1 {
   fe_causa: string; 
   fe_ingreso: string; 
   fe_nacido: string;
-  fe_vinculado: string; 
+  fe_vinculado: string;
   semanas: number;
   res_nro: string;
   res_ano: number;
+  mesada: number;
+  ciudad_iss: string;
+  dir_iss: string;
+  telefono_iss: number;
+  regimen: number;
+  riesgo: string;
+  seguro: number;
+  tranci: boolean;
 }
 
 export interface CausanteRecord {

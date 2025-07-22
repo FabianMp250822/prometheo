@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar } from 'lucide-react';
+import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users } from 'lucide-react';
 import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parseDepartmentName, parsePaymentDetailName, parsePeriodoPago, formatFirebaseTimestamp } from '@/lib/helpers';
 import { Payment, Parris1, LegalProcess } from '@/lib/data';
 import { db } from '@/lib/firebase';
@@ -179,7 +179,7 @@ export default function PensionadoPage() {
                     <Card>
                         <CardHeader>
                             <CardTitle className="text-xl flex items-center gap-2">
-                                <BookKey className="h-5 w-5" /> Datos de Jubilación (Parris1)
+                                <BookKey className="h-5 w-5" /> Datos de Pensión COLPENSIONES
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -189,12 +189,21 @@ export default function PensionadoPage() {
                                     <InfoField icon={<Calendar />} label="Fecha Causación" value={formatFirebaseTimestamp(parris1Data.fe_causa)} />
                                     <InfoField icon={<Calendar />} label="Fecha Ingreso" value={formatFirebaseTimestamp(parris1Data.fe_ingreso)} />
                                     <InfoField icon={<Calendar />} label="Fecha Nacimiento" value={formatFirebaseTimestamp(parris1Data.fe_nacido)} />
+                                    <InfoField icon={<Calendar />} label="Fecha Vinculación" value={formatFirebaseTimestamp(parris1Data.fe_vinculado)} />
                                     <InfoField icon={<History />} label="Semanas" value={parris1Data.semanas} />
                                     <InfoField icon={<FileText />} label="Resolución" value={`${parris1Data.res_nro} (${parris1Data.res_ano})`} />
+                                    <InfoField icon={<Banknote />} label="Mesada" value={formatCurrency(parris1Data.mesada)} />
+                                    <InfoField icon={<Building />} label="Ciudad ISS" value={parris1Data.ciudad_iss} />
+                                    <InfoField icon={<MapPin />} label="Dirección ISS" value={parris1Data.dir_iss} />
+                                    <InfoField icon={<Phone />} label="Teléfono ISS" value={parris1Data.telefono_iss} />
+                                    <InfoField icon={<Users />} label="Régimen" value={parris1Data.regimen} />
+                                    <InfoField icon={<Sigma />} label="Riesgo" value={parris1Data.riesgo} />
+                                    <InfoField icon={<TrendingUp />} label="Seguro" value={parris1Data.seguro} />
+                                    <InfoField icon={<StickyNote />} label="Tranci" value={parris1Data.tranci ? 'Sí' : 'No'} />
                                 </div>
                             ) : (
                                 <p className="text-muted-foreground text-center py-4">
-                                    No se encontraron datos de jubilación en Parris1 para este usuario.
+                                    No se encontraron datos de pensión en COLPENSIONES para este usuario.
                                 </p>
                             )}
                         </CardContent>
