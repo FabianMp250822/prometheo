@@ -16,6 +16,19 @@ import { usePensioner } from '@/context/pensioner-provider';
 
 const ITEMS_PER_PAGE = 50;
 
+function useDebounce<T>(value: T, delay: number): T {
+    const [debouncedValue, setDebouncedValue] = useState<T>(value);
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [value, delay]);
+    return debouncedValue;
+}
+
 export default function PagosPage() {
     const [pensioners, setPensioners] = useState<Pensioner[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -35,9 +48,8 @@ export default function PagosPage() {
     const { setSelectedPensioner } = usePensioner();
     const [sheetPensioner, setSheetPensioner] = useState<Pensioner | null>(null);
 
-    // State for hybrid search
-    const [isDeepSearching, setIsDeepSearching] = useState(false);
-    const [searchResults, setSearchResults] = useState<Pensioner[] | null>(null);
+    const [isSearching, setIsSearching] = useState(false);
+    const debouncedSearchTerm = useDebounce(filters.searchTerm, 300);
 
     const buildQuery = useCallback((cursor?: QueryDocumentSnapshot<DocumentData>) => {
         let q = query(collection(db, "pensionados"), orderBy("documento"));
@@ -56,7 +68,7 @@ export default function PagosPage() {
     }, [filters.dependencia, filters.centroCosto]);
 
 
-    const fetchPensioners = useCallback(async (isInitial = true) => {
+    const fetchInitialPensioners = useCallback(async (isInitial = true) => {
         if (isInitial) {
             setIsLoading(true);
             setPensioners([]); 
@@ -87,7 +99,7 @@ export default function PagosPage() {
             setIsLoadingMore(false);
         }
     }, [buildQuery, lastDoc]);
-    
+
     useEffect(() => {
         const fetchFilterValues = async () => {
              try {
@@ -109,58 +121,54 @@ export default function PagosPage() {
             }
         };
         fetchFilterValues();
-        fetchPensioners(true);
+        if (!debouncedSearchTerm) {
+            fetchInitialPensioners(true);
+        }
     }, [filters.dependencia, filters.centroCosto]);
 
-    const filteredBySearch = useMemo(() => {
-        if (!filters.searchTerm) return pensioners;
-        return pensioners.filter(pensioner => 
-            (pensioner.empleado || '').toLowerCase().includes(filters.searchTerm.toLowerCase()) || 
-            (pensioner.documento || '').toLowerCase().includes(filters.searchTerm.toLowerCase())
-        );
-    }, [pensioners, filters.searchTerm]);
+    useEffect(() => {
+        const deepSearch = async () => {
+            if (debouncedSearchTerm.length < 3) {
+                setPensioners([]);
+                if (!isLoading) fetchInitialPensioners(true);
+                return;
+            }
+            setIsSearching(true);
+            setIsLoading(true);
+
+            try {
+                const searchTermLower = debouncedSearchTerm.toLowerCase();
+                const allPensionersQuery = query(collection(db, 'pensionados'));
+                const querySnapshot = await getDocs(allPensionersQuery);
+                const allDocs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
+                
+                const results = allDocs.filter(pensioner => 
+                    (pensioner.empleado || '').toLowerCase().includes(searchTermLower) ||
+                    (pensioner.documento || '').toLowerCase().includes(searchTermLower)
+                );
+                
+                setPensioners(results);
+                setHasMore(false); // No pagination for search results
+
+            } catch (error) {
+                console.error("Error during deep search:", error);
+            } finally {
+                setIsSearching(false);
+                setIsLoading(false);
+            }
+        };
+        deepSearch();
+    }, [debouncedSearchTerm]);
+
 
     const handleFilterChange = (filterType: keyof typeof filters, value: string) => {
         setFilters(prev => ({ ...prev, [filterType]: value }));
-        // Reset deep search results when filters change
-        if (filterType !== 'searchTerm') {
-             setSearchResults(null);
-        }
-    };
-
-    const handleDeepSearch = async () => {
-        if (filters.searchTerm.length < 3) return;
-        setIsDeepSearching(true);
-        setSearchResults(null);
-
-        try {
-            const searchTermLower = filters.searchTerm.toLowerCase();
-            const allPensionersQuery = query(collection(db, 'pensionados'));
-            const querySnapshot = await getDocs(allPensionersQuery);
-            
-            const allDocs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
-
-            const results = allDocs.filter(pensioner => 
-                (pensioner.empleado || '').toLowerCase().includes(searchTermLower) ||
-                (pensioner.documento || '').toLowerCase().includes(searchTermLower)
-            );
-            
-            setSearchResults(results);
-
-        } catch (error) {
-            console.error("Error during deep search:", error);
-        } finally {
-            setIsDeepSearching(false);
-        }
     };
 
     const handleViewPayments = (pensioner: Pensioner) => {
         setSelectedPensioner(pensioner);
         setSheetPensioner(pensioner);
     };
-
-    const displayData = searchResults !== null ? searchResults : filteredBySearch;
-    const showDeepSearchButton = filters.searchTerm.length >= 3 && filteredBySearch.length === 0 && searchResults === null;
 
     return (
         <div className="p-4 md:p-8 space-y-6">
@@ -184,14 +192,12 @@ export default function PagosPage() {
                             <Input 
                                 placeholder="Buscar por nombre o documento..."
                                 value={filters.searchTerm}
-                                onChange={(e) => {
-                                    handleFilterChange('searchTerm', e.target.value);
-                                    setSearchResults(null); // Reset deep search on new input
-                                }}
+                                onChange={(e) => handleFilterChange('searchTerm', e.target.value)}
                                 className="pl-10"
                             />
+                             {isSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin" />}
                         </div>
-                        <Select value={filters.dependencia} onValueChange={value => handleFilterChange('dependencia', value)}>
+                        <Select value={filters.dependencia} onValueChange={value => handleFilterChange('dependencia', value)} disabled={!!debouncedSearchTerm}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Filtrar por Dependencia" />
                             </SelectTrigger>
@@ -200,7 +206,7 @@ export default function PagosPage() {
                                 {uniqueDependencias.map(dep => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
                             </SelectContent>
                         </Select>
-                         <Select value={filters.centroCosto} onValueChange={value => handleFilterChange('centroCosto', value)}>
+                         <Select value={filters.centroCosto} onValueChange={value => handleFilterChange('centroCosto', value)} disabled={!!debouncedSearchTerm}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Filtrar por Centro de Costo" />
                             </SelectTrigger>
@@ -219,9 +225,9 @@ export default function PagosPage() {
                     ) : (
                     <>
                         <div className='mb-2 text-sm text-muted-foreground'>
-                            {searchResults !== null 
-                                ? `Mostrando ${searchResults.length} resultados de la búsqueda profunda.`
-                                : `Mostrando ${filteredBySearch.length} de ${pensioners.length} pensionados cargados.`
+                            {debouncedSearchTerm.length >= 3 
+                                ? `Mostrando ${pensioners.length} resultados para "${debouncedSearchTerm}".`
+                                : `Mostrando ${pensioners.length} de los últimos pensionados cargados.`
                             }
                         </div>
                         <Table>
@@ -235,7 +241,7 @@ export default function PagosPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {displayData.map(pensioner => (
+                                {pensioners.map(pensioner => (
                                     <TableRow key={pensioner.id}>
                                         <TableCell className="font-medium">{parseEmployeeName(pensioner.empleado)}</TableCell>
                                         <TableCell>{pensioner.documento}</TableCell>
@@ -248,35 +254,23 @@ export default function PagosPage() {
                                         </TableCell>
                                     </TableRow>
                                 ))}
-                                {displayData.length === 0 && !isLoading && !isDeepSearching && (
+                                {pensioners.length === 0 && !isLoading && (
                                     <TableRow>
                                         <TableCell colSpan={5} className="text-center text-muted-foreground">
-                                             No se encontraron pensionados con los criterios aplicados.
-                                             {showDeepSearchButton && (
-                                                <Button variant="link" onClick={handleDeepSearch}>
-                                                    Buscar en toda la base de datos
-                                                </Button>
-                                             )}
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                                {isDeepSearching && (
-                                     <TableRow>
-                                        <TableCell colSpan={5} className="text-center">
-                                            <Loader2 className="mx-auto h-6 w-6 animate-spin" />
+                                             No se encontraron pensionados.
                                         </TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
                         </Table>
                          <div className="flex justify-center py-4">
-                            {hasMore && searchResults === null && !filters.searchTerm && (
-                                <Button onClick={() => fetchPensioners(false)} disabled={isLoadingMore}>
+                            {hasMore && !debouncedSearchTerm && (
+                                <Button onClick={() => fetchInitialPensioners(false)} disabled={isLoadingMore}>
                                     {isLoadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                     Cargar más
                                 </Button>
                             )}
-                            {!hasMore && pensioners.length > 0 && searchResults === null && !filters.searchTerm && (
+                            {!hasMore && pensioners.length > 0 && !debouncedSearchTerm && (
                                 <p className="text-sm text-muted-foreground">Has llegado al final de la lista.</p>
                             )}
                         </div>
