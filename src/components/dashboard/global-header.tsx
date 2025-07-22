@@ -10,6 +10,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { ChevronsUpDown, User, Search, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+
 
 function useDebounce<T>(value: T, delay: number): T {
     const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -22,6 +24,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export function GlobalHeader() {
     const { selectedPensioner, setSelectedPensioner } = usePensioner();
+    const router = useRouter();
     const [open, setOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [searchResults, setSearchResults] = useState<Pensioner[]>([]);
@@ -37,27 +40,35 @@ export function GlobalHeader() {
         setIsSearching(true);
         try {
             const isNumeric = /^\d+$/.test(searchVal);
-            let pensionersQuery;
+            
+            const searchPromises = [];
 
-            if (isNumeric) {
-                pensionersQuery = query(
+            // Query by document (starts with)
+            if(isNumeric) {
+                const docQuery = query(
                     collection(db, "pensionados"),
                     where("documento", ">=", searchVal),
                     where("documento", "<=", searchVal + '\uf8ff'),
                     limit(10)
                 );
-            } else {
-                pensionersQuery = query(
-                    collection(db, "pensionados"),
-                    where("empleado", ">=", searchVal.toUpperCase()),
-                    where("empleado", "<=", searchVal.toUpperCase() + '\uf8ff'),
-                    limit(10)
-                );
+                searchPromises.push(getDocs(docQuery));
             }
+            
+            // Query by name (case-insensitive)
+            const nameQuery = query(
+                collection(db, "pensionados"),
+                where("empleado", ">=", searchVal.toUpperCase()),
+                where("empleado", "<=", searchVal.toUpperCase() + '\uf8ff'),
+                limit(10)
+            );
+            searchPromises.push(getDocs(nameQuery));
 
-            const querySnapshot = await getDocs(pensionersQuery);
-            const pensionersData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
-            setSearchResults(pensionersData);
+            const snapshots = await Promise.all(searchPromises);
+            const pensionersData = snapshots.flatMap(snapshot => snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner)));
+
+            // Remove duplicates
+            const uniquePensioners = Array.from(new Map(pensionersData.map(p => [p.id, p])).values());
+            setSearchResults(uniquePensioners);
 
         } catch (error) {
             console.error("Error searching pensioners:", error);
@@ -75,6 +86,7 @@ export function GlobalHeader() {
         setSelectedPensioner(pensioner);
         setOpen(false);
         setSearchTerm('');
+        router.push('/dashboard/pensionado');
     };
 
     return (
@@ -88,10 +100,10 @@ export function GlobalHeader() {
                             aria-expanded={open}
                             className="w-[300px] justify-between"
                         >
-                            <User className="mr-2 h-4 w-4" />
+                            <Search className="mr-2 h-4 w-4" />
                             {selectedPensioner
                                 ? parseEmployeeName(selectedPensioner.empleado)
-                                : "Seleccionar pensionado..."}
+                                : "Buscar pensionado..."}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                     </PopoverTrigger>
@@ -126,7 +138,8 @@ export function GlobalHeader() {
 
                 {selectedPensioner && (
                     <div className="text-sm text-muted-foreground hidden md:block">
-                        <span className="font-semibold text-foreground">Documento:</span> {selectedPensioner.documento} | <span className="font-semibold text-foreground">Dependencia:</span> {selectedPensioner.dependencia1}
+                        <User className="inline-block mr-2 h-4 w-4" />
+                        <span className="font-semibold text-foreground">Pensionado Activo:</span> {parseEmployeeName(selectedPensioner.empleado)}
                     </div>
                 )}
             </div>
