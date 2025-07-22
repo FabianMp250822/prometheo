@@ -197,7 +197,7 @@ export default function PensionadoPage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {payments.map(payment => {
+                                        {payments.slice(0, 2).map(payment => {
                                             const totalIngresos = payment.detalles.reduce((sum, d) => sum + (d.ingresos || 0), 0);
                                             const totalEgresos = payment.detalles.reduce((sum, d) => sum + (d.egresos || 0), 0);
                                             return (
