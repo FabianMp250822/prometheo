@@ -27,23 +27,24 @@ export default function SentenciasPage() {
     const [uniqueYears, setUniqueYears] = useState<string[]>([]);
 
     useEffect(() => {
-        const unsubscribe = getProcesosCancelados(
-            (data, metadata) => {
+        const fetchData = async () => {
+            setIsLoading(true);
+            try {
+                const { data, metadata } = await getProcesosCancelados();
                 setProcesos(data);
                 if (metadata) {
                     setUniqueDepartments(metadata.departments);
                     setUniqueYears(metadata.years);
                 }
-                setIsLoading(false);
-            },
-            (error) => {
-                console.error("Error fetching data with listener:", error);
+            } catch (error) {
+                console.error("Error fetching data:", error);
                 toast({ variant: 'destructive', title: "Error", description: "No se pudieron cargar los datos." });
+            } finally {
                 setIsLoading(false);
             }
-        );
+        };
 
-        return () => unsubscribe();
+        fetchData();
     }, [toast]);
 
      const filteredProcesos = useMemo(() => {
