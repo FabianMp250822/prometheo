@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey } from 'lucide-react';
+import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar } from 'lucide-react';
 import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parseDepartmentName, parsePaymentDetailName, parsePeriodoPago, formatFirebaseTimestamp } from '@/lib/helpers';
 import { Payment, Parris1, LegalProcess } from '@/lib/data';
 import { db } from '@/lib/firebase';
