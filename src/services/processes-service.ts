@@ -144,7 +144,7 @@ async function fetchExternalData(url: string): Promise<any[]> {
 
 export async function getAndSyncExternalData(
     progressCallback: (message: string) => void
-): Promise<{ success: boolean, data?: any, error?: string }> {
+): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
         progressCallback('Obteniendo lista de procesos...');
         const procesos = await fetchExternalData('https://appdajusticia.com/procesos.php?all=true');
@@ -179,7 +179,7 @@ export async function getAndSyncExternalData(
 
 export async function saveSyncedDataToFirebase(data: any, progressCallback: (progress: { current: number, total: number }) => void): Promise<void> {
     const { procesos, demandantes, anotaciones, anexos } = data;
-    const BATCH_SIZE = 100;
+    const BATCH_SIZE = 400; // Firestore batch writes are limited to 500 operations.
     const totalBatches = Math.ceil(procesos.length / BATCH_SIZE);
 
     for (let i = 0; i < procesos.length; i += BATCH_SIZE) {
@@ -187,6 +187,7 @@ export async function saveSyncedDataToFirebase(data: any, progressCallback: (pro
         const chunk = procesos.slice(i, i + BATCH_SIZE);
 
         for (const proceso of chunk) {
+            if (!proceso.num_registro) continue; // Skip if no ID
             const procesoDocRef = doc(db, PROCESOS_COLLECTION, proceso.num_registro);
             batch.set(procesoDocRef, Object.fromEntries(Object.entries(proceso).filter(([_, v]) => v != null)));
 
@@ -201,7 +202,7 @@ export async function saveSyncedDataToFirebase(data: any, progressCallback: (pro
                 if (items && Array.isArray(items) && items.length > 0) {
                     const subCollectionRef = collection(procesoDocRef, key);
                     items.forEach(item => {
-                        const itemId = item.identidad_demandante || item.auto;
+                        const itemId = item.identidad_demandante || item.auto || item.id_anexo;
                         if (itemId) {
                             const itemDocRef = doc(subCollectionRef, itemId.toString());
                             batch.set(itemDocRef, Object.fromEntries(Object.entries(item).filter(([_, v]) => v != null)));
@@ -211,7 +212,7 @@ export async function saveSyncedDataToFirebase(data: any, progressCallback: (pro
             }
         }
         await batch.commit();
-        progressCallback({ current: (i / BATCH_SIZE) + 1, total: totalBatches });
+        progressCallback({ current: Math.floor(i / BATCH_SIZE) + 1, total: totalBatches });
         await new Promise(resolve => setTimeout(resolve, 50)); // Avoid overwhelming Firestore
     }
 }

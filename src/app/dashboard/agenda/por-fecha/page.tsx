@@ -57,9 +57,22 @@ export default function PorFechaPage() {
         setTasks([]);
 
         try {
-            // Step 1: Fetch all annotations and general tasks.
-            const anotacionesQuery = query(collectionGroup(db, 'anotaciones'));
-            const tareasQuery = query(collection(db, 'tareas'));
+            const startDateStr = format(dateRange.from, 'yyyy-MM-dd');
+            const endDateStr = format(dateRange.to, 'yyyy-MM-dd');
+
+            // Step 1: Fetch annotations within the date range from the server.
+            const anotacionesQuery = query(
+                collectionGroup(db, 'anotaciones'),
+                where('fecha_limite_ordenable', '>=', startDateStr),
+                where('fecha_limite_ordenable', '<=', endDateStr)
+            );
+            
+            // Step 2: Fetch general tasks within the date range from the server.
+            const tareasQuery = query(
+                collection(db, 'tareas'),
+                where('fecha_limite_ordenable', '>=', startDateStr),
+                where('fecha_limite_ordenable', '<=', endDateStr)
+            );
             
             const [anotacionesSnapshot, tareasSnapshot] = await Promise.all([
                 getDocs(anotacionesQuery),
@@ -83,17 +96,7 @@ export default function PorFechaPage() {
                 type: 'GENERAL'
             } as Tarea & { type: 'GENERAL' }));
 
-            const allTasksRaw = [...allAnotaciones, ...allTareas];
-
-            // Step 2: Filter all tasks by date range on the client side.
-            const filteredTasks = allTasksRaw.filter(task => {
-                const dateStringToParse = task.fecha_limite_ordenable || convertirAFormatoOrdenable(task.fecha_limite);
-                if (!dateStringToParse || dateStringToParse === '9999-12-31') {
-                    return false;
-                }
-                const taskDate = parse(dateStringToParse, 'yyyy-MM-dd', new Date());
-                return !isNaN(taskDate.getTime()) && isWithinInterval(taskDate, { start: dateRange.from, end: dateRange.to });
-            });
+            const filteredTasks = [...allAnotaciones, ...allTareas];
 
             if (filteredTasks.length === 0) {
                  setTasks([]);
@@ -131,11 +134,11 @@ export default function PorFechaPage() {
             
             // Step 5: Sort tasks
             tasksWithProcesos.sort((a, b) => {
-                const dateA = parse(a.fecha_limite!, 'dd-MM-yyyy', new Date());
-                const dateB = parse(b.fecha_limite!, 'dd-MM-yyyy', new Date());
-    
-                if (dateA.getTime() !== dateB.getTime()) {
-                    return dateA.getTime() - dateB.getTime();
+                const dateAValue = a.fecha_limite_ordenable || convertirAFormatoOrdenable(a.fecha_limite);
+                const dateBValue = b.fecha_limite_ordenable || convertirAFormatoOrdenable(b.fecha_limite);
+
+                if (dateAValue !== dateBValue) {
+                    return dateAValue.localeCompare(dateBValue);
                 }
     
                 const timeA = a.hora_limite?.replace(/\s*(am|pm)/i, '') || '00:00';

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { collection, getDocs, query, orderBy, limit, startAfter, where, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit, startAfter, where, QueryDocumentSnapshot, DocumentData, or } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -50,22 +50,53 @@ export default function PagosPage() {
 
     const [isSearching, setIsSearching] = useState(false);
     const debouncedSearchTerm = useDebounce(filters.searchTerm, 300);
+    
+    // This effect is to reset pagination and list when filters change
+    useEffect(() => {
+      setPensioners([]);
+      setLastDoc(null);
+      setHasMore(true);
+      if(!debouncedSearchTerm) {
+        fetchInitialPensioners(true);
+      }
+    }, [filters.dependencia, filters.centroCosto]);
 
-    const buildQuery = useCallback((cursor?: QueryDocumentSnapshot<DocumentData>) => {
-        let q = query(collection(db, "pensionados"), orderBy("documento"));
+    const buildQuery = useCallback((isSearch = false, cursor?: QueryDocumentSnapshot<DocumentData>) => {
+        let q;
+        const collectionRef = collection(db, "pensionados");
 
-        if (filters.dependencia !== 'all') {
-            q = query(q, where("dependencia1", "==", filters.dependencia));
-        }
-        if (filters.centroCosto !== 'all') {
-            q = query(q, where("centroCosto", "==", filters.centroCosto));
-        }
-        if (cursor) {
-            q = query(q, startAfter(cursor));
+        if (isSearch) {
+            const searchTermUpper = debouncedSearchTerm.toUpperCase();
+            // Firestore does not support case-insensitive search natively.
+            // A common workaround is to search for a range starting with the term.
+            q = query(collectionRef, 
+                or(
+                    where("empleado", ">=", searchTermUpper),
+                    where("empleado", "<=", searchTermUpper + '\uf8ff'),
+                    where("documento", "==", debouncedSearchTerm)
+                ),
+                orderBy("empleado"), 
+                limit(ITEMS_PER_PAGE)
+            );
+        } else {
+            q = query(collectionRef, orderBy("documento"));
+
+            if (filters.dependencia !== 'all') {
+                q = query(q, where("dependencia1", "==", filters.dependencia));
+            }
+            if (filters.centroCosto !== 'all') {
+                q = query(q, where("centroCosto", "==", filters.centroCosto));
+            }
+            if (cursor) {
+                q = query(q, startAfter(cursor));
+            }
+            
+            q = query(q, limit(ITEMS_PER_PAGE));
         }
         
-        return query(q, limit(ITEMS_PER_PAGE));
-    }, [filters.dependencia, filters.centroCosto]);
+        return q;
+
+    }, [filters.dependencia, filters.centroCosto, debouncedSearchTerm]);
 
 
     const fetchInitialPensioners = useCallback(async (isInitial = true) => {
@@ -77,7 +108,7 @@ export default function PagosPage() {
         }
 
         try {
-            const q = buildQuery(isInitial ? undefined : lastDoc);
+            const q = buildQuery(false, isInitial ? undefined : lastDoc);
             const querySnapshot = await getDocs(q);
 
             const newPensioners = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
@@ -86,11 +117,7 @@ export default function PagosPage() {
             setLastDoc(lastVisible || null);
             setHasMore(querySnapshot.docs.length === ITEMS_PER_PAGE);
 
-            if (isInitial) {
-                setPensioners(newPensioners);
-            } else {
-                setPensioners(prev => [...prev, ...newPensioners]);
-            }
+            setPensioners(prev => isInitial ? newPensioners : [...prev, ...newPensioners]);
             
         } catch (error) {
             console.error("Error fetching pensioners:", error);
@@ -99,10 +126,13 @@ export default function PagosPage() {
             setIsLoadingMore(false);
         }
     }, [buildQuery, lastDoc]);
-
+    
+    // Effect to fetch initial data for filters dropdowns
     useEffect(() => {
         const fetchFilterValues = async () => {
              try {
+                // These reads are acceptable as they are metadata for UI and unlikely to change frequently.
+                // Could be moved to a separate "metadata" collection for further optimization if they grow large.
                 const depSnapshot = await getDocs(query(collection(db, "pensionados")));
                 const deps = new Set<string>();
                 const centros = new Set<string>();
@@ -121,43 +151,42 @@ export default function PagosPage() {
             }
         };
         fetchFilterValues();
-        if (!debouncedSearchTerm) {
-            fetchInitialPensioners(true);
-        }
-    }, [filters.dependencia, filters.centroCosto]);
+        fetchInitialPensioners(true);
+    }, []);
 
+    // Effect for handling search
     useEffect(() => {
-        const deepSearch = async () => {
+        const search = async () => {
             if (debouncedSearchTerm.length < 3) {
-                setPensioners([]);
-                if (!isLoading) fetchInitialPensioners(true);
+                if(pensioners.length === 0 && !isLoading) fetchInitialPensioners(true); // reload initial if search is cleared
                 return;
             }
             setIsSearching(true);
             setIsLoading(true);
 
             try {
-                const searchTermLower = debouncedSearchTerm.toLowerCase();
-                const allPensionersQuery = query(collection(db, 'pensionados'));
-                const querySnapshot = await getDocs(allPensionersQuery);
-                const allDocs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
+                const q = buildQuery(true);
+                const querySnapshot = await getDocs(q);
                 
-                const results = allDocs.filter(pensioner => 
-                    (pensioner.empleado || '').toLowerCase().includes(searchTermLower) ||
-                    (pensioner.documento || '').toLowerCase().includes(searchTermLower)
-                );
+                const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
                 
                 setPensioners(results);
                 setHasMore(false); // No pagination for search results
 
             } catch (error) {
-                console.error("Error during deep search:", error);
+                console.error("Error during search:", error);
             } finally {
                 setIsSearching(false);
                 setIsLoading(false);
             }
         };
-        deepSearch();
+
+        if (debouncedSearchTerm) {
+          search();
+        } else {
+          setPensioners([]); // Clear search results
+          fetchInitialPensioners(true); // Fetch initial paginated data
+        }
     }, [debouncedSearchTerm]);
 
 
@@ -227,7 +256,7 @@ export default function PagosPage() {
                         <div className='mb-2 text-sm text-muted-foreground'>
                             {debouncedSearchTerm.length >= 3 
                                 ? `Mostrando ${pensioners.length} resultados para "${debouncedSearchTerm}".`
-                                : `Mostrando ${pensioners.length} de los últimos pensionados cargados.`
+                                : `Mostrando registros paginados.`
                             }
                         </div>
                         <Table>
