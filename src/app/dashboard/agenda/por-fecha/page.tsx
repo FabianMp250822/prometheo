@@ -282,7 +282,7 @@ export default function PorFechaPage() {
                           <TableRow>
                               <TableHead>Fecha / Hora</TableHead>
                               <TableHead>Día</TableHead>
-                              <TableHead>Detalle / Ubicación</TableHead>
+                              <TableHead>Ubicación</TableHead>
                               <TableHead>Tipo</TableHead>
                               <TableHead>Demandante / Demandado</TableHead>
                               <TableHead>Despacho / Radicado</TableHead>
@@ -297,12 +297,13 @@ export default function PorFechaPage() {
                                   </TableCell>
                                   <TableCell>{getDayOfWeek(task.fecha_limite!)}</TableCell>
                                   <TableCell className="max-w-xs">
-                                     <p className="truncate">{task.detalle}</p>
-                                     {(task as Tarea).ubicacion && (
+                                     {(task as Tarea).ubicacion ? (
                                         <a href={(task as Tarea).ubicacion} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1">
                                             <LinkIcon className="h-3 w-3" />
-                                            Enlace de la reunión
+                                            {(task as Tarea).ubicacion}
                                         </a>
+                                     ) : (
+                                        <span className="text-xs text-muted-foreground">N/A</span>
                                      )}
                                   </TableCell>
                                   <TableCell>
