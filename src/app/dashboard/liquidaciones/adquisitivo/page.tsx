@@ -62,18 +62,22 @@ export default function AdquisitivoPage() {
         const years = Array.from({ length: currentYear - 1998 + 1 }, (_, i) => 1998 + i);
 
         return years.map(year => {
-            // Find the very first payment record for the given year.
-            const firstPaymentOfYear = payments.find(p => {
+            let paidByCompany = 0;
+
+            // Find all payments for the given year.
+            const paymentsInYear = payments.filter(p => {
                 const paymentStartDate = parsePeriodoPago(p.periodoPago)?.startDate;
                 return paymentStartDate?.getFullYear() === year;
             });
 
-            let paidByCompany = 0;
-            if (firstPaymentOfYear) {
-                // Find the specific "Mesada Pensional" detail in that payment.
-                const mesadaDetail = firstPaymentOfYear.detalles.find(d => d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD');
+            // Iterate through the year's payments to find the first valid mesada.
+            for (const payment of paymentsInYear) {
+                const mesadaDetail = payment.detalles.find(d => 
+                    (d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD') && d.ingresos > 0
+                );
                 if (mesadaDetail) {
                     paidByCompany = mesadaDetail.ingresos;
+                    break; // Stop once we've found the first valid one.
                 }
             }
 
