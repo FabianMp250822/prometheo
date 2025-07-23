@@ -172,10 +172,15 @@ export default function AdquisitivoPage() {
         }
 
         // Step 3: Calculate derived values
-        return initialData.map(data => ({
-            ...data,
-            unidadPensional: data.paidByCompany + data.pensionDeVejez,
-        }));
+        return initialData.map(data => {
+            const unidadPensional = data.paidByCompany + data.pensionDeVejez;
+            const numSmlmv = data.smlmv > 0 ? unidadPensional / data.smlmv : 0;
+            return {
+                ...data,
+                unidadPensional: unidadPensional,
+                numSmlmv: parseFloat(numSmlmv.toFixed(2))
+            }
+        });
 
     }, [payments, historicalPayments, causanteRecords]);
 
@@ -237,7 +242,7 @@ export default function AdquisitivoPage() {
                                     </TableBody>
                                 </Table>
                             </div>
-                            <div className="text-xs text-muted-foreground pt-4">
+                             <div className="text-xs text-muted-foreground pt-4">
                                 * Valores proyectados calculados con base en el IPC del año anterior.
                             </div>
                         </>
