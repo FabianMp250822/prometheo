@@ -164,8 +164,12 @@ export default function AdquisitivoPage() {
                 }
             }
         }
-        
-        return initialData;
+
+        // Step 3: Calculate derived values
+        return initialData.map(data => ({
+            ...data,
+            unidadPensional: data.paidByCompany + data.pensionDeVejez,
+        }));
 
     }, [payments, historicalPayments, causanteRecords]);
 
@@ -197,38 +201,40 @@ export default function AdquisitivoPage() {
                             <p className="text-muted-foreground">Por favor, use el buscador global para seleccionar un pensionado y ver sus datos.</p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>Año</TableHead>
-                                        <TableHead>SMLMV</TableHead>
-                                        <TableHead>Pagado por la empresa</TableHead>
-                                        <TableHead>Pensión de Vejez</TableHead>
-                                        <TableHead>Unidad Pensional</TableHead>
-                                        <TableHead>#SMLMV</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {tableData.map((row) => (
-                                        <TableRow key={row.year}>
-                                            <TableCell className="font-medium">{row.year}</TableCell>
-                                            <TableCell>{formatCurrency(row.smlmv)}</TableCell>
-                                            <TableCell>{formatCurrency(row.paidByCompany)}</TableCell>
-                                            <TableCell>
-                                                {formatCurrency(row.pensionDeVejez)}
-                                                {row.isProjected && <span className="text-destructive">*</span>}
-                                            </TableCell>
-                                            <TableCell>{formatCurrency(row.unidadPensional)}</TableCell>
-                                            <TableCell>{row.numSmlmv}</TableCell>
+                        <>
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Año</TableHead>
+                                            <TableHead>SMLMV</TableHead>
+                                            <TableHead>Pagado por la empresa</TableHead>
+                                            <TableHead>Pensión de Vejez</TableHead>
+                                            <TableHead>Unidad Pensional</TableHead>
+                                            <TableHead>#SMLMV</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                             <div className="text-xs text-muted-foreground p-4">
+                                    </TableHeader>
+                                    <TableBody>
+                                        {tableData.map((row) => (
+                                            <TableRow key={row.year}>
+                                                <TableCell className="font-medium">{row.year}</TableCell>
+                                                <TableCell>{formatCurrency(row.smlmv)}</TableCell>
+                                                <TableCell>{formatCurrency(row.paidByCompany)}</TableCell>
+                                                <TableCell>
+                                                    {formatCurrency(row.pensionDeVejez)}
+                                                    {row.isProjected && <span className="text-destructive">*</span>}
+                                                </TableCell>
+                                                <TableCell>{formatCurrency(row.unidadPensional)}</TableCell>
+                                                <TableCell>{row.numSmlmv}</TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                            <div className="text-xs text-muted-foreground p-4">
                                 * Valores proyectados calculados con base en el IPC del año anterior.
-                             </div>
-                        </div>
+                            </div>
+                        </>
                     )}
                 </CardContent>
             </Card>
