@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { collectionGroup, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collectionGroup, query, getDocs, doc, getDoc, collection } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -53,14 +53,23 @@ export default function PorFechaPage() {
         setTasks([]);
 
         try {
-            // Step 1: Fetch all annotations.
+            // Step 1: Fetch all annotations using a collection group query.
             const anotacionesQuery = query(collectionGroup(db, 'anotaciones'));
             const querySnapshot = await getDocs(anotacionesQuery);
-            const allAnotaciones = querySnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Anotacion));
+
+            const allAnotaciones = querySnapshot.docs.map(d => {
+                const data = d.data();
+                const parentPath = d.ref.parent.parent?.path; // processos/{id}
+                const parentId = parentPath ? parentPath.split('/').pop() : null;
+                return { 
+                    ...data,
+                    id: d.id,
+                    num_registro: parentId, // Ensure num_registro is the parent ID
+                } as Anotacion;
+            });
             
             // Step 2: Filter annotations by date range on the client side.
             const filteredAnotaciones = allAnotaciones.filter(anotacion => {
-                // Use `fecha_limite_ordenable` if it exists, otherwise fallback to `fecha_limite`.
                 const dateStringToParse = anotacion.fecha_limite_ordenable || convertirAFormatoOrdenable(anotacion.fecha_limite);
                 if (!dateStringToParse || dateStringToParse === '9999-12-31') {
                     return false;
@@ -75,33 +84,28 @@ export default function PorFechaPage() {
                  return;
             }
 
-            // Step 3: Fetch parent process for each filtered annotation.
-            const tasksWithProcesos: PendingTask[] = await Promise.all(
-                filteredAnotaciones.map(async (anotacion) => {
-                    if (anotacion.num_registro) {
-                        try {
-                            const procesoDocRef = doc(db, 'procesos', anotacion.num_registro);
-                            const procesoDoc = await getDoc(procesoDocRef);
-                            if (procesoDoc.exists()) {
-                                return {
-                                    ...anotacion,
-                                    fecha_limite: transformarFecha(anotacion.fecha_limite),
-                                    proceso: procesoDoc.data()
-                                };
-                            }
-                        } catch (e) {
-                             console.error(`Failed to fetch proceso ${anotacion.num_registro}`, e);
-                        }
-                    }
-                    // Return annotation even if parent process fetch fails
-                    return {
-                        ...anotacion,
-                        fecha_limite: transformarFecha(anotacion.fecha_limite),
-                    };
-                })
-            );
+            // Step 3: Fetch all unique parent processes efficiently.
+            const uniqueProcesoIds = [...new Set(filteredAnotaciones.map(a => a.num_registro).filter(Boolean))];
+            const procesosData: { [key: string]: any } = {};
 
-            // Step 4: Sort tasks
+            if (uniqueProcesoIds.length > 0) {
+                const procesosPromises = uniqueProcesoIds.map(id => getDoc(doc(db, 'procesos', id!)));
+                const procesosSnapshots = await Promise.all(procesosPromises);
+                procesosSnapshots.forEach(pSnap => {
+                    if (pSnap.exists()) {
+                        procesosData[pSnap.id] = pSnap.data();
+                    }
+                });
+            }
+
+            // Step 4: Combine annotations with their parent process data.
+            const tasksWithProcesos = filteredAnotaciones.map(anotacion => ({
+                ...anotacion,
+                fecha_limite: transformarFecha(anotacion.fecha_limite),
+                proceso: anotacion.num_registro ? procesosData[anotacion.num_registro] : undefined,
+            }));
+            
+            // Step 5: Sort tasks
             tasksWithProcesos.sort((a, b) => {
                 const dateA = parse(a.fecha_limite!, 'dd-MM-yyyy', new Date());
                 const dateB = parse(b.fecha_limite!, 'dd-MM-yyyy', new Date());
