@@ -108,6 +108,7 @@ export interface Anotacion {
     clase: string;
     nombre_documento: string | null;
     archivo_url: string | null;
+    resumen?: string;
 }
 
 // Type for general tasks
@@ -120,6 +121,7 @@ export interface Tarea {
     ubicacion?: string; // URL for Meet, Zoom, etc.
     creadoEn: Timestamp;
     type: 'GENERAL'; // To distinguish from process annotations
+    resumen?: string;
 }
 
 

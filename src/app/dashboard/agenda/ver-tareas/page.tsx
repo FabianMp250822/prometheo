@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { CalendarSearch, Loader2, Search, Printer, AlertTriangle, CalendarOff, Link as LinkIcon, Users } from 'lucide-react';
+import { CalendarSearch, Loader2, Search, Printer, AlertTriangle, CalendarOff, Users } from 'lucide-react';
 import type { Anotacion, Tarea } from '@/lib/data';
 import { format, addDays, parse, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -20,6 +20,8 @@ import { Badge } from '@/components/ui/badge';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { useToast } from '@/hooks/use-toast';
+import { summarizeText } from '@/ai/flows/summarize-text';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 // Extend the jsPDF type to include the autoTable method
 declare module 'jspdf' {
@@ -31,6 +33,7 @@ declare module 'jspdf' {
 type CombinedTask = (Anotacion | Tarea) & {
   proceso?: any;
   type: 'PROCESO' | 'GENERAL';
+  resumen?: string;
 };
 
 export default function VerTareasPage() {
@@ -116,7 +119,7 @@ export default function VerTareasPage() {
         }));
       }
 
-      const tasksWithProcesos = filteredByDate.map(task => ({
+      const tasksWithData = filteredByDate.map(task => ({
         ...task,
         fecha_limite: transformarFecha(task.fecha_limite!),
         proceso: task.type === 'PROCESO' ? procesosData[(task as Anotacion).num_registro] : undefined,
@@ -126,7 +129,21 @@ export default function VerTareasPage() {
         return dateA.localeCompare(dateB);
       });
       
-      setTasks(tasksWithProcesos);
+      const tasksWithSummaries = await Promise.all(tasksWithData.map(async (task) => {
+        if (task.detalle && task.detalle.length > 150) {
+          try {
+            const result = await summarizeText({ text: task.detalle });
+            return { ...task, resumen: result.summary };
+          } catch (e) {
+            console.error("Error summarizing text for task:", task.id, e);
+            // Return truncated text as a fallback
+            return { ...task, resumen: task.detalle.substring(0, 147) + '...' };
+          }
+        }
+        return { ...task, resumen: task.detalle };
+      }));
+
+      setTasks(tasksWithSummaries);
       
     } catch (err: any) {
       console.error("Error fetching tasks:", err);
@@ -165,7 +182,7 @@ export default function VerTareasPage() {
     const dateStr = `Rango: ${format(dateRange.from!, "d 'de' LLLL, yyyy", { locale: es })} - ${format(dateRange.to!, "d 'de' LLLL, yyyy", { locale: es })}`;
     doc.text(dateStr, 14, 30);
 
-    const tableColumn = ["Fecha", "Hora", "Detalle", "Tipo", "Demandante", "Demandado", "Radicado"];
+    const tableColumn = ["Fecha", "Hora", "Tipo", "Demandante", "Demandado", "Radicado", "Resumen"];
     const tableRows: any[][] = [];
 
     filteredTasksBySearchTerm.forEach(task => {
@@ -176,11 +193,11 @@ export default function VerTareasPage() {
         const taskData = [
             formattedDate,
             task.hora_limite || 'N/A',
-            task.detalle || 'N/A',
             task.type === 'PROCESO' ? 'Proceso' : 'General',
             task.proceso?.nombres_demandante || 'N/A',
             task.proceso?.nombres_demandado || 'N/A',
-            task.proceso?.num_radicado_ult || task.proceso?.num_radicado_ini || 'N/A'
+            task.proceso?.num_radicado_ult || task.proceso?.num_radicado_ini || 'N/A',
+            task.resumen || task.detalle || 'N/A'
         ];
         tableRows.push(taskData);
     });
@@ -191,130 +208,150 @@ export default function VerTareasPage() {
       startY: 35,
       theme: 'grid',
       headStyles: { fillColor: [22, 163, 74] },
+      styles: {
+        cellPadding: 2,
+        fontSize: 8,
+      },
+      columnStyles: {
+        6: { cellWidth: 80 } // Wider column for summary
+      }
     });
 
     doc.save(`reporte_agenda_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   };
 
   return (
-    <div className="p-4 md:p-8 space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl font-headline flex items-center gap-2">
-            <CalendarSearch className="h-6 w-6" />
-            Ver y Exportar Tareas
-          </CardTitle>
-          <CardDescription>Seleccione un rango de fechas para visualizar tareas y exportarlas a PDF.</CardDescription>
-        </CardHeader>
-        <CardContent className='flex flex-col md:flex-row gap-4 items-center'>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-full md:w-[280px] justify-start text-left font-normal", !dateRange.from && "text-muted-foreground")}>
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {dateRange.from ? format(dateRange.from, "d 'de' LLLL, yyyy", { locale: es }) : <span>Seleccione fecha de inicio</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={dateRange.from} onSelect={(date) => setDateRange(prev => ({ ...prev, from: date }))} initialFocus /></PopoverContent>
-          </Popover>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-full md:w-[280px] justify-start text-left font-normal", !dateRange.to && "text-muted-foreground")}>
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {dateRange.to ? format(dateRange.to, "d 'de' LLLL, yyyy", { locale: es }) : <span>Seleccione fecha de fin</span>}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={dateRange.to} onSelect={(date) => setDateRange(prev => ({ ...prev, to: date }))} initialFocus /></PopoverContent>
-          </Popover>
-          <Button onClick={fetchTasksByDateRange} disabled={isLoading}>
-            {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-            Buscar
-          </Button>
-        </CardContent>
-      </Card>
+    <TooltipProvider>
+      <div className="p-4 md:p-8 space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl font-headline flex items-center gap-2">
+              <CalendarSearch className="h-6 w-6" />
+              Ver y Exportar Tareas
+            </CardTitle>
+            <CardDescription>Seleccione un rango de fechas para visualizar tareas y exportarlas a PDF.</CardDescription>
+          </CardHeader>
+          <CardContent className='flex flex-col md:flex-row gap-4 items-center'>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-full md:w-[280px] justify-start text-left font-normal", !dateRange.from && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateRange.from ? format(dateRange.from, "d 'de' LLLL, yyyy", { locale: es }) : <span>Seleccione fecha de inicio</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={dateRange.from} onSelect={(date) => setDateRange(prev => ({ ...prev, from: date }))} initialFocus /></PopoverContent>
+            </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-full md:w-[280px] justify-start text-left font-normal", !dateRange.to && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateRange.to ? format(dateRange.to, "d 'de' LLLL, yyyy", { locale: es }) : <span>Seleccione fecha de fin</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={dateRange.to} onSelect={(date) => setDateRange(prev => ({ ...prev, to: date }))} initialFocus /></PopoverContent>
+            </Popover>
+            <Button onClick={fetchTasksByDateRange} disabled={isLoading}>
+              {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+              Buscar
+            </Button>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <CardTitle>Resultados de la Agenda</CardTitle>
-              <CardDescription>{filteredTasksBySearchTerm.length} tareas encontradas en el rango seleccionado.</CardDescription>
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <CardTitle>Resultados de la Agenda</CardTitle>
+                <CardDescription>{filteredTasksBySearchTerm.length} tareas encontradas en el rango seleccionado.</CardDescription>
+              </div>
+              <div className='flex items-center gap-2'>
+                <Input
+                  placeholder="Filtrar resultados..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 w-full md:w-auto"
+                  disabled={tasks.length === 0 && !isLoading}
+                />
+                 <Button onClick={handlePrint} disabled={isLoading || filteredTasksBySearchTerm.length === 0}>
+                  <Printer className="mr-2 h-4 w-4" />
+                  Exportar a PDF
+                </Button>
+              </div>
             </div>
-            <div className='flex items-center gap-2'>
-              <Input
-                placeholder="Filtrar resultados..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 w-full md:w-auto"
-                disabled={tasks.length === 0 && !isLoading}
-              />
-               <Button onClick={handlePrint} disabled={isLoading || filteredTasksBySearchTerm.length === 0}>
-                <Printer className="mr-2 h-4 w-4" />
-                Exportar a PDF
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex justify-center items-center p-10"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>
-          ) : error ? (
-            <div className="flex flex-col items-center justify-center p-10 text-center text-destructive">
-              <AlertTriangle className="h-12 w-12 mb-4" />
-              <h3 className="text-lg font-semibold">Error de Carga</h3>
-              <p className="text-sm">{error}</p>
-            </div>
-          ) : filteredTasksBySearchTerm.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Fecha</TableHead>
-                  <TableHead>Hora</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Demandante/Demandado</TableHead>
-                  <TableHead>Radicado</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredTasksBySearchTerm.map(task => {
-                    const dateString = task.fecha_limite_ordenable || convertirAFormatoOrdenable(task.fecha_limite);
-                    const formattedDate = dateString !== '9999-12-31' 
-                        ? format(parse(dateString, 'yyyy-MM-dd', new Date()), "d 'de' LLLL, yyyy", { locale: es })
-                        : 'N/A';
-                  return (
-                    <TableRow key={task.id}>
-                        <TableCell className="font-medium">{formattedDate}</TableCell>
-                        <TableCell>{task.hora_limite || 'N/A'}</TableCell>
-                        <TableCell><Badge variant={task.type === 'PROCESO' ? 'secondary' : 'default'}>{task.type === 'PROCESO' ? 'Proceso' : 'General'}</Badge></TableCell>
-                        <TableCell>
-                        {task.proceso ? (
-                            <div>
-                            <div className="font-medium flex items-center gap-1"><Users className="h-3 w-3 text-muted-foreground"/> {task.proceso.nombres_demandante || 'N/A'}</div>
-                            <div className="text-xs text-muted-foreground flex items-center gap-1"><Users className="h-3 w-3"/> {task.proceso.nombres_demandado || 'N/A'}</div>
-                            </div>
-                        ) : 'N/A'}
-                        </TableCell>
-                        <TableCell>
-                        {task.proceso ? (
-                            <div>
-                            <div className="text-xs">{task.proceso.despacho || 'N/A'}</div>
-                            <div className="text-xs text-muted-foreground">{task.proceso.num_radicado_ult || task.proceso.num_radicado_ini || 'N/A'}</div>
-                            </div>
-                        ) : 'N/A'}
-                        </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          ) : (
-            <div className="flex flex-col items-center justify-center p-10 text-center">
-              <CalendarOff className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold">No se encontraron tareas</h3>
-              <p className="text-muted-foreground">No hay actuaciones ni tareas generales en el rango de fechas seleccionado.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex justify-center items-center p-10"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center p-10 text-center text-destructive">
+                <AlertTriangle className="h-12 w-12 mb-4" />
+                <h3 className="text-lg font-semibold">Error de Carga</h3>
+                <p className="text-sm">{error}</p>
+              </div>
+            ) : filteredTasksBySearchTerm.length > 0 ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fecha</TableHead>
+                    <TableHead>Hora</TableHead>
+                    <TableHead>Resumen</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Demandante/Demandado</TableHead>
+                    <TableHead>Radicado</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredTasksBySearchTerm.map(task => {
+                      const dateString = task.fecha_limite_ordenable || convertirAFormatoOrdenable(task.fecha_limite);
+                      const formattedDate = dateString !== '9999-12-31' 
+                          ? format(parse(dateString, 'yyyy-MM-dd', new Date()), "d 'de' LLLL, yyyy", { locale: es })
+                          : 'N/A';
+                    return (
+                      <TableRow key={task.id}>
+                          <TableCell className="font-medium">{formattedDate}</TableCell>
+                          <TableCell>{task.hora_limite || 'N/A'}</TableCell>
+                          <TableCell className="max-w-xs">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <p className="truncate cursor-help">{task.resumen}</p>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-sm">
+                                <p>{task.detalle}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TableCell>
+                          <TableCell><Badge variant={task.type === 'PROCESO' ? 'secondary' : 'default'}>{task.type === 'PROCESO' ? 'Proceso' : 'General'}</Badge></TableCell>
+                          <TableCell>
+                          {task.proceso ? (
+                              <div>
+                              <div className="font-medium flex items-center gap-1"><Users className="h-3 w-3 text-muted-foreground"/> {task.proceso.nombres_demandante || 'N/A'}</div>
+                              <div className="text-xs text-muted-foreground flex items-center gap-1"><Users className="h-3 w-3"/> {task.proceso.nombres_demandado || 'N/A'}</div>
+                              </div>
+                          ) : 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                          {task.proceso ? (
+                              <div>
+                              <div className="text-xs">{task.proceso.despacho || 'N/A'}</div>
+                              <div className="text-xs text-muted-foreground">{task.proceso.num_radicado_ult || task.proceso.num_radicado_ini || 'N/A'}</div>
+                              </div>
+                          ) : 'N/A'}
+                          </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="flex flex-col items-center justify-center p-10 text-center">
+                <CalendarOff className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold">No se encontraron tareas</h3>
+                <p className="text-muted-foreground">No hay actuaciones ni tareas generales en el rango de fechas seleccionado.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </TooltipProvider>
   );
 }
