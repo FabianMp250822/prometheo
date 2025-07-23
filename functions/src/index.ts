@@ -1,7 +1,9 @@
-import {onDocumentCreated} from "firebase-functions/v2/firestore";
-import * as logger from "firebase-functions/logger";
-import {initializeApp, getApps} from "firebase-admin/app";
-import {getFirestore, Timestamp} from "firebase-admin/firestore";
+'use server';
+
+import {onDocumentCreated} from 'firebase-functions/v2/firestore';
+import * as logger from 'firebase-functions/logger';
+import {initializeApp, getApps} from 'firebase-admin/app';
+import {getFirestore, Timestamp} from 'firebase-admin/firestore';
 
 // Initialize admin SDK if not already initialized
 if (getApps().length === 0) {
@@ -11,7 +13,7 @@ if (getApps().length === 0) {
 const db = getFirestore();
 
 // Define the prefixes for the legal concepts we're interested in.
-const SENTENCE_CONCEPT_PREFIXES = ["470-", "785-", "475-"];
+const SENTENCE_CONCEPT_PREFIXES = ['470-', '785-', '475-'];
 
 // Define a type for payment details to avoid using 'any'.
 interface PaymentDetail {
@@ -28,11 +30,11 @@ interface PaymentDetail {
  * collection.
  */
 export const onNewPaymentCreate = onDocumentCreated(
-  "pensionados/{pensionadoId}/pagos/{pagoId}",
-  async (event) => {
+  'pensionados/{pensionadoId}/pagos/{pagoId}',
+  async event => {
     const snap = event.data;
     if (!snap) {
-      logger.info("No data associated with the event. Exiting.");
+      logger.info('No data associated with the event. Exiting.');
       return;
     }
 
@@ -49,7 +51,7 @@ export const onNewPaymentCreate = onDocumentCreated(
     // Filter for details that match our sentence concepts.
     const sentenceConcepts = paymentData.detalles.filter(
       (detail: PaymentDetail) =>
-        SENTENCE_CONCEPT_PREFIXES.some((prefix) =>
+        SENTENCE_CONCEPT_PREFIXES.some(prefix =>
           detail.nombre?.startsWith(prefix)
         )
     );
@@ -64,16 +66,16 @@ export const onNewPaymentCreate = onDocumentCreated(
       `Found ${sentenceConcepts.length} concepts in pmt ${pagoId}.`
     );
 
-    const newProcessDocRef = db.collection("procesoscancelados").doc();
+    const newProcessDocRef = db.collection('procesoscancelados').doc();
 
-    const fechaLiquidacionDate = paymentData.fechaProcesado?.toDate ?
-      paymentData.fechaProcesado.toDate() :
-      new Date();
+    const fechaLiquidacionDate = paymentData.fechaProcesado?.toDate
+      ? paymentData.fechaProcesado.toDate()
+      : new Date();
 
     const newProcessData = {
       año: paymentData.año,
       conceptos: sentenceConcepts.map((c: PaymentDetail) => ({
-        codigo: c.codigo || c.nombre?.split("-")[0] || "",
+        codigo: c.codigo || c.nombre?.split('-')[0] || '',
         nombre: c.nombre,
         ingresos: c.ingresos || 0,
         egresos: c.egresos || 0,
@@ -91,10 +93,7 @@ export const onNewPaymentCreate = onDocumentCreated(
         `Created proc doc ${newProcessDocRef.id} for pmt ${pagoId}.`
       );
     } catch (error) {
-      logger.error(
-        `Error creating proc doc for pmt ${pagoId}:`,
-        error
-      );
+      logger.error(`Error creating proc doc for pmt ${pagoId}:`, error);
       // Let the function fail to indicate an error, which can trigger retries.
       throw error;
     }
