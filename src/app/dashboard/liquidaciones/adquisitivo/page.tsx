@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Percent, Loader2, UserX } from 'lucide-react';
 import { usePensioner } from '@/context/pensioner-provider';
-import { collection, getDocs, query, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, doc, getDoc, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Payment, PagosHistoricoRecord } from '@/lib/data';
-import { formatCurrency, parsePeriodoPago } from '@/lib/helpers';
+import type { Payment, PagosHistoricoRecord, CausanteRecord } from '@/lib/data';
+import { formatCurrency, parsePeriodoPago, formatFirebaseTimestamp } from '@/lib/helpers';
 
 const smlmvData: { [year: number]: number } = {
     1998: 203826, 1999: 236460, 2000: 260100, 2001: 286000, 2002: 309000, 2003: 332000, 
@@ -22,12 +22,14 @@ export default function AdquisitivoPage() {
     const { selectedPensioner } = usePensioner();
     const [payments, setPayments] = useState<Payment[]>([]);
     const [historicalPayments, setHistoricalPayments] = useState<PagosHistoricoRecord[]>([]);
+    const [causanteRecords, setCausanteRecords] = useState<CausanteRecord[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         if (!selectedPensioner) {
             setPayments([]);
             setHistoricalPayments([]);
+            setCausanteRecords([]);
             return;
         }
 
@@ -52,11 +54,24 @@ export default function AdquisitivoPage() {
                 } else {
                     setHistoricalPayments([]);
                 }
+                
+                // Fetch causante records
+                const causanteQuery = query(collection(db, 'causante'), where('cedula_causante', '==', selectedPensioner.documento));
+                const causanteSnapshot = await getDocs(causanteQuery);
+                if (!causanteSnapshot.empty) {
+                    const data = causanteSnapshot.docs[0].data();
+                    if (data && Array.isArray(data.records)) {
+                        setCausanteRecords(data.records as CausanteRecord[]);
+                    }
+                } else {
+                    setCausanteRecords([]);
+                }
 
             } catch (error) {
                 console.error("Error fetching payment data:", error);
                 setPayments([]);
                 setHistoricalPayments([]);
+                setCausanteRecords([]);
             } finally {
                 setIsLoading(false);
             }
@@ -72,13 +87,12 @@ export default function AdquisitivoPage() {
         return years.map(year => {
             let paidByCompany = 0;
 
-            // 1. Try to find payment in recent payments collection
+            // 1. Find payment in recent payments collection
             const paymentsInYear = payments.filter(p => {
                 const paymentStartDate = parsePeriodoPago(p.periodoPago)?.startDate;
                 return paymentStartDate?.getFullYear() === year;
             });
 
-            // Sort payments for the year to respect chronological order
             paymentsInYear.sort((a, b) => {
                 const dateA = parsePeriodoPago(a.periodoPago)?.startDate || new Date(9999, 0, 1);
                 const dateB = parsePeriodoPago(b.periodoPago)?.startDate || new Date(9999, 0, 1);
@@ -105,17 +119,30 @@ export default function AdquisitivoPage() {
                     }
                  }
             }
+            
+            // 3. Find "Pensión de Vejez" from causante records
+            let pensionDeVejez = 0;
+            if (causanteRecords.length > 0) {
+                const causanteRecordForYear = causanteRecords.find(rec => {
+                    const recordYear = rec.fecha_desde ? new Date(formatFirebaseTimestamp(rec.fecha_desde, 'yyyy-MM-dd')).getFullYear() + 1 : null;
+                    return recordYear === year;
+                });
+                if (causanteRecordForYear && causanteRecordForYear.valor_iss) {
+                    pensionDeVejez = causanteRecordForYear.valor_iss;
+                }
+            }
+
 
             return {
                 year: year,
                 smlmv: smlmvData[year] || 0,
                 paidByCompany,
-                pensionDeVejez: 0,
+                pensionDeVejez,
                 unidadPensional: 0,
                 numSmlmv: 0
             };
         });
-    }, [payments, historicalPayments]);
+    }, [payments, historicalPayments, causanteRecords]);
 
     return (
         <div className="p-4 md:p-8 space-y-6">
