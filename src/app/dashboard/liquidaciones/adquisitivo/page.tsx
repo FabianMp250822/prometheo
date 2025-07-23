@@ -18,6 +18,14 @@ const smlmvData: { [year: number]: number } = {
     2022: 1000000, 2023: 1160000, 2024: 1300000, 2025: 1423500
 };
 
+const ipcData: { [year: number]: number } = {
+    1998: 16.70, 1999: 9.23, 2000: 8.75, 2001: 7.65, 2002: 6.99, 2003: 6.49,
+    2004: 5.50, 2005: 4.85, 2006: 4.48, 2007: 5.69, 2008: 7.67, 2009: 2.00,
+    2010: 3.17, 2011: 3.73, 2012: 2.44, 2013: 1.94, 2014: 3.66, 2015: 6.77,
+    2016: 5.75, 2017: 4.09, 2018: 3.18, 2019: 3.80, 2020: 1.61, 2021: 5.62,
+    2022: 13.12, 2023: 9.28, 2024: 7.13, 2025: 4.82 
+};
+
 export default function AdquisitivoPage() {
     const { selectedPensioner } = usePensioner();
     const [payments, setPayments] = useState<Payment[]>([]);
@@ -84,10 +92,10 @@ export default function AdquisitivoPage() {
         const currentYear = new Date().getFullYear();
         const years = Array.from({ length: currentYear - 1998 + 1 }, (_, i) => 1998 + i);
 
-        return years.map(year => {
+        // Step 1: Initial data population from all sources
+        let initialData = years.map(year => {
             let paidByCompany = 0;
 
-            // 1. Find payment in recent payments collection
             const paymentsInYear = payments.filter(p => {
                 const paymentStartDate = parsePeriodoPago(p.periodoPago)?.startDate;
                 return paymentStartDate?.getFullYear() === year;
@@ -105,11 +113,10 @@ export default function AdquisitivoPage() {
                 );
                 if (mesadaDetail) {
                     paidByCompany = mesadaDetail.ingresos;
-                    break; 
+                    break;
                 }
             }
-
-            // 2. If not found, fallback to historical payments
+            
             if (paidByCompany === 0 && historicalPayments.length > 0) {
                  const historicalRecord = historicalPayments.find(rec => rec.ANO_RET === year);
                  if (historicalRecord && historicalRecord.VALOR_ACT) {
@@ -120,18 +127,18 @@ export default function AdquisitivoPage() {
                  }
             }
             
-            // 3. Find "Pensión de Vejez" from causante records
             let pensionDeVejez = 0;
             if (causanteRecords.length > 0) {
                 const causanteRecordForYear = causanteRecords.find(rec => {
-                    const recordYear = rec.fecha_desde ? new Date(formatFirebaseTimestamp(rec.fecha_desde, 'yyyy-MM-dd')).getFullYear() + 1 : null;
+                    if (!rec.fecha_desde) return false;
+                    const recordDate = formatFirebaseTimestamp(rec.fecha_desde, 'yyyy-MM-dd');
+                    const recordYear = new Date(recordDate).getFullYear() + 1; // +1 based on previous logic
                     return recordYear === year;
                 });
                 if (causanteRecordForYear && causanteRecordForYear.valor_iss) {
                     pensionDeVejez = causanteRecordForYear.valor_iss;
                 }
             }
-
 
             return {
                 year: year,
@@ -142,6 +149,22 @@ export default function AdquisitivoPage() {
                 numSmlmv: 0
             };
         });
+        
+        // Step 2: Post-process to fill in missing "pensionDeVejez" values using IPC
+        for (let i = 1; i < initialData.length; i++) {
+            if (initialData[i].pensionDeVejez === 0) {
+                const previousYearData = initialData[i - 1];
+                if (previousYearData.pensionDeVejez > 0) {
+                    const previousYearIpc = ipcData[previousYearData.year];
+                    if (previousYearIpc !== undefined) {
+                        initialData[i].pensionDeVejez = previousYearData.pensionDeVejez * (1 + previousYearIpc / 100);
+                    }
+                }
+            }
+        }
+        
+        return initialData;
+
     }, [payments, historicalPayments, causanteRecords]);
 
     return (
