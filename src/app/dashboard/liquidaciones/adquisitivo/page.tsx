@@ -108,18 +108,22 @@ export default function AdquisitivoPage() {
                 return dateA.getTime() - dateB.getTime();
             });
             
-            // Find the first valid "Mesada" payment in the sorted list
-            for (const payment of paymentsInYear) {
-                const mesadaDetail = payment.detalles.find(d => 
-                    (d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD') && d.ingresos > 0
-                );
-                if (mesadaDetail) {
-                    paidByCompany = mesadaDetail.ingresos;
-                    break; // Exit after finding the first one
-                }
-            }
-            
-            if (paidByCompany === 0 && historicalPayments.length > 0) {
+            if (paymentsInYear.length > 0) {
+                 const firstPaymentMonth = parsePeriodoPago(paymentsInYear[0].periodoPago)?.startDate?.getMonth();
+                 if (firstPaymentMonth !== undefined) {
+                    const paymentsInFirstMonth = paymentsInYear.filter(p => {
+                        const pDate = parsePeriodoPago(p.periodoPago)?.startDate;
+                        return pDate?.getMonth() === firstPaymentMonth;
+                    });
+                    
+                    paidByCompany = paymentsInFirstMonth.reduce((acc, p) => {
+                        const mesadaDetail = p.detalles.find(d => 
+                            (d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD') && d.ingresos > 0
+                        );
+                        return acc + (mesadaDetail?.ingresos || 0);
+                    }, 0);
+                 }
+            } else if (historicalPayments.length > 0) {
                  const historicalRecord = historicalPayments.find(rec => rec.ANO_RET === year);
                  if (historicalRecord && historicalRecord.VALOR_ACT) {
                     const valorAct = parseFloat(historicalRecord.VALOR_ACT.replace(',', '.'));
@@ -233,7 +237,7 @@ export default function AdquisitivoPage() {
                                     </TableBody>
                                 </Table>
                             </div>
-                            <div className="text-xs text-muted-foreground p-4">
+                            <div className="text-xs text-muted-foreground pt-4">
                                 * Valores proyectados calculados con base en el IPC del año anterior.
                             </div>
                         </>
