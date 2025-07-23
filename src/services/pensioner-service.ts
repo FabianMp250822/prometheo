@@ -30,19 +30,19 @@ export async function getProcesosCancelados(): Promise<{
         const pensionerIds = [...new Set(procesosData.map(p => p.pensionadoId).filter(Boolean))];
         const pensionersData: { [key: string]: Pensioner } = {};
 
-        // Firestore 'in' query is limited to 30 items
-        for (let i = 0; i < pensionerIds.length; i += 30) {
-            const chunk = pensionerIds.slice(i, i + 30);
-            if (chunk.length > 0) {
-                const pensionerQuery = query(collection(db, PENSIONADOS_COLLECTION), where('__name__', 'in', chunk));
-                const pensionerDocs = await getDocs(pensionerQuery);
-                pensionerDocs.forEach(pensionerDoc => {
-                    const pensioner = { id: pensionerDoc.id, ...pensionerDoc.data() } as Pensioner;
-                    pensionersData[pensioner.id] = pensioner;
-                });
+        // Fetch pensioner data individually to avoid complex query rule requirements
+        await Promise.all(pensionerIds.map(async (id) => {
+            try {
+                const pensionerRef = doc(db, PENSIONADOS_COLLECTION, id);
+                const pensionerDoc = await getDoc(pensionerRef);
+                if (pensionerDoc.exists()) {
+                    pensionersData[id] = { id: pensionerDoc.id, ...pensionerDoc.data() } as Pensioner;
+                }
+            } catch (e) {
+                console.warn(`Could not fetch pensioner with ID ${id}:`, e);
             }
-        }
-
+        }));
+        
         // Enrich procesos with pensioner info and sort
         const enrichedProcesos = procesosData.map(proceso => {
             const pensioner = pensionersData[proceso.pensionadoId];
