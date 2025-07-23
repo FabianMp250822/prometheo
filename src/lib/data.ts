@@ -82,7 +82,7 @@ export interface ProcesoCancelado {
     id: string;
     año: string;
     conceptos: ProcesoCanceladoConcepto[];
-    creadoEn: string; // Changed from Timestamp
+    creadoEn: string; 
     fechaLiquidacion: string;
     pagoId: string;
     pensionadoId: string;
