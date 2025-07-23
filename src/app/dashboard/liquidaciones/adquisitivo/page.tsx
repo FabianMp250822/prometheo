@@ -5,9 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Percent, Loader2, UserX } from 'lucide-react';
 import { usePensioner } from '@/context/pensioner-provider';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Payment } from '@/lib/data';
+import type { Payment, PagosHistoricoRecord } from '@/lib/data';
 import { formatCurrency, parsePeriodoPago } from '@/lib/helpers';
 
 const smlmvData: { [year: number]: number } = {
@@ -21,64 +21,89 @@ const smlmvData: { [year: number]: number } = {
 export default function AdquisitivoPage() {
     const { selectedPensioner } = usePensioner();
     const [payments, setPayments] = useState<Payment[]>([]);
+    const [historicalPayments, setHistoricalPayments] = useState<PagosHistoricoRecord[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         if (!selectedPensioner) {
             setPayments([]);
+            setHistoricalPayments([]);
             return;
         }
 
-        const fetchPayments = async () => {
+        const fetchAllPayments = async () => {
             setIsLoading(true);
             try {
+                // Fetch recent payments
                 const paymentsQuery = query(collection(db, 'pensionados', selectedPensioner.id, 'pagos'));
                 const querySnapshot = await getDocs(paymentsQuery);
                 let paymentsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
-
-                // Sort by start date to easily find the first payment of a year
-                paymentsData.sort((a, b) => {
-                    const dateA = parsePeriodoPago(a.periodoPago)?.startDate || new Date(9999, 0, 1);
-                    const dateB = parsePeriodoPago(b.periodoPago)?.startDate || new Date(9999, 0, 1);
-                    return dateA.getTime() - dateB.getTime();
-                });
                 
                 setPayments(paymentsData);
+                
+                // Fetch historical payments
+                const historicalDocRef = doc(db, 'pagosHistorico', selectedPensioner.documento);
+                const historicalDocSnap = await getDoc(historicalDocRef);
+                if (historicalDocSnap.exists()) {
+                    const data = historicalDocSnap.data();
+                    if(data && Array.isArray(data.records)) {
+                       setHistoricalPayments(data.records as PagosHistoricoRecord[]);
+                    }
+                } else {
+                    setHistoricalPayments([]);
+                }
+
             } catch (error) {
-                console.error("Error fetching payments:", error);
+                console.error("Error fetching payment data:", error);
                 setPayments([]);
+                setHistoricalPayments([]);
             } finally {
                 setIsLoading(false);
             }
         };
 
-        fetchPayments();
+        fetchAllPayments();
     }, [selectedPensioner]);
 
     const tableData = useMemo(() => {
-        if (payments.length === 0) return [];
-        
         const currentYear = new Date().getFullYear();
         const years = Array.from({ length: currentYear - 1998 + 1 }, (_, i) => 1998 + i);
 
         return years.map(year => {
             let paidByCompany = 0;
 
-            // Find all payments for the given year.
+            // 1. Try to find payment in recent payments collection
             const paymentsInYear = payments.filter(p => {
                 const paymentStartDate = parsePeriodoPago(p.periodoPago)?.startDate;
                 return paymentStartDate?.getFullYear() === year;
             });
 
-            // Iterate through the year's payments to find the first valid mesada.
+            // Sort payments for the year to respect chronological order
+            paymentsInYear.sort((a, b) => {
+                const dateA = parsePeriodoPago(a.periodoPago)?.startDate || new Date(9999, 0, 1);
+                const dateB = parsePeriodoPago(b.periodoPago)?.startDate || new Date(9999, 0, 1);
+                return dateA.getTime() - dateB.getTime();
+            });
+
             for (const payment of paymentsInYear) {
                 const mesadaDetail = payment.detalles.find(d => 
                     (d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD') && d.ingresos > 0
                 );
                 if (mesadaDetail) {
                     paidByCompany = mesadaDetail.ingresos;
-                    break; // Stop once we've found the first valid one.
+                    break; 
                 }
+            }
+
+            // 2. If not found, fallback to historical payments
+            if (paidByCompany === 0 && historicalPayments.length > 0) {
+                 const historicalRecord = historicalPayments.find(rec => rec.ANO_RET === year);
+                 if (historicalRecord && historicalRecord.VALOR_ACT) {
+                    const valorAct = parseFloat(historicalRecord.VALOR_ACT.replace(',', '.'));
+                    if (!isNaN(valorAct) && valorAct > 0) {
+                       paidByCompany = valorAct;
+                    }
+                 }
             }
 
             return {
@@ -90,7 +115,7 @@ export default function AdquisitivoPage() {
                 numSmlmv: 0
             };
         });
-    }, [payments]);
+    }, [payments, historicalPayments]);
 
     return (
         <div className="p-4 md:p-8 space-y-6">
