@@ -36,6 +36,7 @@ export default function AdquisitivoPage() {
                 const querySnapshot = await getDocs(paymentsQuery);
                 let paymentsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
 
+                // Sort by start date to easily find the first payment of a year
                 paymentsData.sort((a, b) => {
                     const dateA = parsePeriodoPago(a.periodoPago)?.startDate || new Date(9999, 0, 1);
                     const dateB = parsePeriodoPago(b.periodoPago)?.startDate || new Date(9999, 0, 1);
@@ -55,17 +56,21 @@ export default function AdquisitivoPage() {
     }, [selectedPensioner]);
 
     const tableData = useMemo(() => {
+        if (payments.length === 0) return [];
+        
         const currentYear = new Date().getFullYear();
         const years = Array.from({ length: currentYear - 1998 + 1 }, (_, i) => 1998 + i);
 
         return years.map(year => {
+            // Find the very first payment record for the given year.
             const firstPaymentOfYear = payments.find(p => {
-                const paymentYear = parsePeriodoPago(p.periodoPago)?.startDate?.getFullYear();
-                return paymentYear === year;
+                const paymentStartDate = parsePeriodoPago(p.periodoPago)?.startDate;
+                return paymentStartDate?.getFullYear() === year;
             });
 
             let paidByCompany = 0;
             if (firstPaymentOfYear) {
+                // Find the specific "Mesada Pensional" detail in that payment.
                 const mesadaDetail = firstPaymentOfYear.detalles.find(d => d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD');
                 if (mesadaDetail) {
                     paidByCompany = mesadaDetail.ingresos;
@@ -75,7 +80,7 @@ export default function AdquisitivoPage() {
             return {
                 year: year,
                 smlmv: smlmvData[year] || 0,
-                paidByCompany: paidByCompany,
+                paidByCompany,
                 pensionDeVejez: 0,
                 unidadPensional: 0,
                 numSmlmv: 0
