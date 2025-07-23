@@ -101,19 +101,21 @@ export default function AdquisitivoPage() {
                 return paymentStartDate?.getFullYear() === year;
             });
 
+            // Sort by start date to correctly handle bi-weekly payments
             paymentsInYear.sort((a, b) => {
                 const dateA = parsePeriodoPago(a.periodoPago)?.startDate || new Date(9999, 0, 1);
                 const dateB = parsePeriodoPago(b.periodoPago)?.startDate || new Date(9999, 0, 1);
                 return dateA.getTime() - dateB.getTime();
             });
             
+            // Find the first valid "Mesada" payment in the sorted list
             for (const payment of paymentsInYear) {
                 const mesadaDetail = payment.detalles.find(d => 
                     (d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD') && d.ingresos > 0
                 );
                 if (mesadaDetail) {
                     paidByCompany = mesadaDetail.ingresos;
-                    break;
+                    break; // Exit after finding the first one
                 }
             }
             
