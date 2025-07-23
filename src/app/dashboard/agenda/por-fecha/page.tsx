@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { CalendarSearch, Loader2, Search, CalendarOff, AlertTriangle } from 'lucide-react';
 import type { Anotacion } from '@/lib/data';
-import { format, addDays, parse } from 'date-fns';
+import { format, addDays, parse, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { transformarFecha, convertirAFormatoOrdenable } from '@/lib/anotaciones-helpers';
 import { Calendar as CalendarIcon } from 'lucide-react';
@@ -53,19 +53,31 @@ export default function PorFechaPage() {
         setTasks([]);
 
         try {
-            const startDateStr = convertirAFormatoOrdenable(format(dateRange.from, 'dd-MM-yyyy'));
-            const endDateStr = convertirAFormatoOrdenable(format(dateRange.to, 'dd-MM-yyyy'));
-
-            const anotacionesQuery = query(
-                collectionGroup(db, 'anotaciones'),
-                where('fecha_limite_ordenable', '>=', startDateStr),
-                where('fecha_limite_ordenable', '<=', endDateStr)
-            );
+            // Step 1: Fetch all annotations.
+            const anotacionesQuery = query(collectionGroup(db, 'anotaciones'));
             const querySnapshot = await getDocs(anotacionesQuery);
             const allAnotaciones = querySnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Anotacion));
+            
+            // Step 2: Filter annotations by date range on the client side.
+            const filteredAnotaciones = allAnotaciones.filter(anotacion => {
+                // Use `fecha_limite_ordenable` if it exists, otherwise fallback to `fecha_limite`.
+                const dateStringToParse = anotacion.fecha_limite_ordenable || convertirAFormatoOrdenable(anotacion.fecha_limite);
+                if (!dateStringToParse || dateStringToParse === '9999-12-31') {
+                    return false;
+                }
+                const taskDate = parse(dateStringToParse, 'yyyy-MM-dd', new Date());
+                return !isNaN(taskDate.getTime()) && isWithinInterval(taskDate, { start: dateRange.from, end: dateRange.to });
+            });
 
+            if (filteredAnotaciones.length === 0) {
+                 setTasks([]);
+                 setIsLoading(false);
+                 return;
+            }
+
+            // Step 3: Fetch parent process for each filtered annotation.
             const tasksWithProcesos: PendingTask[] = await Promise.all(
-                allAnotaciones.map(async (anotacion) => {
+                filteredAnotaciones.map(async (anotacion) => {
                     if (anotacion.num_registro) {
                         try {
                             const procesoDocRef = doc(db, 'procesos', anotacion.num_registro);
@@ -81,6 +93,7 @@ export default function PorFechaPage() {
                              console.error(`Failed to fetch proceso ${anotacion.num_registro}`, e);
                         }
                     }
+                    // Return annotation even if parent process fetch fails
                     return {
                         ...anotacion,
                         fecha_limite: transformarFecha(anotacion.fecha_limite),
@@ -88,6 +101,7 @@ export default function PorFechaPage() {
                 })
             );
 
+            // Step 4: Sort tasks
             tasksWithProcesos.sort((a, b) => {
                 const dateA = parse(a.fecha_limite!, 'dd-MM-yyyy', new Date());
                 const dateB = parse(b.fecha_limite!, 'dd-MM-yyyy', new Date());
@@ -112,6 +126,7 @@ export default function PorFechaPage() {
         }
     }, [dateRange]);
     
+    // Initial fetch
     useEffect(() => {
         fetchTasksByDateRange();
     }, []); 
@@ -212,7 +227,7 @@ export default function PorFechaPage() {
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-10"
-                      disabled={tasks.length === 0}
+                      disabled={tasks.length === 0 && !isLoading}
                   />
               </div>
           </CardHeader>
