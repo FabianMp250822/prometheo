@@ -165,12 +165,17 @@ export default function VerTareasPage() {
     const dateStr = `Rango: ${format(dateRange.from!, "d 'de' LLLL, yyyy", { locale: es })} - ${format(dateRange.to!, "d 'de' LLLL, yyyy", { locale: es })}`;
     doc.text(dateStr, 14, 30);
 
-    const tableColumn = ["Fecha Límite", "Detalle", "Tipo", "Demandante", "Demandado", "Radicado"];
+    const tableColumn = ["Fecha", "Hora", "Detalle", "Tipo", "Demandante", "Demandado", "Radicado"];
     const tableRows: any[][] = [];
 
     filteredTasksBySearchTerm.forEach(task => {
+        const dateString = task.fecha_limite_ordenable || convertirAFormatoOrdenable(task.fecha_limite);
+        const formattedDate = dateString !== '9999-12-31' 
+            ? format(parse(dateString, 'yyyy-MM-dd', new Date()), "d MMM, yyyy", { locale: es })
+            : 'N/A';
         const taskData = [
-            `${task.fecha_limite || ''} ${task.hora_limite || ''}`,
+            formattedDate,
+            task.hora_limite || 'N/A',
             task.detalle || 'N/A',
             task.type === 'PROCESO' ? 'Proceso' : 'General',
             task.proceso?.nombres_demandante || 'N/A',
@@ -262,43 +267,43 @@ export default function VerTareasPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Fecha Límite</TableHead>
-                  <TableHead>Detalle</TableHead>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead>Hora</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Demandante/Demandado</TableHead>
                   <TableHead>Radicado</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredTasksBySearchTerm.map(task => (
-                  <TableRow key={task.id}>
-                    <TableCell className="font-medium">
-                      <div>{task.fecha_limite}</div>
-                      <div className="text-xs text-muted-foreground">{task.hora_limite || 'N/A'}</div>
-                    </TableCell>
-                    <TableCell className="max-w-xs">
-                      <p className="truncate">{task.detalle}</p>
-                      {(task as Tarea).ubicacion && <a href={(task as Tarea).ubicacion} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1"><LinkIcon className="h-3 w-3" />Enlace</a>}
-                    </TableCell>
-                    <TableCell><Badge variant={task.type === 'PROCESO' ? 'secondary' : 'default'}>{task.type === 'PROCESO' ? 'Proceso' : 'General'}</Badge></TableCell>
-                    <TableCell>
-                      {task.proceso ? (
-                        <div>
-                          <div className="font-medium flex items-center gap-1"><Users className="h-3 w-3 text-muted-foreground"/> {task.proceso.nombres_demandante || 'N/A'}</div>
-                          <div className="text-xs text-muted-foreground flex items-center gap-1"><Users className="h-3 w-3"/> {task.proceso.nombres_demandado || 'N/A'}</div>
-                        </div>
-                      ) : 'N/A'}
-                    </TableCell>
-                    <TableCell>
-                      {task.proceso ? (
-                        <div>
-                          <div className="text-xs">{task.proceso.despacho || 'N/A'}</div>
-                          <div className="text-xs text-muted-foreground">{task.proceso.num_radicado_ult || task.proceso.num_radicado_ini || 'N/A'}</div>
-                        </div>
-                      ) : 'N/A'}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {filteredTasksBySearchTerm.map(task => {
+                    const dateString = task.fecha_limite_ordenable || convertirAFormatoOrdenable(task.fecha_limite);
+                    const formattedDate = dateString !== '9999-12-31' 
+                        ? format(parse(dateString, 'yyyy-MM-dd', new Date()), "d 'de' LLLL, yyyy", { locale: es })
+                        : 'N/A';
+                  return (
+                    <TableRow key={task.id}>
+                        <TableCell className="font-medium">{formattedDate}</TableCell>
+                        <TableCell>{task.hora_limite || 'N/A'}</TableCell>
+                        <TableCell><Badge variant={task.type === 'PROCESO' ? 'secondary' : 'default'}>{task.type === 'PROCESO' ? 'Proceso' : 'General'}</Badge></TableCell>
+                        <TableCell>
+                        {task.proceso ? (
+                            <div>
+                            <div className="font-medium flex items-center gap-1"><Users className="h-3 w-3 text-muted-foreground"/> {task.proceso.nombres_demandante || 'N/A'}</div>
+                            <div className="text-xs text-muted-foreground flex items-center gap-1"><Users className="h-3 w-3"/> {task.proceso.nombres_demandado || 'N/A'}</div>
+                            </div>
+                        ) : 'N/A'}
+                        </TableCell>
+                        <TableCell>
+                        {task.proceso ? (
+                            <div>
+                            <div className="text-xs">{task.proceso.despacho || 'N/A'}</div>
+                            <div className="text-xs text-muted-foreground">{task.proceso.num_radicado_ult || task.proceso.num_radicado_ini || 'N/A'}</div>
+                            </div>
+                        ) : 'N/A'}
+                        </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           ) : (
