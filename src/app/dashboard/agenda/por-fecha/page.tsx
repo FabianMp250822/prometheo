@@ -7,8 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { CalendarSearch, Loader2, Search, CalendarOff, AlertTriangle } from 'lucide-react';
-import type { Anotacion } from '@/lib/data';
+import { CalendarSearch, Loader2, Search, CalendarOff, AlertTriangle, Link as LinkIcon, Users } from 'lucide-react';
+import type { Anotacion, Tarea } from '@/lib/data';
 import { format, addDays, parse, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { transformarFecha, convertirAFormatoOrdenable } from '@/lib/anotaciones-helpers';
@@ -16,10 +16,14 @@ import { Calendar as CalendarIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
-interface PendingTask extends Anotacion {
+
+type CombinedTask = (Anotacion | Tarea) & {
   proceso?: any;
-}
+  type: 'PROCESO' | 'GENERAL';
+};
+
 
 const getDayOfWeek = (dateString: string) => {
     if (!dateString) return '';
@@ -33,7 +37,7 @@ const getDayOfWeek = (dateString: string) => {
 };
 
 export default function PorFechaPage() {
-    const [tasks, setTasks] = useState<PendingTask[]>([]);
+    const [tasks, setTasks] = useState<CombinedTask[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -53,24 +57,37 @@ export default function PorFechaPage() {
         setTasks([]);
 
         try {
-            // Step 1: Fetch all annotations using a collection group query.
+            // Step 1: Fetch all annotations and general tasks.
             const anotacionesQuery = query(collectionGroup(db, 'anotaciones'));
-            const querySnapshot = await getDocs(anotacionesQuery);
+            const tareasQuery = query(collection(db, 'tareas'));
+            
+            const [anotacionesSnapshot, tareasSnapshot] = await Promise.all([
+                getDocs(anotacionesQuery),
+                getDocs(tareasQuery)
+            ]);
 
-            const allAnotaciones = querySnapshot.docs.map(d => {
+            const allAnotaciones = anotacionesSnapshot.docs.map(d => {
                 const data = d.data();
-                const parentPath = d.ref.parent.parent?.path; // processos/{id}
-                const parentId = parentPath ? parentPath.split('/').pop() : null;
+                const parentPath = d.ref.parent.parent?.path;
                 return { 
                     ...data,
                     id: d.id,
-                    num_registro: parentId, // Ensure num_registro is the parent ID
-                } as Anotacion;
+                    num_registro: parentPath ? parentPath.split('/').pop() : null,
+                    type: 'PROCESO'
+                } as Anotacion & { type: 'PROCESO' };
             });
-            
-            // Step 2: Filter annotations by date range on the client side.
-            const filteredAnotaciones = allAnotaciones.filter(anotacion => {
-                const dateStringToParse = anotacion.fecha_limite_ordenable || convertirAFormatoOrdenable(anotacion.fecha_limite);
+
+            const allTareas = tareasSnapshot.docs.map(d => ({
+                ...d.data(),
+                id: d.id,
+                type: 'GENERAL'
+            } as Tarea & { type: 'GENERAL' }));
+
+            const allTasksRaw = [...allAnotaciones, ...allTareas];
+
+            // Step 2: Filter all tasks by date range on the client side.
+            const filteredTasks = allTasksRaw.filter(task => {
+                const dateStringToParse = task.fecha_limite_ordenable || convertirAFormatoOrdenable(task.fecha_limite);
                 if (!dateStringToParse || dateStringToParse === '9999-12-31') {
                     return false;
                 }
@@ -78,32 +95,39 @@ export default function PorFechaPage() {
                 return !isNaN(taskDate.getTime()) && isWithinInterval(taskDate, { start: dateRange.from, end: dateRange.to });
             });
 
-            if (filteredAnotaciones.length === 0) {
+            if (filteredTasks.length === 0) {
                  setTasks([]);
                  setIsLoading(false);
                  return;
             }
 
-            // Step 3: Fetch all unique parent processes efficiently.
-            const uniqueProcesoIds = [...new Set(filteredAnotaciones.map(a => a.num_registro).filter(Boolean))];
+            // Step 3: Fetch all unique parent processes efficiently for annotations.
+            const uniqueProcesoIds = [...new Set(filteredTasks.map(t => (t as Anotacion).num_registro).filter(Boolean))];
             const procesosData: { [key: string]: any } = {};
 
             if (uniqueProcesoIds.length > 0) {
-                const procesosPromises = uniqueProcesoIds.map(id => getDoc(doc(db, 'procesos', id!)));
-                const procesosSnapshots = await Promise.all(procesosPromises);
-                procesosSnapshots.forEach(pSnap => {
-                    if (pSnap.exists()) {
-                        procesosData[pSnap.id] = pSnap.data();
-                    }
-                });
+                 const procesosChunks = [];
+                for (let i = 0; i < uniqueProcesoIds.length; i += 30) {
+                    procesosChunks.push(uniqueProcesoIds.slice(i, i + 30));
+                }
+
+                await Promise.all(procesosChunks.map(async (chunk) => {
+                    const procesosQuery = query(collection(db, 'procesos'), where('num_registro', 'in', chunk));
+                    const procesosSnapshots = await getDocs(procesosQuery);
+                    procesosSnapshots.forEach(pSnap => {
+                        if (pSnap.exists()) {
+                            procesosData[pSnap.id] = pSnap.data();
+                        }
+                    });
+                }));
             }
 
-            // Step 4: Combine annotations with their parent process data.
-            const tasksWithProcesos = filteredAnotaciones.map(anotacion => ({
-                ...anotacion,
-                fecha_limite: transformarFecha(anotacion.fecha_limite),
-                proceso: anotacion.num_registro ? procesosData[anotacion.num_registro] : undefined,
-            }));
+            // Step 4: Combine tasks with their parent process data.
+            const tasksWithProcesos = filteredTasks.map(task => ({
+                ...task,
+                fecha_limite: transformarFecha(task.fecha_limite!),
+                proceso: task.type === 'PROCESO' ? procesosData[(task as Anotacion).num_registro] : undefined,
+            } as CombinedTask));
             
             // Step 5: Sort tasks
             tasksWithProcesos.sort((a, b) => {
@@ -160,7 +184,7 @@ export default function PorFechaPage() {
             <CalendarSearch className="h-6 w-6" />
             Búsqueda por Fecha
           </CardTitle>
-          <CardDescription>Seleccione un rango de fechas para encontrar actuaciones y audiencias con fecha límite.</CardDescription>
+          <CardDescription>Seleccione un rango de fechas para encontrar actuaciones y tareas con fecha límite.</CardDescription>
         </CardHeader>
         <CardContent className='flex flex-col md:flex-row gap-4 items-center'>
             <Popover>
@@ -224,15 +248,21 @@ export default function PorFechaPage() {
 
       <Card>
           <CardHeader>
-              <div className="relative w-full md:w-1/3">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                      placeholder="Filtrar resultados por demandante, detalle..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                      disabled={tasks.length === 0 && !isLoading}
-                  />
+               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div>
+                    <CardTitle>Resultados de la Agenda</CardTitle>
+                    <CardDescription>{filteredTasksBySearchTerm.length} tareas encontradas en el rango seleccionado.</CardDescription>
+                  </div>
+                  <div className="relative w-full md:w-1/3">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                          placeholder="Filtrar por demandante, detalle..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-10"
+                          disabled={tasks.length === 0 && !isLoading}
+                      />
+                  </div>
               </div>
           </CardHeader>
           <CardContent>
@@ -250,27 +280,56 @@ export default function PorFechaPage() {
                   <Table>
                       <TableHeader>
                           <TableRow>
-                              <TableHead>Fecha</TableHead>
+                              <TableHead>Fecha / Hora</TableHead>
                               <TableHead>Día</TableHead>
-                              <TableHead>Hora</TableHead>
-                              <TableHead>Despacho</TableHead>
-                              <TableHead>Ciudad</TableHead>
-                              <TableHead>Radicado</TableHead>
-                              <TableHead>Demandante</TableHead>
-                              <TableHead>Demandado</TableHead>
+                              <TableHead>Detalle / Ubicación</TableHead>
+                              <TableHead>Tipo</TableHead>
+                              <TableHead>Demandante / Demandado</TableHead>
+                              <TableHead>Despacho / Radicado</TableHead>
                           </TableRow>
                       </TableHeader>
                       <TableBody>
                           {filteredTasksBySearchTerm.map(task => (
                               <TableRow key={task.id}>
-                                  <TableCell className="font-medium">{task.fecha_limite}</TableCell>
+                                  <TableCell className="font-medium">
+                                    <div>{task.fecha_limite}</div>
+                                    <div className="text-xs text-muted-foreground">{task.hora_limite || 'N/A'}</div>
+                                  </TableCell>
                                   <TableCell>{getDayOfWeek(task.fecha_limite!)}</TableCell>
-                                  <TableCell>{task.hora_limite || 'N/A'}</TableCell>
-                                  <TableCell>{task.proceso?.despacho || 'N/A'}</TableCell>
-                                  <TableCell>{task.proceso?.jurisdiccion || 'N/A'}</TableCell>
-                                  <TableCell>{task.proceso?.num_radicado_ult || task.proceso?.num_radicado_ini || 'N/A'}</TableCell>
-                                  <TableCell>{task.proceso?.nombres_demandante || 'N/A'}</TableCell>
-                                  <TableCell>{task.proceso?.nombres_demandado || 'N/A'}</TableCell>
+                                  <TableCell className="max-w-xs">
+                                     <p className="truncate">{task.detalle}</p>
+                                     {(task as Tarea).ubicacion && (
+                                        <a href={(task as Tarea).ubicacion} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1">
+                                            <LinkIcon className="h-3 w-3" />
+                                            Enlace de la reunión
+                                        </a>
+                                     )}
+                                  </TableCell>
+                                  <TableCell>
+                                    <Badge variant={task.type === 'PROCESO' ? 'secondary' : 'default'}>
+                                        {task.type === 'PROCESO' ? 'Proceso' : 'General'}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell>
+                                    {task.proceso ? (
+                                        <div>
+                                            <div className="font-medium flex items-center gap-1"><Users className="h-3 w-3 text-muted-foreground"/> {task.proceso.nombres_demandante || 'N/A'}</div>
+                                            <div className="text-xs text-muted-foreground flex items-center gap-1"><Users className="h-3 w-3"/> {task.proceso.nombres_demandado || 'N/A'}</div>
+                                        </div>
+                                    ) : (
+                                        'N/A'
+                                    )}
+                                  </TableCell>
+                                  <TableCell>
+                                     {task.proceso ? (
+                                        <div>
+                                            <div>{task.proceso.despacho || 'N/A'}</div>
+                                            <div className="text-xs text-muted-foreground">{task.proceso.num_radicado_ult || task.proceso.num_radicado_ini || 'N/A'}</div>
+                                        </div>
+                                     ) : (
+                                        'N/A'
+                                     )}
+                                  </TableCell>
                               </TableRow>
                           ))}
                       </TableBody>
@@ -279,7 +338,7 @@ export default function PorFechaPage() {
                   <div className="flex flex-col items-center justify-center p-10 text-center">
                       <CalendarOff className="h-12 w-12 text-muted-foreground mb-4" />
                       <h3 className="text-lg font-semibold">No se encontraron tareas</h3>
-                      <p className="text-muted-foreground">No hay actuaciones pendientes en el rango de fechas seleccionado.</p>
+                      <p className="text-muted-foreground">No hay actuaciones ni tareas generales en el rango de fechas seleccionado.</p>
                   </div>
               )}
           </CardContent>

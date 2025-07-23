@@ -110,6 +110,18 @@ export interface Anotacion {
     archivo_url: string | null;
 }
 
+// Type for general tasks
+export interface Tarea {
+    id?: string;
+    detalle: string;
+    fecha_limite: string;
+    fecha_limite_ordenable: string; // YYYY-MM-DD for sorting
+    hora_limite: string;
+    ubicacion?: string; // URL for Meet, Zoom, etc.
+    creadoEn: Timestamp;
+    type: 'GENERAL'; // To distinguish from process annotations
+}
+
 
 // Types for Pensioner Profile Page
 export interface Parris1 {

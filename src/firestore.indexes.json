@@ -15,6 +15,16 @@
       ]
     },
     {
+      "collectionGroup": "tareas",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "fecha_limite_ordenable",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "extractedText",
       "queryScope": "COLLECTION",
       "fields": [
