@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Gavel, Loader2, Download, Search, Filter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { formatCurrency, parsePeriodoToMonthYear, parsePaymentDetailName, parseDepartmentName } from '@/lib/helpers';
+import { formatCurrency, formatPeriodoToMonthYear, parsePaymentDetailName, parseDepartmentName } from '@/lib/helpers';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { getProcesosCancelados } from '@/services/pensioner-service';

@@ -92,7 +92,6 @@ export interface ProcesoCancelado {
         document: string;
         department: string;
     };
-    totalAmount: number;
 }
 
 // Types for Gestion de Demandas
