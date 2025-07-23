@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { collectionGroup, query, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collectionGroup, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,7 +11,7 @@ import { CalendarSearch, Loader2, Search, CalendarOff, AlertTriangle } from 'luc
 import type { Anotacion } from '@/lib/data';
 import { format, addDays, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { transformarFecha } from '@/lib/anotaciones-helpers';
+import { transformarFecha, convertirAFormatoOrdenable } from '@/lib/anotaciones-helpers';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -24,7 +24,6 @@ interface PendingTask extends Anotacion {
 const getDayOfWeek = (dateString: string) => {
     if (!dateString) return '';
     try {
-        // Assuming dateString is in DD-MM-YYYY format
         const date = parse(dateString, 'dd-MM-yyyy', new Date());
         if (isNaN(date.getTime())) return '';
         return format(date, 'E', { locale: es });
@@ -35,7 +34,6 @@ const getDayOfWeek = (dateString: string) => {
 
 export default function PorFechaPage() {
     const [tasks, setTasks] = useState<PendingTask[]>([]);
-    const [allAnotaciones, setAllAnotaciones] = useState<PendingTask[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -45,16 +43,29 @@ export default function PorFechaPage() {
         to: addDays(new Date(), 7),
     });
 
-    const fetchAllAnotaciones = useCallback(async () => {
+    const fetchTasksByDateRange = useCallback(async () => {
+        if (!dateRange.from || !dateRange.to) {
+            setError("Por favor seleccione un rango de fechas válido.");
+            return;
+        }
         setIsLoading(true);
         setError(null);
+        setTasks([]);
+
         try {
-            const anotacionesQuery = query(collectionGroup(db, 'anotaciones'));
+            const startDateStr = convertirAFormatoOrdenable(format(dateRange.from, 'dd-MM-yyyy'));
+            const endDateStr = convertirAFormatoOrdenable(format(dateRange.to, 'dd-MM-yyyy'));
+
+            const anotacionesQuery = query(
+                collectionGroup(db, 'anotaciones'),
+                where('fecha_limite_ordenable', '>=', startDateStr),
+                where('fecha_limite_ordenable', '<=', endDateStr)
+            );
             const querySnapshot = await getDocs(anotacionesQuery);
-            const allData = querySnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Anotacion));
+            const allAnotaciones = querySnapshot.docs.map(d => ({ ...d.data(), id: d.id } as Anotacion));
 
             const tasksWithProcesos: PendingTask[] = await Promise.all(
-                allData.map(async (anotacion) => {
+                allAnotaciones.map(async (anotacion) => {
                     if (anotacion.num_registro) {
                         try {
                             const procesoDocRef = doc(db, 'procesos', anotacion.num_registro);
@@ -70,14 +81,28 @@ export default function PorFechaPage() {
                              console.error(`Failed to fetch proceso ${anotacion.num_registro}`, e);
                         }
                     }
-                    // Return anotacion even if proceso fetch fails to avoid losing data
                     return {
                         ...anotacion,
                         fecha_limite: transformarFecha(anotacion.fecha_limite),
                     };
                 })
             );
-            setAllAnotaciones(tasksWithProcesos);
+
+            tasksWithProcesos.sort((a, b) => {
+                const dateA = parse(a.fecha_limite!, 'dd-MM-yyyy', new Date());
+                const dateB = parse(b.fecha_limite!, 'dd-MM-yyyy', new Date());
+    
+                if (dateA.getTime() !== dateB.getTime()) {
+                    return dateA.getTime() - dateB.getTime();
+                }
+    
+                const timeA = a.hora_limite?.replace(/\s*(am|pm)/i, '') || '00:00';
+                const timeB = b.hora_limite?.replace(/\s*(am|pm)/i, '') || '00:00';
+    
+                return timeA.localeCompare(timeB);
+            });
+            
+            setTasks(tasksWithProcesos);
             
         } catch (err: any) {
             console.error("Error fetching tasks:", err);
@@ -85,65 +110,15 @@ export default function PorFechaPage() {
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [dateRange]);
     
     useEffect(() => {
-        fetchAllAnotaciones();
-    }, [fetchAllAnotaciones]); 
-
-    const filterAndSortTasks = useCallback(() => {
-        if (!dateRange.from || !dateRange.to || allAnotaciones.length === 0) {
-            setTasks([]);
-            return;
-        }
-
-        const startDate = dateRange.from;
-        startDate.setHours(0, 0, 0, 0);
-        const endDate = dateRange.to;
-        endDate.setHours(23, 59, 59, 999);
-
-        const filtered = allAnotaciones.filter(anotacion => {
-            if (!anotacion.fecha_limite) return false;
-            try {
-                const taskDate = parse(anotacion.fecha_limite, 'dd-MM-yyyy', new Date());
-                return taskDate >= startDate && taskDate <= endDate;
-            } catch (e) {
-                console.warn("Invalid date format for annotation:", anotacion.id, anotacion.fecha_limite);
-                return false;
-            }
-        });
-
-        filtered.sort((a, b) => {
-            const dateA = parse(a.fecha_limite, 'dd-MM-yyyy', new Date());
-            const dateB = parse(b.fecha_limite, 'dd-MM-yyyy', new Date());
-
-            if (dateA.getTime() !== dateB.getTime()) {
-                return dateA.getTime() - dateB.getTime();
-            }
-
-            const timeA = a.hora_limite?.replace(/\s*(am|pm)/i, '') || '00:00';
-            const timeB = b.hora_limite?.replace(/\s*(am|pm)/i, '') || '00:00';
-
-            return timeA.localeCompare(timeB);
-        });
-
-        setTasks(filtered);
-
-    }, [allAnotaciones, dateRange]);
+        fetchTasksByDateRange();
+    }, []); 
 
     const handleSearch = () => {
-        if (!dateRange.from || !dateRange.to) {
-            setError("Por favor seleccione un rango de fechas válido.");
-            return;
-        }
-        filterAndSortTasks();
+        fetchTasksByDateRange();
     };
-    
-    useEffect(() => {
-        if(allAnotaciones.length > 0) {
-            filterAndSortTasks();
-        }
-    }, [allAnotaciones, filterAndSortTasks]);
 
     const filteredTasksBySearchTerm = useMemo(() => {
         if (!searchTerm) return tasks;
@@ -270,7 +245,7 @@ export default function PorFechaPage() {
                           {filteredTasksBySearchTerm.map(task => (
                               <TableRow key={task.id}>
                                   <TableCell className="font-medium">{task.fecha_limite}</TableCell>
-                                  <TableCell>{getDayOfWeek(task.fecha_limite)}</TableCell>
+                                  <TableCell>{getDayOfWeek(task.fecha_limite!)}</TableCell>
                                   <TableCell>{task.hora_limite || 'N/A'}</TableCell>
                                   <TableCell>{task.proceso?.despacho || 'N/A'}</TableCell>
                                   <TableCell>{task.proceso?.jurisdiccion || 'N/A'}</TableCell>
