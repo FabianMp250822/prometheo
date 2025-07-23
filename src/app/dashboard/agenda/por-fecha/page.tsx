@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { CalendarSearch, Loader2, Search, CalendarOff, AlertTriangle, Link as LinkIcon, Users } from 'lucide-react';
+import { CalendarSearch, Loader2, Search, CalendarOff, AlertTriangle, Link as LinkIcon, Users, MapPin } from 'lucide-react';
 import type { Anotacion, Tarea } from '@/lib/data';
 import { format, addDays, parse, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -296,16 +296,21 @@ export default function PorFechaPage() {
                                     <div className="text-xs text-muted-foreground">{task.hora_limite || 'N/A'}</div>
                                   </TableCell>
                                   <TableCell>{getDayOfWeek(task.fecha_limite!)}</TableCell>
-                                  <TableCell className="max-w-xs">
-                                     {(task as Tarea).ubicacion ? (
-                                        <a href={(task as Tarea).ubicacion} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1">
-                                            <LinkIcon className="h-3 w-3" />
-                                            {(task as Tarea).ubicacion}
-                                        </a>
-                                     ) : (
-                                        <span className="text-xs text-muted-foreground">N/A</span>
-                                     )}
-                                  </TableCell>
+                                   <TableCell className="max-w-xs">
+                                        {task.type === 'PROCESO' && task.proceso?.jurisdiccion ? (
+                                            <span className="flex items-center gap-1 text-sm">
+                                                <MapPin className="h-4 w-4 text-muted-foreground" />
+                                                {task.proceso.jurisdiccion}
+                                            </span>
+                                        ) : task.type === 'GENERAL' && (task as Tarea).ubicacion ? (
+                                            <a href={(task as Tarea).ubicacion} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-500 hover:underline flex items-center gap-1">
+                                                <LinkIcon className="h-4 w-4" />
+                                                Ver Enlace
+                                            </a>
+                                        ) : (
+                                            <span className="text-xs text-muted-foreground">N/A</span>
+                                        )}
+                                    </TableCell>
                                   <TableCell>
                                     <Badge variant={task.type === 'PROCESO' ? 'secondary' : 'default'}>
                                         {task.type === 'PROCESO' ? 'Proceso' : 'General'}
