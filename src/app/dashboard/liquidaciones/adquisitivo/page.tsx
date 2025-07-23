@@ -8,7 +8,7 @@ export default function AdquisitivoPage() {
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center gap-2">
             <Percent className="h-6 w-6" />
-            Adquisitivo
+            Poder Adquisitivo
           </CardTitle>
         </CardHeader>
         <CardContent>
