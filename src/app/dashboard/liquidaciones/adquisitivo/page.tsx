@@ -106,7 +106,7 @@ export default function AdquisitivoPage() {
                 const dateB = parsePeriodoPago(b.periodoPago)?.startDate || new Date(9999, 0, 1);
                 return dateA.getTime() - dateB.getTime();
             });
-
+            
             for (const payment of paymentsInYear) {
                 const mesadaDetail = payment.detalles.find(d => 
                     (d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD') && d.ingresos > 0
@@ -146,7 +146,8 @@ export default function AdquisitivoPage() {
                 paidByCompany,
                 pensionDeVejez,
                 unidadPensional: 0,
-                numSmlmv: 0
+                numSmlmv: 0,
+                isProjected: false,
             };
         });
         
@@ -158,6 +159,7 @@ export default function AdquisitivoPage() {
                     const previousYearIpc = ipcData[previousYearData.year];
                     if (previousYearIpc !== undefined) {
                         initialData[i].pensionDeVejez = previousYearData.pensionDeVejez * (1 + previousYearIpc / 100);
+                        initialData[i].isProjected = true;
                     }
                 }
             }
@@ -213,13 +215,19 @@ export default function AdquisitivoPage() {
                                             <TableCell className="font-medium">{row.year}</TableCell>
                                             <TableCell>{formatCurrency(row.smlmv)}</TableCell>
                                             <TableCell>{formatCurrency(row.paidByCompany)}</TableCell>
-                                            <TableCell>{formatCurrency(row.pensionDeVejez)}</TableCell>
+                                            <TableCell>
+                                                {formatCurrency(row.pensionDeVejez)}
+                                                {row.isProjected && <span className="text-destructive">*</span>}
+                                            </TableCell>
                                             <TableCell>{formatCurrency(row.unidadPensional)}</TableCell>
                                             <TableCell>{row.numSmlmv}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
                             </Table>
+                             <div className="text-xs text-muted-foreground p-4">
+                                * Valores proyectados calculados con base en el IPC del año anterior.
+                             </div>
                         </div>
                     )}
                 </CardContent>
