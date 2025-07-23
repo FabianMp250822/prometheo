@@ -1,9 +1,7 @@
-'use server';
-
-import {onDocumentCreated} from 'firebase-functions/v2/firestore';
-import * as logger from 'firebase-functions/logger';
-import {initializeApp, getApps} from 'firebase-admin/app';
-import {getFirestore, Timestamp} from 'firebase-admin/firestore';
+import {onDocumentCreated} from "firebase-functions/v2/firestore";
+import * as logger from "firebase-functions/logger";
+import {initializeApp, getApps} from "firebase-admin/app";
+import {getFirestore, Timestamp} from "firebase-admin/firestore";
 
 // Initialize admin SDK if not already initialized
 if (getApps().length === 0) {
@@ -13,7 +11,7 @@ if (getApps().length === 0) {
 const db = getFirestore();
 
 // Define the prefixes for the legal concepts we're interested in.
-const SENTENCE_CONCEPT_PREFIXES = ['470-', '785-', '475-'];
+const SENTENCE_CONCEPT_PREFIXES = ["470-", "785-", "475-"];
 
 // Define a type for payment details to avoid using 'any'.
 interface PaymentDetail {
@@ -23,24 +21,18 @@ interface PaymentDetail {
   egresos?: number;
 }
 
-interface PensionerData {
-  empleado?: string;
-  documento?: string;
-  dependencia1?: string;
-}
-
 /**
  * A Cloud Function that triggers when a new payment is created.
  * It checks for specific legal concepts within the payment details and,
  * if found, creates a corresponding document in the 'procesoscancelados'
- * collection, enriched with pensioner data to optimize frontend queries.
+ * collection.
  */
 export const onNewPaymentCreate = onDocumentCreated(
-  'pensionados/{pensionadoId}/pagos/{pagoId}',
-  async event => {
+  "pensionados/{pensionadoId}/pagos/{pagoId}",
+  async (event) => {
     const snap = event.data;
     if (!snap) {
-      logger.info('No data associated with the event. Exiting.');
+      logger.info("No data associated with the event. Exiting.");
       return;
     }
 
@@ -57,7 +49,7 @@ export const onNewPaymentCreate = onDocumentCreated(
     // Filter for details that match our sentence concepts.
     const sentenceConcepts = paymentData.detalles.filter(
       (detail: PaymentDetail) =>
-        SENTENCE_CONCEPT_PREFIXES.some(prefix =>
+        SENTENCE_CONCEPT_PREFIXES.some((prefix) =>
           detail.nombre?.startsWith(prefix)
         )
     );
@@ -71,35 +63,17 @@ export const onNewPaymentCreate = onDocumentCreated(
     logger.info(
       `Found ${sentenceConcepts.length} concepts in pmt ${pagoId}.`
     );
-    
-    // --- Data Denormalization: Fetch pensioner data ---
-    let pensionerInfo: PensionerData = {};
-    try {
-        const pensionerRef = db.collection('pensionados').doc(pensionadoId);
-        const pensionerSnap = await pensionerRef.get();
-        if (pensionerSnap.exists()) {
-            const data = pensionerSnap.data() as PensionerData;
-            pensionerInfo = {
-                empleado: data.empleado,
-                documento: data.documento,
-                dependencia1: data.dependencia1,
-            };
-        }
-    } catch (e) {
-        logger.error(`Failed to fetch pensioner data for ${pensionadoId}`, e);
-        // Continue without pensioner data if it fails
-    }
 
-    const newProcessDocRef = db.collection('procesoscancelados').doc();
+    const newProcessDocRef = db.collection("procesoscancelados").doc();
 
-    const fechaLiquidacionDate = paymentData.fechaProcesado?.toDate
-      ? paymentData.fechaProcesado.toDate()
-      : new Date();
+    const fechaLiquidacionDate = paymentData.fechaProcesado?.toDate ?
+      paymentData.fechaProcesado.toDate() :
+      new Date();
 
     const newProcessData = {
       año: paymentData.año,
       conceptos: sentenceConcepts.map((c: PaymentDetail) => ({
-        codigo: c.codigo || c.nombre?.split('-')[0] || '',
+        codigo: c.codigo || c.nombre?.split("-")[0] || "",
         nombre: c.nombre,
         ingresos: c.ingresos || 0,
         egresos: c.egresos || 0,
@@ -109,11 +83,6 @@ export const onNewPaymentCreate = onDocumentCreated(
       pagoId: paymentData.pagoId || pagoId,
       pensionadoId: pensionadoId,
       periodoPago: paymentData.periodoPago,
-      pensionerInfo: { // Store denormalized data
-        name: pensionerInfo.empleado || 'N/A',
-        document: pensionerInfo.documento || pensionadoId,
-        department: pensionerInfo.dependencia1 || 'N/A'
-      }
     };
 
     try {
