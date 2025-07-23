@@ -46,6 +46,8 @@
     "firebase": "^11.9.1",
     "firebase-admin": "^12.2.0",
     "genkit": "^1.13.0",
+    "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.8.2",
     "lucide-react": "^0.475.0",
     "mysql2": "^3.10.3",
     "next": "15.3.3",
