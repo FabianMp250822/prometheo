@@ -3,13 +3,15 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Landmark, Loader2, ServerCrash, University, Library, MapPin } from 'lucide-react';
+import { Landmark, Loader2, ServerCrash, University, Library, MapPin, Building } from 'lucide-react';
 import { getDepartments, getMunicipalitiesByDepartment, getCorporationsByMunicipality, getOfficesByCorporation } from '@/services/provired-api-service';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
 
 interface Department {
   IdDep: string;
@@ -18,10 +20,14 @@ interface Department {
 interface Municipality {
     id: string;
     municipio: string;
+    corporations?: Corporation[];
+    isLoadingCorporations?: boolean;
 }
 interface Corporation {
     id: string;
     corporacion: string;
+    offices?: Office[];
+    isLoadingOffices?: boolean;
 }
 interface Office {
     id: string;
@@ -31,29 +37,23 @@ interface Office {
 type LoadingState = {
     departments: boolean;
     municipalities: boolean;
-    corporations: boolean;
 }
 
 export default function JuzgadosPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
-  const [corporations, setCorporations] = useState<Corporation[]>([]);
-  const [offices, setOffices] = useState<Record<string, Office[]>>({});
-  const [officesLoading, setOfficesLoading] = useState<Record<string, boolean>>({});
-
+  
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
-  const [selectedMunicipality, setSelectedMunicipality] = useState<string | null>(null);
 
   const [loading, setLoading] = useState<LoadingState>({
     departments: true,
     municipalities: false,
-    corporations: false,
   });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchDepartments = async () => {
-      setLoading({ departments: true, municipalities: false, corporations: false });
+      setLoading({ departments: true, municipalities: false });
       setError(null);
       const response = await getDepartments();
       if (response.success && Array.isArray(response.data)) {
@@ -70,14 +70,12 @@ export default function JuzgadosPage() {
   const handleDepartmentChange = async (departmentId: string) => {
     const depIdStr = String(departmentId);
     setSelectedDepartment(depIdStr);
-    setSelectedMunicipality(null);
     setMunicipalities([]);
-    setCorporations([]);
-    setOffices({});
 
     setLoading(prev => ({ ...prev, municipalities: true }));
     setError(null);
     const response = await getMunicipalitiesByDepartment(depIdStr);
+    
     if (response.success && Array.isArray(response.data)) {
         const stringifiedData = response.data.map(m => ({ ...m, id: String(m.id) }));
         setMunicipalities(stringifiedData);
@@ -88,44 +86,50 @@ export default function JuzgadosPage() {
     setLoading(prev => ({ ...prev, municipalities: false }));
   };
   
-  const handleMunicipalityChange = async (municipalityId: string) => {
-    const munIdStr = String(municipalityId);
-    setSelectedMunicipality(munIdStr);
-    setCorporations([]);
-    setOffices({});
-
-    setLoading(prev => ({ ...prev, corporations: true }));
-    setError(null);
+  const fetchCorporationsForMunicipality = async (municipalityId: string) => {
+    setMunicipalities(prev => prev.map(m => m.id === municipalityId ? { ...m, isLoadingCorporations: true } : m));
     
-    const response = await getCorporationsByMunicipality(munIdStr);
+    const response = await getCorporationsByMunicipality(municipalityId);
     
     if (response.success && response.data) {
         const corpData = Array.isArray(response.data) ? response.data : [response.data];
-        if (corpData.length > 0) {
-            setCorporations(corpData.map(c => ({...c, id: String(c.id)})));
-        } else {
-             setCorporations([]);
-             setError(`No se encontraron corporaciones para este municipio.`);
-        }
+        setMunicipalities(prev => prev.map(m => 
+            m.id === municipalityId ? { ...m, corporations: corpData.map(c => ({...c, id: String(c.id)})), isLoadingCorporations: false } : m
+        ));
     } else {
-        setCorporations([]);
-        setError(response.message || `No se encontraron corporaciones para este municipio.`);
+        setMunicipalities(prev => prev.map(m => 
+            m.id === municipalityId ? { ...m, corporations: [], isLoadingCorporations: false } : m
+        ));
     }
-    setLoading(prev => ({ ...prev, corporations: false }));
-  }
+  };
+  
+  const fetchOfficesForCorporation = async (municipalityId: string, corporationId: string) => {
+    setMunicipalities(prev => prev.map(mun => {
+        if (mun.id !== municipalityId || !mun.corporations) return mun;
+        return {
+            ...mun,
+            corporations: mun.corporations.map(corp => 
+                corp.id === corporationId ? { ...corp, isLoadingOffices: true } : corp
+            )
+        };
+    }));
 
-  const handleFetchOffices = async (corporationId: string) => {
-    if (offices[corporationId] || officesLoading[corporationId]) return;
+    const response = await getOfficesByCorporation(corporationId);
 
-    setOfficesLoading(prev => ({ ...prev, [corporationId]: true }));
-    const response = await getOfficesByCorporation(String(corporationId));
-    if (response.success && Array.isArray(response.data)) {
-        setOffices(prev => ({...prev, [corporationId]: response.data.map(o => ({...o, id: String(o.id)})) }));
-    } else {
-        setOffices(prev => ({...prev, [corporationId]: []}));
-    }
-     setOfficesLoading(prev => ({ ...prev, [corporationId]: false }));
-  }
+    setMunicipalities(prev => prev.map(mun => {
+        if (mun.id !== municipalityId || !mun.corporations) return mun;
+        return {
+            ...mun,
+            corporations: mun.corporations.map(corp => {
+                if (corp.id !== corporationId) return corp;
+                if (response.success && Array.isArray(response.data)) {
+                    return { ...corp, offices: response.data.map(o => ({...o, id: String(o.id)})), isLoadingOffices: false };
+                }
+                return { ...corp, offices: [], isLoadingOffices: false };
+            })
+        };
+    }));
+  };
 
   return (
     <div className="p-4 md:p-8 space-y-6">
@@ -136,7 +140,7 @@ export default function JuzgadosPage() {
             Consulta de Juzgados
           </CardTitle>
           <CardDescription>
-            Explore la jerarquía de juzgados desde la API de Provired seleccionando un departamento y municipio.
+            Explore la jerarquía de juzgados desde la API de Provired seleccionando un departamento.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -153,7 +157,7 @@ export default function JuzgadosPage() {
         <CardHeader>
             <CardTitle className="text-xl">Selección de Ubicación</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
                 <Label htmlFor="department-select">Departamento</Label>
                  {loading.departments ? (
@@ -162,75 +166,82 @@ export default function JuzgadosPage() {
                     <Select onValueChange={handleDepartmentChange} disabled={loading.departments}>
                         <SelectTrigger id="department-select"><SelectValue placeholder="Seleccione un departamento..." /></SelectTrigger>
                         <SelectContent>
-                            {departments.map(dep => <SelectItem key={dep.IdDep} value={dep.IdDep}>{dep.departamento}</SelectItem>)}
+                            {departments.map((dep, index) => <SelectItem key={dep.IdDep || index} value={dep.IdDep}>{dep.departamento}</SelectItem>)}
                         </SelectContent>
                     </Select>
                  )}
             </div>
-             <div>
-                <Label htmlFor="municipality-select">Municipio</Label>
-                {loading.municipalities ? (
-                    <Skeleton className="h-10 w-full" />
-                ) : (
-                    <Select onValueChange={handleMunicipalityChange} value={selectedMunicipality || ""} disabled={!selectedDepartment || loading.municipalities}>
-                        <SelectTrigger id="municipality-select">
-                            <SelectValue placeholder={!selectedDepartment ? "Seleccione un departamento primero" : "Seleccione un municipio..."} />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {municipalities.map((mun, index) => <SelectItem key={mun.id || index} value={mun.id}>{mun.municipio}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                )}
-            </div>
         </CardContent>
       </Card>
 
-      {loading.corporations ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-24 w-full" />)}
-          </div>
-      ) : corporations.length > 0 ? (
-        <div>
-            <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <University className="h-5 w-5" /> Corporaciones Encontradas
-            </h3>
-            <Accordion type="single" collapsible className="w-full space-y-2">
-             {corporations.map(corp => (
-                <AccordionItem value={corp.id} key={corp.id} className="border bg-card rounded-md">
-                    <AccordionTrigger className="p-4 hover:no-underline" onClick={() => handleFetchOffices(corp.id)}>
-                        <div className="flex items-center gap-3">
-                            <MapPin className="h-4 w-4 text-muted-foreground" />
-                            <span className="font-medium text-left">{corp.corporacion}</span>
-                        </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="p-4 pt-0">
-                        {officesLoading[corp.id] ? (
-                            <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Cargando despachos...</div>
-                        ) : offices[corp.id] && offices[corp.id].length > 0 ? (
-                             <div className="space-y-2 pl-6 border-l">
-                                {offices[corp.id].map((office, index) => (
-                                    <div key={office.id || index} className="flex items-center gap-2 text-sm">
-                                        <Library className="h-4 w-4 text-primary" />
-                                        <span>{office.despacho}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                             <p className="text-sm text-muted-foreground pl-6">No se encontraron despachos para esta corporación.</p>
-                        )}
-                    </AccordionContent>
-                </AccordionItem>
-             ))}
-            </Accordion>
-        </div>
-      ) : selectedMunicipality && !loading.corporations && !error ? (
-         <Alert>
-              <University className="h-4 w-4" />
-              <AlertTitle>Sin Resultados</AlertTitle>
-              <AlertDescription>No se encontraron corporaciones para el municipio seleccionado.</AlertDescription>
-          </Alert>
-      ) : null}
-
+      <Card>
+          <CardHeader>
+              <CardTitle>Resultados</CardTitle>
+          </CardHeader>
+          <CardContent>
+              {loading.municipalities ? (
+                  <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Cargando municipios...</div>
+              ) : municipalities.length > 0 ? (
+                  <Table>
+                      <TableHeader>
+                          <TableRow>
+                              <TableHead>Municipio</TableHead>
+                              <TableHead>Corporaciones y Despachos</TableHead>
+                          </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                          {municipalities.map((mun, index) => (
+                              <TableRow key={mun.id || index}>
+                                  <TableCell className="font-medium">{mun.municipio}</TableCell>
+                                  <TableCell>
+                                    <Accordion type="single" collapsible className="w-full" onValueChange={() => fetchCorporationsForMunicipality(mun.id)}>
+                                        <AccordionItem value={`mun-${mun.id}`}>
+                                            <AccordionTrigger>Ver Corporaciones</AccordionTrigger>
+                                            <AccordionContent>
+                                                {mun.isLoadingCorporations ? (
+                                                     <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Cargando...</div>
+                                                ) : mun.corporations && mun.corporations.length > 0 ? (
+                                                    <Accordion type="single" collapsible className="w-full space-y-2">
+                                                        {mun.corporations.map((corp, corpIndex) => (
+                                                            <AccordionItem value={`corp-${corp.id}`} key={corp.id || corpIndex} className="border bg-card rounded-md">
+                                                                <AccordionTrigger className="p-3 hover:no-underline text-sm" onClick={() => fetchOfficesForCorporation(mun.id, corp.id)}>
+                                                                    <div className="flex items-center gap-2"><University className="h-4 w-4"/> {corp.corporacion}</div>
+                                                                </AccordionTrigger>
+                                                                <AccordionContent className="p-3 pt-0">
+                                                                     {corp.isLoadingOffices ? (
+                                                                        <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Cargando...</div>
+                                                                    ) : corp.offices && corp.offices.length > 0 ? (
+                                                                        <div className="space-y-2 pl-4 border-l">
+                                                                            {corp.offices.map((office, officeIndex) => (
+                                                                                <div key={office.id || officeIndex} className="flex items-center gap-2 text-xs">
+                                                                                    <Building className="h-3 w-3 text-primary"/>
+                                                                                    {office.despacho}
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    ) : (
+                                                                         <p className="text-xs text-muted-foreground pl-4">No se encontraron despachos.</p>
+                                                                    )}
+                                                                </AccordionContent>
+                                                            </AccordionItem>
+                                                        ))}
+                                                    </Accordion>
+                                                ) : (
+                                                     <p className="text-sm text-muted-foreground">No se encontraron corporaciones.</p>
+                                                )}
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    </Accordion>
+                                  </TableCell>
+                              </TableRow>
+                          ))}
+                      </TableBody>
+                  </Table>
+              ) : selectedDepartment ? (
+                  <p className="text-muted-foreground">No se encontraron municipios para este departamento.</p>
+              ) : null}
+          </CardContent>
+      </Card>
     </div>
   );
 }
