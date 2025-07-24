@@ -220,14 +220,14 @@ export default function JuzgadosPage() {
                                                                             ))}
                                                                         </div>
                                                                     ) : (
-                                                                         <p className="text-xs text-muted-foreground pl-4">No se encontraron despachos.</p>
+                                                                         <p className="text-xs text-muted-foreground pl-4">No se encontraron despachos para esta corporación.</p>
                                                                     )}
                                                                 </AccordionContent>
                                                             </AccordionItem>
                                                         ))}
                                                     </Accordion>
                                                 ) : (
-                                                     <p className="text-sm text-muted-foreground">No se encontraron corporaciones.</p>
+                                                     <p className="text-sm text-muted-foreground">No se encontraron corporaciones para este municipio.</p>
                                                 )}
                                             </AccordionContent>
                                         </AccordionItem>

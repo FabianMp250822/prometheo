@@ -1,3 +1,4 @@
+
 'use server';
 
 import { unstable_cache as cache } from 'next/cache';
@@ -104,7 +105,6 @@ export async function getCorporationById(id: string) {
 }
 
 export async function getCorporationsByMunicipality(municipalityId: string) {
-  // Ensure ID is passed as a string as the API expects it.
   return makeApiRequest('corporation', 'getDataIdMun', { id: String(municipalityId) });
 }
 
