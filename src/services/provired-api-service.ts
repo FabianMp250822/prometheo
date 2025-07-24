@@ -74,12 +74,13 @@ export async function syncAllProviredDataToFirebase(): Promise<{ success: boolea
 
             data.forEach((item: any) => {
                 let docId;
-                if(item.IdDep) docId = String(item.IdDep);
-                else if (item.IdMun) docId = String(item.IdMun);
+                // Use the most specific ID available first to ensure uniqueness.
+                if (item.IdDes) docId = String(item.IdDes);
                 else if (item.IdCorp) docId = String(item.IdCorp);
-                else if (item.IdDes) docId = String(item.IdDes);
+                else if (item.IdMun) docId = String(item.IdMun);
+                else if (item.IdDep) docId = String(item.IdDep);
                 else if (item.notificacion) docId = String(item.notificacion);
-                else docId = doc(collectionRef).id;
+                else docId = doc(collectionRef).id; // Fallback for safety
 
                 const docRef = doc(db, collectionName, docId);
 
