@@ -1,17 +1,18 @@
-
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Search, FileDown, BellRing, AlertTriangle } from 'lucide-react';
+import { Loader2, Search, FileDown, BellRing, AlertTriangle, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DocumentViewerModal } from '@/components/dashboard/document-viewer-modal';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { collection, getDocs, query, where, or, limit, orderBy, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { syncProviredNotifications } from '@/services/provired-api-service';
+import { Progress } from '@/components/ui/progress';
 
 interface Notification {
     id: string;
@@ -55,10 +56,17 @@ export default function NotificacionesPage() {
     const [documentTitle, setDocumentTitle] = useState<string | null>(null);
     const { toast } = useToast();
 
+    // Sync state
+    const [isSyncing, startSyncTransition] = useTransition();
+    const [syncProgress, setSyncProgress] = useState(0);
+    const [syncMessage, setSyncMessage] = useState('');
+
+
     const fetchPaginatedNotifications = useCallback(async (cursor?: QueryDocumentSnapshot<DocumentData> | null) => {
         const loadMore = !!cursor;
         if (!loadMore) {
             setIsLoading(true);
+            setLastDoc(null);
         } else {
             setIsLoadingMore(true);
         }
@@ -101,32 +109,15 @@ export default function NotificacionesPage() {
         setIsLoading(true);
         setError(null);
         setNotifications([]);
-        setHasMore(false); // Disable pagination during search
+        setHasMore(false);
 
         try {
             const notificationsRef = collection(db, "provired_notifications");
             const searchLower = searchVal.toLowerCase();
-            const searchUpper = searchVal.toUpperCase();
-
-            // Perform multiple simple queries in parallel
-            const demandanteQuery = query(
-                notificationsRef,
-                where("demandante_lower", ">=", searchLower),
-                where("demandante_lower", "<=", searchLower + '\uf8ff'),
-                limit(ITEMS_PER_PAGE)
-            );
-            const demandadoQuery = query(
-                notificationsRef,
-                where("demandado_lower", ">=", searchLower),
-                where("demandado_lower", "<=", searchLower + '\uf8ff'),
-                limit(ITEMS_PER_PAGE)
-            );
-            const radicacionQuery = query(
-                notificationsRef,
-                where("radicacion", ">=", searchVal),
-                where("radicacion", "<=", searchVal + '\uf8ff'),
-                limit(ITEMS_PER_PAGE)
-            );
+            
+            const demandanteQuery = query(notificationsRef, where("demandante_lower", ">=", searchLower), where("demandante_lower", "<=", searchLower + '\uf8ff'), limit(ITEMS_PER_PAGE));
+            const demandadoQuery = query(notificationsRef, where("demandado_lower", ">=", searchLower), where("demandado_lower", "<=", searchLower + '\uf8ff'), limit(ITEMS_PER_PAGE));
+            const radicacionQuery = query(notificationsRef, where("radicacion", ">=", searchVal), where("radicacion", "<=", searchVal + '\uf8ff'), limit(ITEMS_PER_PAGE));
 
             const [demandanteSnap, demandadoSnap, radicacionSnap] = await Promise.all([
                 getDocs(demandanteQuery),
@@ -134,7 +125,6 @@ export default function NotificacionesPage() {
                 getDocs(radicacionQuery)
             ]);
 
-            // Combine and deduplicate results
             const resultsMap = new Map<string, Notification>();
             const addResultsToMap = (snapshot: any) => {
                  snapshot.docs.forEach((doc: any) => {
@@ -176,19 +166,60 @@ export default function NotificacionesPage() {
         setDocumentTitle(title);
     };
 
+    const handleSync = () => {
+        startSyncTransition(async () => {
+            setSyncProgress(0);
+            setSyncMessage('Iniciando conexión con el servicio externo...');
+            toast({ title: 'Sincronización Iniciada', description: 'Obteniendo todas las notificaciones. Este proceso puede tardar varios minutos.' });
+
+            const result = await syncProviredNotifications((progress) => {
+                setSyncProgress((progress.current / progress.total) * 100);
+                setSyncMessage(`Procesando lote ${progress.current} de ${progress.total}...`);
+            });
+
+            if (result.success) {
+                toast({ title: 'Sincronización Completa', description: `${result.count} notificaciones fueron procesadas.` });
+                fetchPaginatedNotifications();
+            } else {
+                toast({ variant: 'destructive', title: 'Error de Sincronización', description: result.message });
+                setError(result.message || 'Ocurrió un error desconocido.');
+            }
+             setTimeout(() => {
+                setSyncMessage('');
+                setSyncProgress(0);
+            }, 5000);
+        });
+    };
+
     return (
         <>
             <div className="p-4 md:p-8 space-y-6">
                 <Card>
-                    <CardHeader>
-                        <CardTitle className="text-2xl font-headline flex items-center gap-2">
-                            <BellRing className="h-6 w-6" />
-                            Archivo de Notificaciones
-                        </CardTitle>
-                        <CardDescription>
-                            Explore el historial de notificaciones de Provired o busque por demandante, demandado o radicación.
-                        </CardDescription>
+                    <CardHeader className="flex flex-col md:flex-row md:items-start md:justify-between">
+                        <div>
+                            <CardTitle className="text-2xl font-headline flex items-center gap-2">
+                                <BellRing className="h-6 w-6" />
+                                Archivo de Notificaciones
+                            </CardTitle>
+                            <CardDescription>
+                                Explore el historial de notificaciones o busque por demandante, demandado o radicación.
+                            </CardDescription>
+                        </div>
+                        <Button onClick={handleSync} disabled={isSyncing}>
+                            {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                            Sincronizar Notificaciones
+                        </Button>
                     </CardHeader>
+                     {isSyncing && (
+                        <CardContent>
+                            <div className="flex items-center gap-4">
+                                <div className="flex-1 space-y-1">
+                                    <p className="text-sm font-medium leading-none text-muted-foreground">{syncMessage}</p>
+                                    <Progress value={syncProgress} />
+                                </div>
+                            </div>
+                        </CardContent>
+                    )}
                     <CardContent>
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -264,7 +295,7 @@ export default function NotificacionesPage() {
                                     </TableBody>
                                 </Table>
                             </div>
-                            {hasMore && (
+                            {hasMore && !debouncedSearchTerm && (
                                 <div className="pt-4 flex justify-center">
                                     <Button onClick={() => fetchPaginatedNotifications(lastDoc)} disabled={isLoadingMore}>
                                         {isLoadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -287,4 +318,3 @@ export default function NotificacionesPage() {
         </>
     );
 }
-

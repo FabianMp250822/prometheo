@@ -51,7 +51,72 @@ async function makeApiRequest(endpoint: string, method: string, params?: object)
   }
 }
 
-// --- Sync Function ---
+// --- Specific Sync Functions ---
+
+async function syncCollection(
+    collectionName: string, 
+    fetchFunction: () => Promise<{ success: boolean; data: any; message: string | undefined; }>,
+    progressCallback?: (progress: { current: number, total: number }) => void
+): Promise<{ success: boolean; count: number; message?: string; }> {
+    const { success, data, message } = await fetchFunction();
+    if (!success || !Array.isArray(data)) {
+        throw new Error(`Failed to fetch ${collectionName}: ${message}`);
+    }
+
+    const BATCH_SIZE = 400; // Firestore batch writes are limited to 500 operations.
+    const totalBatches = Math.ceil(data.length / BATCH_SIZE);
+
+    for (let i = 0; i < data.length; i += BATCH_SIZE) {
+        const batch = writeBatch(db);
+        const chunk = data.slice(i, i + BATCH_SIZE);
+
+        for (const item of chunk) {
+            let docId: string;
+            // Use the most specific ID available first to ensure uniqueness.
+            if (item.IdDes) docId = String(item.IdDes);
+            else if (item.IdCorp) docId = String(item.IdCorp);
+            else if (item.IdMun) docId = String(item.IdMun);
+            else if (item.IdDep) docId = String(item.IdDep);
+            else if (item.notificacion) docId = String(item.notificacion); // For notifications
+            else docId = doc(collection(db, collectionName)).id; // Fallback for safety
+
+            const docRef = doc(db, collectionName, docId);
+
+            if (collectionName === 'provired_notifications') {
+                item.demandante_lower = item.demandante?.toLowerCase() || '';
+                item.demandado_lower = item.demandado?.toLowerCase() || '';
+            }
+            batch.set(docRef, item);
+        }
+
+        await batch.commit();
+        if (progressCallback) {
+            progressCallback({ current: Math.floor(i / BATCH_SIZE) + 1, total: totalBatches });
+        }
+        await new Promise(resolve => setTimeout(resolve, 50)); // Pause to avoid overwhelming Firestore
+    }
+    
+    return { success: true, count: data.length };
+}
+
+
+// --- Main Service Functions ---
+
+export async function syncProviredNotifications(
+    progressCallback: (progress: { current: number, total: number }) => void
+): Promise<{ success: boolean; count: number; message?: string }> {
+    try {
+        return await syncCollection(
+            'provired_notifications',
+            () => makeApiRequest('report', 'getData'),
+            progressCallback
+        );
+    } catch (error: any) {
+        console.error("Firebase notifications sync error:", error);
+        return { success: false, count: 0, message: error.message };
+    }
+}
+
 
 export async function syncAllProviredDataToFirebase(): Promise<{ success: boolean; message?: string }> {
     const collectionsToSync = {
@@ -64,40 +129,11 @@ export async function syncAllProviredDataToFirebase(): Promise<{ success: boolea
     
     try {
         for (const [collectionName, fetchFunction] of Object.entries(collectionsToSync)) {
-            const { success, data, message } = await fetchFunction();
-            if (!success || !Array.isArray(data)) {
-                throw new Error(`Failed to fetch ${collectionName}: ${message}`);
-            }
-
-            const batch = writeBatch(db);
-            const collectionRef = collection(db, collectionName);
-
-            data.forEach((item: any) => {
-                let docId;
-                // Use the most specific ID available first to ensure uniqueness.
-                if (item.IdDes) docId = String(item.IdDes);
-                else if (item.IdCorp) docId = String(item.IdCorp);
-                else if (item.IdMun) docId = String(item.IdMun);
-                else if (item.IdDep) docId = String(item.IdDep);
-                else if (item.notificacion) docId = String(item.notificacion);
-                else docId = doc(collectionRef).id; // Fallback for safety
-
-                const docRef = doc(db, collectionName, docId);
-
-                if (collectionName === 'provired_notifications') {
-                    item.demandante_lower = item.demandante?.toLowerCase() || '';
-                    item.demandado_lower = item.demandado?.toLowerCase() || '';
-                }
-                batch.set(docRef, item);
-            });
-            
-            await batch.commit();
+            await syncCollection(collectionName, fetchFunction);
         }
-
-        return { success: true };
-
+        return { success: true, message: 'All collections synced successfully.' };
     } catch (error: any) {
-        console.error("Firebase sync error:", error);
+        console.error("Firebase sync all error:", error);
         return { success: false, message: error.message };
     }
 }
