@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -129,8 +130,8 @@ export function NotificationsSearchPage() {
                                     </TableHeader>
                                     <TableBody>
                                         {filteredNotifications.length > 0 ? (
-                                            filteredNotifications.map((n) => (
-                                                <TableRow key={`${n.notificacion}-${n.radicacion}`}>
+                                            filteredNotifications.map((n, index) => (
+                                                <TableRow key={`${n.notificacion}-${n.radicacion}-${n.descripcion}-${index}`}>
                                                     <TableCell className="font-medium">{n.demandante}</TableCell>
                                                     <TableCell>{n.demandado}</TableCell>
                                                     <TableCell>{n.radicacion}</TableCell>
