@@ -161,6 +161,14 @@ export default function DashboardLayout({
                           </Link>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
+                       <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild>
+                          <Link href="/dashboard/liquidaciones/anexo-ley-4">
+                            <FileText />
+                            <span>Anexo Ley 4</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild>
                           <Link href="/dashboard/liquidaciones/liquidador">
