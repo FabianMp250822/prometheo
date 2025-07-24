@@ -14,6 +14,7 @@ import { collection, getDocs, query, where, or, limit, orderBy, startAfter, Quer
 import { db } from '@/lib/firebase';
 
 interface Notification {
+    id: string;
     notificacion: string;
     fechaPublicacion: string;
     demandante: string;
@@ -54,18 +55,15 @@ export default function NotificacionesPage() {
     const [documentTitle, setDocumentTitle] = useState<string | null>(null);
     const { toast } = useToast();
 
-    const fetchNotifications = useCallback(async (cursor?: QueryDocumentSnapshot<DocumentData> | null) => {
+    const fetchPaginatedNotifications = useCallback(async (cursor?: QueryDocumentSnapshot<DocumentData> | null) => {
         const loadMore = !!cursor;
         if (!loadMore) {
             setIsLoading(true);
-            setNotifications([]);
-            setLastDoc(null);
-            setHasMore(true);
         } else {
             setIsLoadingMore(true);
         }
         setError(null);
-        
+
         try {
             let q = query(
                 collection(db, "provired_notifications"),
@@ -78,70 +76,100 @@ export default function NotificacionesPage() {
             }
 
             const snapshot = await getDocs(q);
-            const newNotifications = snapshot.docs.map(doc => doc.data() as Notification);
+            const newNotifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
             const lastVisible = snapshot.docs[snapshot.docs.length - 1];
-            
+
             setLastDoc(lastVisible || null);
             setHasMore(newNotifications.length === ITEMS_PER_PAGE);
-            setNotifications(prev => loadMore ? [...prev, ...newNotifications] : newNotifications);
+
+            if (loadMore) {
+                setNotifications(prev => [...prev, ...newNotifications]);
+            } else {
+                setNotifications(newNotifications);
+            }
 
         } catch (err: any) {
-             console.error("Error fetching notifications:", err);
-             setError("Ocurrió un error al cargar las notificaciones. Asegúrese de que los índices de Firestore estén creados (ej: provired_notifications por fechaPublicacion desc).");
+            console.error("Error fetching notifications:", err);
+            setError("Ocurrió un error al cargar las notificaciones. Asegúrese de que los índices de Firestore estén creados.");
         } finally {
             setIsLoading(false);
             setIsLoadingMore(false);
         }
     }, []);
 
+    const searchNotificationsInFirebase = useCallback(async (searchVal: string) => {
+        setIsLoading(true);
+        setError(null);
+        setNotifications([]);
+        setHasMore(false); // Disable pagination during search
 
-    useEffect(() => {
-        const searchNotifications = async () => {
-            if (debouncedSearchTerm.length < 3) {
-                 if(debouncedSearchTerm === '') fetchNotifications();
-                return;
+        try {
+            const notificationsRef = collection(db, "provired_notifications");
+            const searchLower = searchVal.toLowerCase();
+            const searchUpper = searchVal.toUpperCase();
+
+            // Perform multiple simple queries in parallel
+            const demandanteQuery = query(
+                notificationsRef,
+                where("demandante_lower", ">=", searchLower),
+                where("demandante_lower", "<=", searchLower + '\uf8ff'),
+                limit(ITEMS_PER_PAGE)
+            );
+            const demandadoQuery = query(
+                notificationsRef,
+                where("demandado_lower", ">=", searchLower),
+                where("demandado_lower", "<=", searchLower + '\uf8ff'),
+                limit(ITEMS_PER_PAGE)
+            );
+            const radicacionQuery = query(
+                notificationsRef,
+                where("radicacion", ">=", searchVal),
+                where("radicacion", "<=", searchVal + '\uf8ff'),
+                limit(ITEMS_PER_PAGE)
+            );
+
+            const [demandanteSnap, demandadoSnap, radicacionSnap] = await Promise.all([
+                getDocs(demandanteQuery),
+                getDocs(demandadoQuery),
+                getDocs(radicacionQuery)
+            ]);
+
+            // Combine and deduplicate results
+            const resultsMap = new Map<string, Notification>();
+            const addResultsToMap = (snapshot: any) => {
+                 snapshot.docs.forEach((doc: any) => {
+                    if (!resultsMap.has(doc.id)) {
+                        resultsMap.set(doc.id, { id: doc.id, ...doc.data() } as Notification);
+                    }
+                });
             }
             
-            setIsLoading(true);
-            setError(null);
-            setNotifications([]);
+            addResultsToMap(demandanteSnap);
+            addResultsToMap(demandadoSnap);
+            addResultsToMap(radicacionSnap);
+            
+            const combinedResults = Array.from(resultsMap.values())
+              .sort((a, b) => new Date(b.fechaPublicacion).getTime() - new Date(a.fechaPublicacion).getTime());
 
-            try {
-                const notificationsRef = collection(db, "provired_notifications");
-                const searchLower = debouncedSearchTerm.toLowerCase();
-                const q = query(
-                    notificationsRef,
-                    or(
-                        where("demandante_lower", ">=", searchLower),
-                        where("demandante_lower", "<=", searchLower + '\uf8ff'),
-                        where("demandado_lower", ">=", searchLower),
-                        where("demandado_lower", "<=", searchLower + '\uf8ff'),
-                        where("radicacion", ">=", debouncedSearchTerm),
-                        where("radicacion", "<=", debouncedSearchTerm + '\uf8ff')
-                    ),
-                    limit(ITEMS_PER_PAGE)
-                );
+            setNotifications(combinedResults);
 
-                const snapshot = await getDocs(q);
-                const results = snapshot.docs.map(doc => doc.data() as Notification);
-                setNotifications(results);
-                setHasMore(false); // Disable pagination for search results
-                
-            } catch (err: any) {
-                console.error("Error searching notifications:", err);
-                setError("Ocurrió un error al buscar en Firebase.");
-                toast({ variant: 'destructive', title: 'Error de Búsqueda', description: err.message });
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        if (debouncedSearchTerm) {
-            searchNotifications();
-        } else {
-            fetchNotifications();
+        } catch (err: any) {
+            console.error("Error searching notifications:", err);
+            setError("Ocurrió un error al buscar en Firebase. Es posible que falten índices para los campos de búsqueda.");
+            toast({ variant: 'destructive', title: 'Error de Búsqueda', description: err.message });
+        } finally {
+            setIsLoading(false);
         }
-    }, [debouncedSearchTerm, fetchNotifications, toast]);
+    }, [toast]);
+
+
+    useEffect(() => {
+        if (debouncedSearchTerm.length >= 3) {
+            searchNotificationsInFirebase(debouncedSearchTerm);
+        } else if (debouncedSearchTerm.length === 0) {
+            fetchPaginatedNotifications();
+        }
+    }, [debouncedSearchTerm, fetchPaginatedNotifications, searchNotificationsInFirebase]);
 
     const handleViewDocument = (url: string, title: string) => {
         setDocumentUrl(url);
@@ -182,7 +210,7 @@ export default function NotificacionesPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        {isLoading ? (
+                        {isLoading && notifications.length === 0 ? (
                             <div className="flex justify-center items-center p-10"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>
                         ) : error ? (
                              <Alert variant="destructive">
@@ -206,8 +234,8 @@ export default function NotificacionesPage() {
                                     </TableHeader>
                                     <TableBody>
                                         {notifications.length > 0 ? (
-                                            notifications.map((n, index) => (
-                                                <TableRow key={`${n.notificacion}-${n.radicacion}-${index}`}>
+                                            notifications.map((n) => (
+                                                <TableRow key={n.id}>
                                                     <TableCell className="font-medium whitespace-nowrap">{n.fechaPublicacion}</TableCell>
                                                     <TableCell>{n.demandante}</TableCell>
                                                     <TableCell>{n.demandado}</TableCell>
@@ -236,9 +264,9 @@ export default function NotificacionesPage() {
                                     </TableBody>
                                 </Table>
                             </div>
-                            {!debouncedSearchTerm && hasMore && (
+                            {hasMore && (
                                 <div className="pt-4 flex justify-center">
-                                    <Button onClick={() => fetchNotifications(lastDoc)} disabled={isLoadingMore}>
+                                    <Button onClick={() => fetchPaginatedNotifications(lastDoc)} disabled={isLoadingMore}>
                                         {isLoadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         Cargar más
                                     </Button>
@@ -259,3 +287,4 @@ export default function NotificacionesPage() {
         </>
     );
 }
+
