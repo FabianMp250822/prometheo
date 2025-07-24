@@ -8,14 +8,16 @@ import type { DajusticiaClient, DajusticiaPayment } from '@/lib/data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, ArrowLeft, User, FileDown, Briefcase, TrendingUp, TrendingDown, Sigma } from 'lucide-react';
+import { Loader2, ArrowLeft, User, FileDown, Briefcase, TrendingUp, TrendingDown, Sigma, Send } from 'lucide-react';
 import { formatCurrency, formatFirebaseTimestamp } from '@/lib/helpers';
 import { DocumentViewerModal } from '@/components/dashboard/document-viewer-modal';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { useToast } from '@/hooks/use-toast';
 
 export default function PagosClientePage() {
   const params = useParams();
   const router = useRouter();
+  const { toast } = useToast();
   const clienteId = params.clienteId as string;
 
   const [client, setClient] = useState<DajusticiaClient | null>(null);
@@ -63,6 +65,18 @@ export default function PagosClientePage() {
   const handleViewDocument = (url: string, title: string) => {
     setDocumentUrl(url);
     setDocumentTitle(title);
+  };
+  
+  const handleResendSupport = async (payment: DajusticiaPayment) => {
+      // This is a placeholder for the actual email sending logic.
+      // In a real app, this would call a server action or a cloud function.
+      toast({
+          title: "Función no implementada",
+          description: "La lógica para reenviar el correo de soporte aún no está conectada."
+      });
+      console.log("Reenviar soporte para:", payment);
+      // Example of what the call might look like:
+      // await resendSupportEmail({ clientId: client?.id, paymentId: payment.id });
   };
   
   const summary = React.useMemo(() => {
@@ -157,7 +171,7 @@ export default function PagosClientePage() {
                         <TableHead>Descuento</TableHead>
                         <TableHead>Vendedor</TableHead>
                         <TableHead>Empresa</TableHead>
-                        <TableHead className="text-right">Soporte</TableHead>
+                        <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -169,12 +183,17 @@ export default function PagosClientePage() {
                             <TableCell>{formatCurrency(pago.descuento)}</TableCell>
                             <TableCell>{formatCurrency(pago.vendedor)}</TableCell>
                             <TableCell>{formatCurrency(pago.empresa)}</TableCell>
-                            <TableCell className="text-right">
+                            <TableCell className="text-right flex items-center justify-end gap-2">
                                 <Button
-                                    variant="outline" size="sm"
+                                    variant="outline" size="icon"
                                     disabled={!pago.soporteURL}
                                     onClick={() => handleViewDocument(pago.soporteURL, `Soporte de pago`)}>
                                     <FileDown className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost" size="icon"
+                                    onClick={() => handleResendSupport(pago)}>
+                                    <Send className="h-4 w-4" />
                                 </Button>
                             </TableCell>
                         </TableRow>
