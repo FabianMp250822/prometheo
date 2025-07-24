@@ -57,7 +57,9 @@ export default function JuzgadosPage() {
       setError(null);
       const response = await getDepartments();
       if (response.success && Array.isArray(response.data)) {
-        setDepartments(response.data);
+        // Ensure all IDs are strings for consistency
+        const stringifiedData = response.data.map(d => ({ ...d, IdDep: String(d.IdDep) }));
+        setDepartments(stringifiedData);
       } else {
         setError(response.message || 'Error al conectar con la API de Provired.');
       }
@@ -77,7 +79,9 @@ export default function JuzgadosPage() {
     setError(null);
     const response = await getMunicipalitiesByDepartment(departmentId);
     if (response.success && Array.isArray(response.data)) {
-        setMunicipalities(response.data);
+        // Ensure all IDs are strings
+        const stringifiedData = response.data.map(m => ({ ...m, id: String(m.id) }));
+        setMunicipalities(stringifiedData);
     } else {
         setMunicipalities([]);
         setError(`No se encontraron municipios para este departamento.`);
@@ -99,7 +103,7 @@ export default function JuzgadosPage() {
         // Handle both single object and array responses
         const corpData = Array.isArray(response.data) ? response.data : [response.data];
         if (corpData.length > 0) {
-            setCorporations(corpData);
+            setCorporations(corpData.map(c => ({...c, id: String(c.id)})));
         } else {
              setCorporations([]);
              setError(`No se encontraron corporaciones para este municipio.`);
@@ -118,7 +122,7 @@ export default function JuzgadosPage() {
     setLoading(prev => ({ ...prev, offices: corporationId }));
     const response = await getOfficesByCorporation(corporationId);
     if (response.success && Array.isArray(response.data)) {
-        setOffices(prev => ({...prev, [corporationId]: response.data}));
+        setOffices(prev => ({...prev, [corporationId]: response.data.map(o => ({...o, id: String(o.id)})) }));
     } else {
         // Store an empty array to indicate we've tried and failed, to prevent retries
         setOffices(prev => ({...prev, [corporationId]: []}));
@@ -140,7 +144,7 @@ export default function JuzgadosPage() {
         </CardHeader>
       </Card>
       
-      {error && !loading.corporations && (
+      {error && (
         <Alert variant="destructive">
             <ServerCrash className="h-4 w-4" />
             <AlertTitle>Error de Conexión</AlertTitle>
@@ -222,7 +226,7 @@ export default function JuzgadosPage() {
              ))}
             </Accordion>
         </div>
-      ) : selectedMunicipality && !loading.corporations ? (
+      ) : selectedMunicipality && !loading.corporations && !error ? (
          <Alert>
               <University className="h-4 w-4" />
               <AlertTitle>Sin Resultados</AlertTitle>
