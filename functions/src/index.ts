@@ -78,9 +78,9 @@ export const onNewPaymentCreate = onDocumentCreated(
 
     const newProcessDocRef = db.collection("procesoscancelados").doc();
 
-    const fechaLiquidacionDate = paymentData.fechaProcesado?.toDate ?
-      paymentData.fechaProcesado.toDate() :
-      new Date();
+    const fechaLiquidacionDate = paymentData.fechaProcesado?.toDate
+      ? paymentData.fechaProcesado.toDate()
+      : new Date();
 
     const newProcessData = {
       año: paymentData.año,
@@ -117,7 +117,8 @@ export const sendPaymentReminder = onRequest(async (req, res) => {
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
     res.set("Access-Control-Allow-Headers", "Content-Type");
-    return res.status(204).send("");
+    res.status(204).send("");
+    return;
   }
 
   res.set("Access-Control-Allow-Origin", "*");
@@ -132,10 +133,11 @@ export const sendPaymentReminder = onRequest(async (req, res) => {
 
   if (!emailUsuario || !nombreUsuario || !deudaActual || !cuotaSugerida) {
     logger.error("Missing parameters in the request", req.body);
-    return res.status(400).json({
+    res.status(400).json({
       message:
         "Required parameters: emailUsuario, nombreUsuario, etc.",
     });
+    return;
   }
 
   const subject = "Recordatorio de Pago Pendiente - Dajusticia";
@@ -233,13 +235,13 @@ export const sendPaymentReminder = onRequest(async (req, res) => {
   try {
     const info = await transporter.sendMail(mailOptions);
     logger.info("Reminder sent:", info.messageId);
-    return res.status(200).json({
+    res.status(200).json({
       message: "Reminder sent successfully",
       messageId: info.messageId,
     });
   } catch (error) {
     logger.error("Error sending reminder:", error);
-    return res.status(500).json({
+    res.status(500).json({
       message: "Error sending reminder email",
       error: (error as Error).message,
     });
