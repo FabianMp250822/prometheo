@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Percent, Loader2, UserX } from 'lucide-react';
+import { Percent, Loader2, UserX, BarChart3 } from 'lucide-react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { collection, getDocs, query, doc, getDoc, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -191,6 +191,39 @@ export default function AdquisitivoPage() {
 
     }, [payments, historicalPayments, causanteRecords]);
 
+     const sharingData = useMemo(() => {
+        const sharingYearData = tableData.find(d => d.pensionDeVejez > 0 && !d.isProjected);
+        if (!sharingYearData) return null;
+        
+        const sharingYear = sharingYearData.year;
+        const preSharingYearData = tableData.find(d => d.year === sharingYear - 1);
+        
+        const firstCausanteRecord = causanteRecords
+            .filter(r => r.fecha_desde)
+            .sort((a,b) => formatFirebaseTimestamp(a.fecha_desde!, 't') - formatFirebaseTimestamp(b.fecha_desde!, 't'))[0];
+
+        const sharingDate = firstCausanteRecord ? formatFirebaseTimestamp(firstCausanteRecord.fecha_desde, 'dd/MM/yyyy') : 'N/A';
+        const mesadaAntes = preSharingYearData ? preSharingYearData.paidByCompany : 0;
+        
+        const { unidadPensional, pensionDeVejez, paidByCompany } = sharingYearData;
+        const aCargoColpensiones = pensionDeVejez;
+        const aCargoEmpresa = paidByCompany;
+        
+        const porcentajeColpensiones = unidadPensional > 0 ? (aCargoColpensiones / unidadPensional) * 100 : 0;
+        const porcentajeEmpresa = unidadPensional > 0 ? (aCargoEmpresa / unidadPensional) * 100 : 0;
+
+        return {
+            sharingDate,
+            mesadaAntes,
+            aCargoColpensiones,
+            porcentajeColpensiones,
+            aCargoEmpresa,
+            porcentajeEmpresa,
+        };
+
+    }, [tableData, causanteRecords]);
+
+
     return (
         <div className="p-4 md:p-8 space-y-6">
             <Card>
@@ -205,6 +238,56 @@ export default function AdquisitivoPage() {
                     </CardDescription>
                 </CardHeader>
             </Card>
+
+            {selectedPensioner && sharingData && (
+                <Card>
+                    <CardHeader>
+                         <CardTitle className="text-xl font-headline flex items-center gap-2">
+                             <BarChart3 className="h-5 w-5" />
+                             Resumen de Compartición Pensional
+                         </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="border rounded-lg overflow-hidden">
+                            <Table>
+                                <TableBody>
+                                    <TableRow>
+                                        <TableCell className="font-semibold bg-muted/50">FECHA DE COMPARTICIÓN DE LA PENSIÓN CONVENCIONAL CON LA PENSIÓN DEL ISS - COLPENSIONES</TableCell>
+                                        <TableCell className='text-center'>{sharingData.sharingDate}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableCell className="font-semibold bg-muted/50">MESADA PLENA DE LA PENSIÓN CONVENCIONAL ANTES DE LA COMPARTICIÓN</TableCell>
+                                        <TableCell className='text-center font-medium'>{formatCurrency(sharingData.mesadaAntes)}</TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
+                        </div>
+                        <div className="border rounded-lg overflow-hidden mt-4">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className='bg-muted'>PORCENTAJE Y VALORES DE CUOTAS PARTES EN QUE SE DISTRIBUYE EL MONTO DE LA MESADA PENSIONAL A PARTIR DE LA COMPARTICIÓN</TableHead>
+                                        <TableHead className='text-center bg-muted'>PORCENTAJE</TableHead>
+                                        <TableHead className='text-center bg-muted'>VALOR</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    <TableRow>
+                                        <TableCell className="font-semibold">A CARGO DE COLPENSIONES</TableCell>
+                                        <TableCell className='text-center'>{sharingData.porcentajeColpensiones.toFixed(2)}%</TableCell>
+                                        <TableCell className='text-center font-medium'>{formatCurrency(sharingData.aCargoColpensiones)}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableCell className="font-semibold">MAYOR VALOR A CARGO DE LA EMPRESA</TableCell>
+                                        <TableCell className='text-center'>{sharingData.porcentajeEmpresa.toFixed(2)}%</TableCell>
+                                        <TableCell className='text-center font-medium'>{formatCurrency(sharingData.aCargoEmpresa)}</TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             <Card>
                 <CardContent className="pt-6">
