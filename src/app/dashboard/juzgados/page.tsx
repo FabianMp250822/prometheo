@@ -17,7 +17,7 @@ interface Department {
   departamento: string;
 }
 interface Municipality {
-    IdMun: string; // Corregido de 'id' a 'IdMun'
+    IdMun: string; 
     municipio: string;
     corporations?: Corporation[];
     isLoadingCorporations?: boolean;
@@ -56,6 +56,7 @@ export default function JuzgadosPage() {
       setError(null);
       const response = await getDepartments();
       if (response.success && Array.isArray(response.data)) {
+        console.log('--- Departamentos Recibidos de la API ---', response.data);
         const stringifiedData = response.data.map(d => ({ ...d, IdDep: String(d.IdDep) }));
         setDepartments(stringifiedData);
       } else {
@@ -76,7 +77,6 @@ export default function JuzgadosPage() {
     const response = await getMunicipalitiesByDepartment(depIdStr);
     
     if (response.success && Array.isArray(response.data)) {
-        // Corregido: m.IdMun en lugar de m.id
         const stringifiedData = response.data.map(m => ({ ...m, IdMun: String(m.IdMun) }));
         setMunicipalities(stringifiedData);
     } else {
@@ -123,6 +123,7 @@ export default function JuzgadosPage() {
             corporations: mun.corporations.map(corp => {
                 if (corp.id !== corporationId) return corp;
                 if (response.success && Array.isArray(response.data)) {
+                    console.log(`--- Despachos Recibidos para Corporación ${corporationId} ---`, response.data);
                     return { ...corp, offices: response.data.map(o => ({...o, id: String(o.id)})), isLoadingOffices: false };
                 }
                 return { ...corp, offices: [], isLoadingOffices: false };
@@ -190,8 +191,8 @@ export default function JuzgadosPage() {
                           </TableRow>
                       </TableHeader>
                       <TableBody>
-                          {municipalities.map((mun, index) => (
-                              <TableRow key={mun.IdMun || index}>
+                          {municipalities.map((mun) => (
+                              <TableRow key={mun.IdMun}>
                                   <TableCell className="font-medium">{mun.municipio}</TableCell>
                                   <TableCell>
                                     <Accordion type="single" collapsible className="w-full" onValueChange={() => fetchCorporationsForMunicipality(mun.IdMun)}>
@@ -239,7 +240,9 @@ export default function JuzgadosPage() {
                   </Table>
               ) : selectedDepartment ? (
                   <p className="text-muted-foreground">No se encontraron municipios para este departamento.</p>
-              ) : null}
+              ) : (
+                 <p className="text-muted-foreground">Seleccione un departamento para ver los resultados.</p>
+              )}
           </CardContent>
       </Card>
     </div>
