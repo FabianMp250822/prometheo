@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Gavel, Loader2, Download, Search, Filter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { formatCurrency, formatPeriodoToMonthYear, parsePaymentDetailName, parseDepartmentName } from '@/lib/helpers';
+import { formatCurrency, formatPeriodoToMonthYear, parsePaymentDetailName } from '@/lib/helpers';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { getProcesosCancelados } from '@/services/pensioner-service';
@@ -20,22 +20,18 @@ export default function SentenciasPage() {
     const { toast } = useToast();
 
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedDepartment, setSelectedDepartment] = useState('all');
     const [selectedYear, setSelectedYear] = useState('all');
 
-    const [uniqueDepartments, setUniqueDepartments] = useState<string[]>([]);
     const [uniqueYears, setUniqueYears] = useState<string[]>([]);
 
     useEffect(() => {
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                const { data, metadata } = await getProcesosCancelados();
+                const data = await getProcesosCancelados();
                 setProcesos(data);
-                if (metadata) {
-                    setUniqueDepartments(metadata.departments);
-                    setUniqueYears(metadata.years);
-                }
+                const years = [...new Set(data.map(p => p.año).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
+                setUniqueYears(years);
             } catch (error) {
                 console.error("Error fetching data:", error);
                 toast({ variant: 'destructive', title: "Error", description: "No se pudieron cargar los datos." });
@@ -49,20 +45,15 @@ export default function SentenciasPage() {
 
      const filteredProcesos = useMemo(() => {
         return procesos.filter(p => {
-            if (!p.pensionerInfo) return false;
-
             const searchTermLower = searchTerm.toLowerCase();
             const searchMatch = searchTermLower === '' ||
-                p.pensionerInfo.name.toLowerCase().includes(searchTermLower) ||
-                p.pensionerInfo.document.includes(searchTermLower);
-
-            const departmentMatch = selectedDepartment === 'all' || p.pensionerInfo.department === selectedDepartment;
+                p.pensionadoId.toLowerCase().includes(searchTermLower);
             
             const yearMatch = selectedYear === 'all' || p.año === selectedYear;
 
-            return searchMatch && departmentMatch && yearMatch;
+            return searchMatch && yearMatch;
         });
-    }, [procesos, searchTerm, selectedDepartment, selectedYear]);
+    }, [procesos, searchTerm, selectedYear]);
 
     const exportToExcel = () => {
         if (filteredProcesos.length === 0) {
@@ -73,14 +64,13 @@ export default function SentenciasPage() {
         const dataToExport = filteredProcesos.flatMap(p => 
             p.conceptos.map(c => ({
                 "ID Pensionado": p.pensionadoId,
-                "Nombre Pensionado": p.pensionerInfo?.name || 'N/A',
-                "Documento": p.pensionerInfo?.document || 'N/A',
-                "Dependencia": p.pensionerInfo?.department ? parseDepartmentName(p.pensionerInfo.department) : 'N/A',
                 "Periodo de Pago": formatPeriodoToMonthYear(p.periodoPago),
                 "Concepto": parsePaymentDetailName(c.nombre),
                 "Ingresos": c.ingresos,
                 "Egresos": c.egresos,
                 "Año": p.año,
+                "Fecha Liquidacion": p.fechaLiquidacion,
+                "ID Pago": p.pagoId,
             }))
         );
 
@@ -126,26 +116,17 @@ export default function SentenciasPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
-                                placeholder="Buscar por nombre o documento..."
+                                placeholder="Buscar por ID de pensionado..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-10"
                                 disabled={isLoading}
                             />
                         </div>
-                         <Select value={selectedDepartment} onValueChange={setSelectedDepartment} disabled={isLoading || uniqueDepartments.length === 0}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Filtrar por Dependencia" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Todas las Dependencias</SelectItem>
-                                {uniqueDepartments.map(dep => <SelectItem key={dep} value={dep}>{parseDepartmentName(dep)}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
                          <Select value={selectedYear} onValueChange={setSelectedYear} disabled={isLoading || uniqueYears.length === 0}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Filtrar por Año Fiscal" />
@@ -163,19 +144,18 @@ export default function SentenciasPage() {
                 <CardHeader>
                     <CardTitle>Resultados</CardTitle>
                     <CardDescription>
-                        {`${filteredProcesos.length} procesos encontrados.`}
+                        {`${filteredProcesos.length} registros encontrados.`}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
-                        <DataTableSkeleton columnCount={6} rowCount={5} />
+                        <DataTableSkeleton columnCount={5} rowCount={5} />
                     ) : (
                         <div className="overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>Pensionado</TableHead>
-                                        <TableHead>Dependencia</TableHead>
+                                        <TableHead>ID Pensionado</TableHead>
                                         <TableHead>Periodo de Pago</TableHead>
                                         <TableHead>Conceptos</TableHead>
                                         <TableHead className="text-right">Valores</TableHead>
@@ -187,13 +167,7 @@ export default function SentenciasPage() {
                                         const totalProceso = p.conceptos.reduce((acc, c) => acc + c.ingresos, 0);
                                         return (
                                             <TableRow key={p.id}>
-                                                <TableCell className="align-middle">
-                                                    <div className="font-medium">{p.pensionerInfo?.name || 'N/A'}</div>
-                                                    <div className="text-xs text-muted-foreground">{p.pensionerInfo?.document}</div>
-                                                </TableCell>
-                                                <TableCell className="align-middle">
-                                                    {parseDepartmentName(p.pensionerInfo?.department || 'N/A')}
-                                                </TableCell>
+                                                <TableCell className="align-middle font-medium">{p.pensionadoId}</TableCell>
                                                 <TableCell className="align-middle">{formatPeriodoToMonthYear(p.periodoPago)}</TableCell>
                                                 <TableCell className="p-0 align-middle">
                                                     <div className="divide-y divide-border">
@@ -213,7 +187,7 @@ export default function SentenciasPage() {
                                     })}
                                     {filteredProcesos.length === 0 && !isLoading && (
                                         <TableRow>
-                                            <TableCell colSpan={6} className="text-center text-muted-foreground">
+                                            <TableCell colSpan={5} className="text-center text-muted-foreground">
                                                 No se encontraron datos con los filtros aplicados.
                                             </TableCell>
                                         </TableRow>
