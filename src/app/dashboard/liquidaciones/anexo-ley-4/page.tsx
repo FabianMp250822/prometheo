@@ -87,7 +87,7 @@ export default function AnexoLey4Page() {
         
         const countPaymentsInYear = (year: number): number => {
             return payments.filter(p => parseInt(p.año, 10) === year).length;
-        }
+        };
 
         let firstPensionYear = 0;
         for(let year = 1999; year <= 2007; year++){
@@ -104,7 +104,7 @@ export default function AnexoLey4Page() {
             .filter(year => year >= firstPensionYear && year <= 2007)
             .sort((a, b) => a - b);
         
-        let lastProjectedPension = 0;
+        let proyeccionAnterior = 0;
 
         return relevantYears.map((year, index) => {
             const smlmv = smlmvData[year] || 0;
@@ -116,15 +116,17 @@ export default function AnexoLey4Page() {
             if (index === 0) {
                 proyeccionMesada = mesadaPagada;
             } else {
-                proyeccionMesada = lastProjectedPension * (1 + (reajusteSMLMVData[year -1]/100));
+                const reajusteMayor = Math.max(reajusteSMLMV, ipcAnterior);
+                proyeccionMesada = proyeccionAnterior * (1 + (reajusteMayor / 100));
             }
-            lastProjectedPension = proyeccionMesada;
+            proyeccionAnterior = proyeccionMesada;
 
-            const numSmlmvProyectado = smlmv > 0 ? proyeccionMesada / smlmv : 0;
-            const numSmlmvPagado = smlmv > 0 ? mesadaPagada / smlmv : 0;
-            const diferencia = proyeccionMesada - mesadaPagada;
-            const numMesadas = countPaymentsInYear(year);
-            const totalRetroactivas = diferencia > 0 ? diferencia * numMesadas : 0;
+
+            const numSmlmvProyectado = 0;
+            const numSmlmvPagado = 0;
+            const diferencia = 0;
+            const numMesadas = 0;
+            const totalRetroactivas = 0;
 
             return {
                 año: year,
@@ -142,10 +144,6 @@ export default function AnexoLey4Page() {
         });
 
     }, [selectedPensioner, payments, historicalPayments]);
-
-    const totalRetroactivasGeneral = useMemo(() => {
-        return tabla1Data.reduce((acc, row) => acc + row.totalRetroactivas, 0);
-    }, [tabla1Data]);
 
     return (
         <div className="p-4 md:p-8 space-y-6">
@@ -211,7 +209,7 @@ export default function AnexoLey4Page() {
                                         <TableHead>Año</TableHead>
                                         <TableHead>SMLMV</TableHead>
                                         <TableHead>Reajuste en % SMLMV</TableHead>
-                                        <TableHead>Proyección Mesada</TableHead>
+                                        <TableHead>Proyección de Mesada Fiduprevisora con % SMLMV</TableHead>
                                         <TableHead># de SMLMV (SMLMV)</TableHead>
                                         <TableHead>Reajuste en % IPC</TableHead>
                                         <TableHead>Mesada Pagada (IPC)</TableHead>
@@ -238,12 +236,6 @@ export default function AnexoLey4Page() {
                                        </TableRow>
                                    ))}
                                 </TableBody>
-                                <tfoot className="font-bold">
-                                    <TableRow>
-                                        <TableCell colSpan={10} className="text-right">TOTAL</TableCell>
-                                        <TableCell>{formatCurrency(totalRetroactivasGeneral)}</TableCell>
-                                    </TableRow>
-                                </tfoot>
                             </Table>
                             </div>
                         ) : (
