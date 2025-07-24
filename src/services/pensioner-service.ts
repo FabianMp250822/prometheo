@@ -1,6 +1,6 @@
 'use server';
 
-import { collection, query, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { ProcesoCancelado } from '@/lib/data';
 import { parsePeriodoPago } from '@/lib/helpers';
@@ -19,7 +19,9 @@ export async function getProcesosCancelados(): Promise<{
     metadata: { departments: string[], years: string[] }
 }> {
     try {
-        const q = query(collection(db, PROCESOS_CANCELADOS_COLLECTION), orderBy("creadoEn", "desc"));
+        // Remove server-side ordering to avoid index-related errors.
+        // Ordering will be handled client-side.
+        const q = query(collection(db, PROCESOS_CANCELADOS_COLLECTION));
         const procesosSnapshot = await getDocs(q);
         
         const procesosData = procesosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcesoCancelado));
@@ -28,10 +30,10 @@ export async function getProcesosCancelados(): Promise<{
             return { data: [], metadata: { departments: [], years: [] } };
         }
         
-        // Data is already denormalized, just sort it client-side for final display.
+        // Perform sorting on the client side.
         const sortedProcesos = procesosData.sort((a, b) => {
-            const dateA = parsePeriodoPago(a.periodoPago)?.endDate || new Date(0);
-            const dateB = parsePeriodoPago(b.periodoPago)?.endDate || new Date(0);
+            const dateA = a.creadoEn ? (a.creadoEn as any).toDate?.() || new Date(a.creadoEn) : new Date(0);
+            const dateB = b.creadoEn ? (b.creadoEn as any).toDate?.() || new Date(b.creadoEn) : new Date(0);
             return dateB.getTime() - dateA.getTime();
         });
 
