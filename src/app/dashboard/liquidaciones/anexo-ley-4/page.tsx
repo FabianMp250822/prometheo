@@ -12,20 +12,20 @@ import { db } from '@/lib/firebase';
 
 // --- Static Data ---
 const datosConsolidados: { [year: number]: { smlmv: number; ipc: number; reajusteSMLMV: number } } = {
-  1999: { smlmv: 236460, ipc: 16.70, reajusteSMLMV: 16.01 },
-  2000: { smlmv: 260100, ipc: 9.23, reajusteSMLMV: 10.00 },
-  2001: { smlmv: 286000, ipc: 8.75, reajusteSMLMV: 9.96 },
-  2002: { smlmv: 309000, ipc: 7.65, reajusteSMLMV: 8.04 },
-  2003: { smlmv: 332000, ipc: 6.99, reajusteSMLMV: 7.44 },
-  2004: { smlmv: 358000, ipc: 6.49, reajusteSMLMV: 7.83 },
-  2005: { smlmv: 381500, ipc: 5.50, reajusteSMLMV: 6.56 },
-  2006: { smlmv: 408000, ipc: 4.85, reajusteSMLMV: 6.95 },
-  2007: { smlmv: 433700, ipc: 4.48, reajusteSMLMV: 6.30 },
+    1999: { smlmv: 236460, ipc: 16.70, reajusteSMLMV: 16.01 },
+    2000: { smlmv: 260100, ipc: 9.23, reajusteSMLMV: 10.00 },
+    2001: { smlmv: 286000, ipc: 8.75, reajusteSMLMV: 9.96 },
+    2002: { smlmv: 309000, ipc: 7.65, reajusteSMLMV: 8.04 },
+    2003: { smlmv: 332000, ipc: 6.99, reajusteSMLMV: 7.44 },
+    2004: { smlmv: 358000, ipc: 6.49, reajusteSMLMV: 7.83 },
+    2005: { smlmv: 381500, ipc: 5.50, reajusteSMLMV: 6.56 },
+    2006: { smlmv: 408000, ipc: 4.85, reajusteSMLMV: 6.95 },
+    2007: { smlmv: 433700, ipc: 4.48, reajusteSMLMV: 6.30 },
 };
 
 const datosIPC: { [year: number]: number } = {
-  1998: 16.70, 1999: 9.23, 2000: 8.75, 2001: 7.65, 2002: 6.99,
-  2003: 6.49, 2004: 5.50, 2005: 4.85, 2006: 4.48, 2007: 5.69,
+    1998: 16.70, 1999: 9.23, 2000: 8.75, 2001: 7.65, 2002: 6.99,
+    2003: 6.49, 2004: 5.50, 2005: 4.85, 2006: 4.48, 2007: 5.69,
 };
 
 // --- Component ---
@@ -94,7 +94,6 @@ export default function AnexoLey4Page() {
             const smlmvData = datosConsolidados[year];
             const ipcAnterior = datosIPC[year - 1] || 0;
             
-            // Find first payment of the year
             let mesadaPagada = 0;
             const paymentsForYear = payments.filter(p => parseInt(p.año, 10) === year);
             if (paymentsForYear.length > 0) {
@@ -111,7 +110,7 @@ export default function AnexoLey4Page() {
             return {
                 año: year,
                 smlmv: smlmvData.smlmv,
-                reajusteSMLMV: smlmvData.reajusteSMLMV,
+                reajusteSMLMV: smlmvData.reajusteSMLMV || 0,
                 reajusteIPC: ipcAnterior,
                 mesadaPagada: mesadaPagada
             };
