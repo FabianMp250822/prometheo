@@ -13,27 +13,27 @@ import { db } from '@/lib/firebase';
 
 // --- Static Data ---
 const datosConsolidados = {
-  1999: { smlmv: 236460, ipc: 16.70, reajusteSMLMV: 16.01 },
-  2000: { smlmv: 260100, ipc: 9.23, reajusteSMLMV: 10.00 },
-  2001: { smlmv: 286000, ipc: 8.75, reajusteSMLMV: 9.96 },
-  2002: { smlmv: 309000, ipc: 7.65, reajusteSMLMV: 8.04 },
-  2003: { smlmv: 332000, ipc: 6.99, reajusteSMLMV: 7.44 },
-  2004: { smlmv: 358000, ipc: 6.49, reajusteSMLMV: 7.83 },
-  2005: { smlmv: 381500, ipc: 5.50, reajusteSMLMV: 6.56 },
-  2006: { smlmv: 408000, ipc: 4.85, reajusteSMLMV: 6.95 },
-  2007: { smlmv: 433700, ipc: 4.48, reajusteSMLMV: 6.30 },
+    1999: { smlmv: 236460, ipc: 16.70, reajusteSMLMV: 16.01 },
+    2000: { smlmv: 260100, ipc: 9.23, reajusteSMLMV: 10.00 },
+    2001: { smlmv: 286000, ipc: 8.75, reajusteSMLMV: 9.96 },
+    2002: { smlmv: 309000, ipc: 7.65, reajusteSMLMV: 8.04 },
+    2003: { smlmv: 332000, ipc: 6.99, reajusteSMLMV: 7.44 },
+    2004: { smlmv: 358000, ipc: 6.49, reajusteSMLMV: 7.83 },
+    2005: { smlmv: 381500, ipc: 5.50, reajusteSMLMV: 6.56 },
+    2006: { smlmv: 408000, ipc: 4.85, reajusteSMLMV: 6.95 },
+    2007: { smlmv: 433700, ipc: 4.48, reajusteSMLMV: 6.30 },
 };
 
 const datosIPC = {
-  1998: 16.70,
-  1999: 9.23,
-  2000: 8.75,
-  2001: 7.65,
-  2002: 6.99,
-  2003: 6.49,
-  2004: 5.50,
-  2005: 4.85,
-  2006: 4.48,
+    1998: 16.70,
+    1999: 9.23,
+    2000: 8.75,
+    2001: 7.65,
+    2002: 6.99,
+    2003: 6.49,
+    2004: 5.50,
+    2005: 4.85,
+    2006: 4.48,
 };
 
 
@@ -109,20 +109,20 @@ export default function AnexoLey4Page() {
         return relevantYears.map((year, index) => {
             const smlmv = datosConsolidados[year as keyof typeof datosConsolidados]?.smlmv || 0;
             const reajusteSMLMV = datosConsolidados[year as keyof typeof datosConsolidados]?.reajusteSMLMV || 0;
-            const ipcAnterior = datosIPC[year - 1 as keyof typeof datosIPC] || 0;
+            const reajusteIPC = datosIPC[year - 1 as keyof typeof datosIPC] || 0;
             const mesadaPagada = getFirstPensionInYear(year);
             
             let proyeccionMesada = 0;
             if (index === 0) {
                  proyeccionMesada = mesadaPagada > 0 ? mesadaPagada : 0;
             } else {
-                 const reajusteMayor = Math.max(reajusteSMLMV, ipcAnterior);
+                 const reajusteMayor = Math.max(reajusteSMLMV, reajusteIPC);
                  proyeccionMesada = proyeccionAnterior * (1 + reajusteMayor / 100);
             }
             proyeccionAnterior = proyeccionMesada;
 
             const numSmlmvProyectado = smlmv > 0 ? proyeccionMesada / smlmv : 0;
-            const numSmlmvPagado = 0;
+            const numSmlmvPagado = smlmv > 0 ? mesadaPagada / smlmv : 0;
             const diferencia = 0;
             const numMesadas = 0;
             const totalRetroactivas = 0;
@@ -133,7 +133,7 @@ export default function AnexoLey4Page() {
                 reajusteSMLMV,
                 proyeccionMesada,
                 numSmlmvProyectado,
-                reajusteIPC: ipcAnterior,
+                reajusteIPC,
                 mesadaPagada,
                 numSmlmvPagado,
                 diferencia,
@@ -212,9 +212,9 @@ export default function AnexoLey4Page() {
                                         <TableHead># de SMLMV (En el Reajuste x SMLMV)</TableHead>
                                         <TableHead>Reajuste en % IPC</TableHead>
                                         <TableHead>Mesada Pagada Fiduprevisora reajuste con IPC</TableHead>
-                                        <TableHead># de SMLMV (IPC)</TableHead>
+                                        <TableHead># de SMLMV (En el Reajuste x IPC)</TableHead>
                                         <TableHead>Diferencias</TableHead>
-                                        <TableHead># Mesadas</TableHead>
+                                        <TableHead># de Mesadas</TableHead>
                                         <TableHead>Total Retroactivas</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -229,9 +229,9 @@ export default function AnexoLey4Page() {
                                            <TableCell>{row.reajusteIPC.toFixed(2)}%</TableCell>
                                            <TableCell>{formatCurrency(row.mesadaPagada)}</TableCell>
                                            <TableCell>{row.numSmlmvPagado.toFixed(2)}</TableCell>
-                                           <TableCell>{formatCurrency(row.diferencia)}</TableCell>
+                                           <TableCell>{row.diferencia}</TableCell>
                                            <TableCell>{row.numMesadas}</TableCell>
-                                           <TableCell>{formatCurrency(row.totalRetroactivas)}</TableCell>
+                                           <TableCell>{row.totalRetroactivas}</TableCell>
                                        </TableRow>
                                    ))}
                                 </TableBody>
