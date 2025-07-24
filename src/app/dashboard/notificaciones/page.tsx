@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -10,12 +10,11 @@ import { Loader2, Search, FileDown, BellRing, AlertTriangle } from 'lucide-react
 import { useToast } from '@/hooks/use-toast';
 import { DocumentViewerModal } from '@/components/dashboard/document-viewer-modal';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { collection, getDocs, query, where, or, limit } from 'firebase/firestore';
+import { collection, getDocs, query, where, or, limit, orderBy, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 interface Notification {
-    notificacion: string; // Unique ID for notification
+    notificacion: string;
     fechaPublicacion: string;
     demandante: string;
     demandado: string;
@@ -24,6 +23,8 @@ interface Notification {
     radicacion: string;
     rutaAuto: string;
 }
+
+const ITEMS_PER_PAGE = 50;
 
 function useDebounce<T>(value: T, delay: number): T {
     const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -40,26 +41,72 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export default function NotificacionesPage() {
     const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+    const [hasMore, setHasMore] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
     const [documentUrl, setDocumentUrl] = useState<string | null>(null);
     const [documentTitle, setDocumentTitle] = useState<string | null>(null);
-
     const { toast } = useToast();
 
+    const fetchNotifications = useCallback(async (loadMore = false) => {
+        if (debouncedSearchTerm) return; // Don't fetch if searching
+        
+        if (!loadMore) {
+            setIsLoading(true);
+            setNotifications([]);
+            setLastDoc(null);
+            setHasMore(true);
+        } else {
+            setIsLoadingMore(true);
+        }
+        setError(null);
+        
+        try {
+            let q = query(
+                collection(db, "provired_notifications"),
+                orderBy("fechaPublicacion", "desc"),
+                limit(ITEMS_PER_PAGE)
+            );
+
+            if (loadMore && lastDoc) {
+                q = query(q, startAfter(lastDoc));
+            }
+
+            const snapshot = await getDocs(q);
+            const newNotifications = snapshot.docs.map(doc => doc.data() as Notification);
+            const lastVisible = snapshot.docs[snapshot.docs.length - 1];
+            
+            setLastDoc(lastVisible || null);
+            setHasMore(newNotifications.length === ITEMS_PER_PAGE);
+            setNotifications(prev => loadMore ? [...prev, ...newNotifications] : newNotifications);
+
+        } catch (err: any) {
+             console.error("Error fetching notifications:", err);
+             setError("Ocurrió un error al cargar las notificaciones. Asegúrese de que los índices de Firestore estén creados (ej: provired_notifications por fechaPublicacion desc).");
+        } finally {
+            setIsLoading(false);
+            setIsLoadingMore(false);
+        }
+    }, [lastDoc, debouncedSearchTerm]);
+
+
     useEffect(() => {
-        const fetchNotificationsFromFirebase = async () => {
+        const searchNotifications = async () => {
             if (debouncedSearchTerm.length < 3) {
-                setNotifications([]);
-                if (debouncedSearchTerm === '') setIsLoading(false);
+                 if(debouncedSearchTerm === '') fetchNotifications(false);
                 return;
             }
             
             setIsLoading(true);
             setError(null);
+            setNotifications([]);
+
             try {
                 const notificationsRef = collection(db, "provired_notifications");
                 const searchLower = debouncedSearchTerm.toLowerCase();
@@ -73,24 +120,29 @@ export default function NotificacionesPage() {
                         where("radicacion", ">=", debouncedSearchTerm),
                         where("radicacion", "<=", debouncedSearchTerm + '\uf8ff')
                     ),
-                    limit(50) // Limit results for performance
+                    limit(ITEMS_PER_PAGE)
                 );
 
                 const snapshot = await getDocs(q);
                 const results = snapshot.docs.map(doc => doc.data() as Notification);
                 setNotifications(results);
+                setHasMore(false); // Disable pagination for search results
                 
             } catch (err: any) {
                 console.error("Error searching notifications:", err);
-                setError("Ocurrió un error al buscar en Firebase. Asegúrese de que los índices necesarios estén creados.");
+                setError("Ocurrió un error al buscar en Firebase.");
                 toast({ variant: 'destructive', title: 'Error de Búsqueda', description: err.message });
             } finally {
                 setIsLoading(false);
             }
         };
 
-        fetchNotificationsFromFirebase();
-    }, [debouncedSearchTerm, toast]);
+        if (debouncedSearchTerm) {
+            searchNotifications();
+        } else {
+            fetchNotifications(false);
+        }
+    }, [debouncedSearchTerm, fetchNotifications, toast]);
 
     const handleViewDocument = (url: string, title: string) => {
         setDocumentUrl(url);
@@ -104,10 +156,10 @@ export default function NotificacionesPage() {
                     <CardHeader>
                         <CardTitle className="text-2xl font-headline flex items-center gap-2">
                             <BellRing className="h-6 w-6" />
-                            Búsqueda de Notificaciones
+                            Archivo de Notificaciones
                         </CardTitle>
                         <CardDescription>
-                            Busque en el archivo de notificaciones de Firebase por demandante, demandado o número de radicación.
+                            Explore el historial de notificaciones de Provired o busque por demandante, demandado o radicación.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -127,7 +179,7 @@ export default function NotificacionesPage() {
                     <CardHeader>
                         <CardTitle>Resultados</CardTitle>
                         <CardDescription>
-                            {isLoading ? 'Buscando...' : `${notifications.length} notificaciones encontradas.`}
+                             {isLoading ? 'Cargando...' : `${notifications.length} notificaciones mostradas.`}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -140,26 +192,27 @@ export default function NotificacionesPage() {
                                 <AlertDescription>{error}</AlertDescription>
                             </Alert>
                         ) : (
-                            <ScrollArea className="h-[60vh]">
+                            <>
+                            <div className="overflow-x-auto">
                                 <Table>
-                                    <TableHeader className="sticky top-0 bg-background z-10">
+                                    <TableHeader>
                                         <TableRow>
+                                            <TableHead>Fecha Pub.</TableHead>
                                             <TableHead>Demandante</TableHead>
                                             <TableHead>Demandado</TableHead>
                                             <TableHead>Radicación</TableHead>
-                                            <TableHead>Proceso</TableHead>
                                             <TableHead>Descripción</TableHead>
-                                            <TableHead className="text-right">Acciones</TableHead>
+                                            <TableHead className="text-right">PDF</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {notifications.length > 0 ? (
                                             notifications.map((n, index) => (
                                                 <TableRow key={`${n.notificacion}-${n.radicacion}-${index}`}>
-                                                    <TableCell className="font-medium">{n.demandante}</TableCell>
+                                                    <TableCell className="font-medium whitespace-nowrap">{n.fechaPublicacion}</TableCell>
+                                                    <TableCell>{n.demandante}</TableCell>
                                                     <TableCell>{n.demandado}</TableCell>
                                                     <TableCell>{n.radicacion}</TableCell>
-                                                    <TableCell>{n.proceso}</TableCell>
                                                     <TableCell className="text-xs text-muted-foreground max-w-sm">{n.descripcion}</TableCell>
                                                     <TableCell className="text-right">
                                                         {n.rutaAuto && (
@@ -168,7 +221,7 @@ export default function NotificacionesPage() {
                                                                 size="sm"
                                                                 onClick={() => handleViewDocument(n.rutaAuto, `PDF Proceso ${n.radicacion}`)}
                                                             >
-                                                                <FileDown className="mr-2 h-4 w-4" /> Ver PDF
+                                                                <FileDown className="mr-2 h-4 w-4" /> Ver
                                                             </Button>
                                                         )}
                                                     </TableCell>
@@ -177,13 +230,22 @@ export default function NotificacionesPage() {
                                         ) : (
                                             <TableRow>
                                                 <TableCell colSpan={6} className="h-24 text-center">
-                                                    {debouncedSearchTerm.length < 3 ? "Ingrese al menos 3 caracteres para buscar." : "No se encontraron notificaciones."}
+                                                    {searchTerm ? "No se encontraron resultados para su búsqueda." : "No hay notificaciones para mostrar."}
                                                 </TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>
                                 </Table>
-                            </ScrollArea>
+                            </div>
+                            {!debouncedSearchTerm && hasMore && (
+                                <div className="pt-4 flex justify-center">
+                                    <Button onClick={() => fetchNotifications(true)} disabled={isLoadingMore}>
+                                        {isLoadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Cargar más
+                                    </Button>
+                                </div>
+                            )}
+                            </>
                         )}
                     </CardContent>
                 </Card>
