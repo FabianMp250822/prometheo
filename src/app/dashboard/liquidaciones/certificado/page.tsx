@@ -170,9 +170,9 @@ export default function CertificadoPage() {
                 </CardHeader>
             </Card>
 
-            <Card>
+            <Card className="overflow-hidden">
                 <CardContent className="pt-6">
-                    <div ref={certificateRef} className="prose prose-sm max-w-none">
+                    <div ref={certificateRef} className="prose prose-sm max-w-none p-8 print:p-0">
                         <h2 className="text-center font-bold uppercase text-lg">Certificado de Ingresos y/o Mesada Pensional</h2>
                         <p className="text-justify leading-relaxed">
                             Se certifica que, de acuerdo con la información y documentación suministrada y verificada, la persona <strong>{parseEmployeeName(selectedPensioner.empleado)}</strong>, 
