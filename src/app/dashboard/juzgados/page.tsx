@@ -34,6 +34,7 @@ interface Office {
     IdDes: string;
     IdCorp: string;
     despacho: string;
+    hasNotifications?: boolean;
 }
 
 type LoadingState = {
@@ -56,6 +57,7 @@ export default function JuzgadosPage() {
 
   // State for notifications
   const [allNotifications, setAllNotifications] = useState<any[]>([]);
+  const [notificationDespachoIds, setNotificationDespachoIds] = useState<Set<string>>(new Set());
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(true);
   const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
   const [selectedOffice, setSelectedOffice] = useState<Office | null>(null);
@@ -84,10 +86,10 @@ export default function JuzgadosPage() {
       }
       
       if (notificationsResponse.success && Array.isArray(notificationsResponse.data)) {
-        console.log("--- TODAS las Notificaciones Recibidas de la API ---", notificationsResponse.data);
         setAllNotifications(notificationsResponse.data);
+        const idsWithNotifications = new Set(notificationsResponse.data.map(n => n.despacho));
+        setNotificationDespachoIds(idsWithNotifications);
       } else {
-        // We might not want to show a blocking error if only notifications fail
         console.error("Could not fetch notifications:", notificationsResponse.message);
       }
       
@@ -125,7 +127,6 @@ export default function JuzgadosPage() {
     const response = await getCorporations();
     
     if (response.success && Array.isArray(response.data)) {
-        // The API returns all corporations, we must filter them client-side.
         const filteredData = response.data.filter((c: any) => String(c.IdMun) === String(municipalityId));
         setCorporations(prev => ({ ...prev, [municipalityId]: { data: filteredData, isLoading: false } }));
     } else {
@@ -155,7 +156,13 @@ export default function JuzgadosPage() {
         const newMunCorps = (prev[municipalityId]?.data || []).map(c => {
             if (c.IdCorp !== corporationId) return c;
             if (response.success && Array.isArray(response.data)) {
-                return { ...c, offices: response.data, isLoadingOffices: false };
+                // Enrich and sort offices
+                const enrichedOffices = response.data.map(office => ({
+                    ...office,
+                    hasNotifications: notificationDespachoIds.has(office.IdDes)
+                })).sort((a, b) => (b.hasNotifications ? 1 : 0) - (a.hasNotifications ? 1 : 0));
+
+                return { ...c, offices: enrichedOffices, isLoadingOffices: false };
             }
             return { ...c, offices: [], isLoadingOffices: false };
         });
@@ -257,9 +264,11 @@ export default function JuzgadosPage() {
                                                                                       <Building className="h-3 w-3 text-primary"/>
                                                                                       {office.despacho}
                                                                                     </div>
-                                                                                    <Button variant="ghost" size="sm" onClick={() => handleOpenNotifications(office)}>
-                                                                                        <Bell className="h-3 w-3 mr-1" /> Notificaciones
-                                                                                    </Button>
+                                                                                    {office.hasNotifications && (
+                                                                                        <Button variant="ghost" size="sm" onClick={() => handleOpenNotifications(office)}>
+                                                                                            <Bell className="h-3 w-3 mr-1 text-accent" /> Notificaciones
+                                                                                        </Button>
+                                                                                    )}
                                                                                 </div>
                                                                             ))}
                                                                         </div>
