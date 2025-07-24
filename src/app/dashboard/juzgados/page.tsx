@@ -208,15 +208,17 @@ export default function JuzgadosPage() {
 
   const handleSyncData = () => {
     startSyncTransition(async () => {
-        setSyncProgress({ value: 0, text: 'Iniciando sincronización...' });
-        const result = await syncAllProviredDataToFirebase(setSyncProgress);
+        setSyncProgress({ value: 5, text: 'Iniciando sincronización...' });
+        const result = await syncAllProviredDataToFirebase();
         if (result.success) {
+            setSyncProgress({ value: 100, text: 'Sincronización completada.' });
             toast({ title: 'Sincronización Completa', description: 'Los datos de Provired han sido guardados en Firebase.' });
             await fetchInitialDataFromFirebase();
         } else {
+            setSyncProgress({ value: 100, text: 'Error en la sincronización.' });
             toast({ variant: 'destructive', title: 'Error de Sincronización', description: result.message });
         }
-        setSyncProgress({ value: 0, text: '' });
+        setTimeout(() => setSyncProgress({ value: 0, text: '' }), 2000);
     });
   };
 

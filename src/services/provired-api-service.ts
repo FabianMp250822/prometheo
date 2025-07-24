@@ -53,9 +53,7 @@ async function makeApiRequest(endpoint: string, method: string, params?: object)
 
 // --- Sync Function ---
 
-export async function syncAllProviredDataToFirebase(
-    progressCallback: (progress: { value: number; text: string }) => void
-): Promise<{ success: boolean; message?: string }> {
+export async function syncAllProviredDataToFirebase(): Promise<{ success: boolean; message?: string }> {
     const collectionsToSync = {
         provired_departments: () => makeApiRequest('departament', 'getData'),
         provired_municipalities: () => makeApiRequest('municipality', 'getData'),
@@ -63,22 +61,13 @@ export async function syncAllProviredDataToFirebase(
         provired_offices: () => makeApiRequest('office', 'getData'),
         provired_notifications: () => makeApiRequest('report', 'getData'),
     };
-    const totalSteps = Object.keys(collectionsToSync).length * 2; // Fetch + Write for each
-    let currentStep = 0;
-
+    
     try {
         for (const [collectionName, fetchFunction] of Object.entries(collectionsToSync)) {
-            // Fetching data
-            currentStep++;
-            progressCallback({ value: (currentStep / totalSteps) * 100, text: `Obteniendo datos para ${collectionName}...` });
             const { success, data, message } = await fetchFunction();
             if (!success || !Array.isArray(data)) {
                 throw new Error(`Failed to fetch ${collectionName}: ${message}`);
             }
-            
-            // Writing data
-            currentStep++;
-            progressCallback({ value: (currentStep / totalSteps) * 100, text: `Guardando ${data.length} registros en ${collectionName}...` });
 
             const batch = writeBatch(db);
             const collectionRef = collection(db, collectionName);
@@ -90,11 +79,10 @@ export async function syncAllProviredDataToFirebase(
                 else if (item.IdCorp) docId = String(item.IdCorp);
                 else if (item.IdDes) docId = String(item.IdDes);
                 else if (item.notificacion) docId = String(item.notificacion);
-                else docId = doc(collectionRef).id; // Fallback to auto-id
+                else docId = doc(collectionRef).id;
 
                 const docRef = doc(db, collectionName, docId);
 
-                // Add lowercase fields for searching notifications
                 if (collectionName === 'provired_notifications') {
                     item.demandante_lower = item.demandante?.toLowerCase() || '';
                     item.demandado_lower = item.demandado?.toLowerCase() || '';
@@ -105,7 +93,6 @@ export async function syncAllProviredDataToFirebase(
             await batch.commit();
         }
 
-        progressCallback({ value: 100, text: 'Sincronización completada.' });
         return { success: true };
 
     } catch (error: any) {
