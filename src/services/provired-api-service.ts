@@ -104,7 +104,8 @@ export async function getCorporationById(id: string) {
 }
 
 export async function getCorporationsByMunicipality(municipalityId: string) {
-  return makeApiRequest('corporation', 'getDataIdMun', { id: municipalityId });
+  // Ensure ID is passed as a string as the API expects it.
+  return makeApiRequest('corporation', 'getDataIdMun', { id: String(municipalityId) });
 }
 
 export async function getOffices() {
