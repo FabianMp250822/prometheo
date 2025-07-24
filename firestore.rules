@@ -8,28 +8,29 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
     
-    // Regla específica para permitir lecturas en el collectionGroup 'procesoscancelados'
+    // Regla específica para permitir lecturas en el collectionGroup
     match /procesoscancelados/{docId} {
       allow read: if request.auth != null;
     }
 
-    // Reglas para colecciones públicas de Provired.
-    // Permiten que el servidor (sin auth de usuario) escriba los datos sincronizados.
+    // --- PROVIRED SYNC ---
+    // Allow server-side sync to write to these collections
     match /provired_departments/{docId=**} {
       allow read, write: if true;
     }
     match /provired_municipalities/{docId=**} {
       allow read, write: if true;
     }
-     match /provired_corporations/{docId=**} {
+    match /provired_corporations/{docId=**} {
       allow read, write: if true;
     }
-     match /provired_offices/{docId=**} {
+    match /provired_offices/{docId=**} {
       allow read, write: if true;
     }
-     match /provired_notifications/{docId=**} {
+    match /provired_notifications/{docId=**} {
       allow read, write: if true;
     }
+
 
     // Excepción para la colección 'blog'.
     // Permite que CUALQUIER usuario (autenticado o no) pueda leer y escribir.
