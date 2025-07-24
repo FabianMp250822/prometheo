@@ -67,16 +67,64 @@ export default function PagosClientePage() {
     setDocumentTitle(title);
   };
   
-  const handleResendSupport = async (payment: DajusticiaPayment) => {
-      // This is a placeholder for the actual email sending logic.
-      // In a real app, this would call a server action or a cloud function.
+    const handleResendSupport = async (payment: DajusticiaPayment) => {
+    if (!client || !payments) {
       toast({
-          title: "Función no implementada",
-          description: "La lógica para reenviar el correo de soporte aún no está conectada."
+        variant: "destructive",
+        title: "Error",
+        description: "Datos del cliente no cargados.",
       });
-      console.log("Reenviar soporte para:", payment);
-      // Example of what the call might look like:
-      // await resendSupportEmail({ clientId: client?.id, paymentId: payment.id });
+      return;
+    }
+
+    const totalPagado = payments.reduce((sum, p) => sum + p.montoNeto, 0);
+    const deudaActual = client.salario - totalPagado;
+
+    const emailData = {
+      emailUsuario: client.correo,
+      nombreUsuario: `${client.nombres} ${client.apellidos}`,
+      montoPago: payment.monto.toFixed(2),
+      fechaPago: payment.fecha,
+      soporteURL: payment.soporteURL,
+      cedula: client.cedula,
+      celular: client.celular,
+      cuotaMensual: client.cuotaMensual,
+      plazoMeses: client.plazoMeses,
+      totalAPagar: client.salario.toFixed(2),
+      totalPagado: totalPagado.toFixed(2),
+      deudaActual: deudaActual.toFixed(2),
+    };
+
+    toast({
+      title: "Reenviando Correo...",
+      description: "Por favor espere.",
+    });
+
+    try {
+      const response = await fetch('https://sendemailnotificaciones-w4tv3jcmvq-uc.a.run.app', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emailData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error del servidor: ${response.status}`);
+      }
+
+      await response.json();
+      toast({
+        title: "Éxito",
+        description: "Soporte reenviado exitosamente.",
+      });
+
+    } catch (error: any) {
+      console.error('Error al reenviar el soporte:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: `No se pudo reenviar el soporte: ${error.message}`,
+      });
+    }
   };
   
   const summary = React.useMemo(() => {
