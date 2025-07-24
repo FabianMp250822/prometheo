@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useTransition } from 'react';
@@ -6,7 +7,6 @@ import { Landmark, Loader2, University, Building, Bell, Download, ServerCrash } 
 import { syncAllProviredDataToFirebase } from '@/services/provired-api-service';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/label';
 import { NotificationsModal } from '@/components/dashboard/notifications-modal';
@@ -15,6 +15,9 @@ import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
+
 
 interface Department {
   IdDep: string;
@@ -24,15 +27,11 @@ interface Municipality {
     IdMun: string; 
     municipio: string;
     IdDep: string;
-    corporations?: Corporation[];
-    isLoadingCorporations?: boolean;
 }
 interface Corporation {
     IdCorp: string;
     IdMun: string;
     corporacion: string;
-    offices?: Office[];
-    isLoadingOffices?: boolean;
 }
 interface Office {
     IdDes: string;
@@ -46,26 +45,23 @@ interface Notification {
     [key: string]: any;
 }
 
-type LoadingState = {
-    departments: boolean;
-    municipalities: boolean;
-}
-
 export default function JuzgadosPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
-  
-  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
+  const [corporations, setCorporations] = useState<Corporation[]>([]);
+  const [offices, setOffices] = useState<Office[]>([]);
 
-  const [loading, setLoading] = useState<LoadingState>({ departments: true, municipalities: false });
+  const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
+  const [selectedMunicipality, setSelectedMunicipality] = useState<Municipality | null>(null);
+  const [selectedCorporation, setSelectedCorporation] = useState<Corporation | null>(null);
+
+  const [loading, setLoading] = useState({ deps: true, muns: false, corps: false, offices: false });
   const [error, setError] = useState<string | null>(null);
 
-  // Sync state
   const [isSyncing, startSyncTransition] = useTransition();
   const [syncProgress, setSyncProgress] = useState(0);
   const { toast } = useToast();
 
-  // State for notifications
   const [notificationDespachoIds, setNotificationDespachoIds] = useState<Set<string>>(new Set());
   const [allNotifications, setAllNotifications] = useState<Notification[]>([]);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(true);
@@ -77,11 +73,10 @@ export default function JuzgadosPage() {
     return allNotifications.filter(n => n.despacho === selectedOffice.IdDes);
   }, [selectedOffice, allNotifications]);
 
-  const fetchInitialDataFromFirebase = useCallback(async () => {
-      setLoading({ departments: true, municipalities: false });
+  const fetchInitialData = useCallback(async () => {
+      setLoading({ deps: true, muns: false, corps: false, offices: false });
       setIsLoadingNotifications(true);
       setError(null);
-
       try {
           const departmentsQuery = query(collection(db, "provired_departments"), orderBy("departamento"));
           const notificationsQuery = query(collection(db, "provired_notifications"));
@@ -91,123 +86,95 @@ export default function JuzgadosPage() {
               getDocs(notificationsQuery)
           ]);
 
-          const depsData = depSnapshot.docs.map(doc => doc.data() as Department);
-          setDepartments(depsData);
+          setDepartments(depSnapshot.docs.map(doc => doc.data() as Department));
           
           const notifsData = notificationsSnapshot.docs.map(doc => doc.data() as Notification);
           setAllNotifications(notifsData);
-          const idsWithNotifications = new Set(notifsData.map(n => n.despacho));
-          setNotificationDespachoIds(idsWithNotifications);
+          setNotificationDespachoIds(new Set(notifsData.map(n => n.despacho)));
 
       } catch (err: any) {
           setError(`Error al leer desde Firebase: ${err.message}. Intente sincronizar los datos.`);
       } finally {
-          setLoading(prev => ({ ...prev, departments: false }));
+          setLoading(prev => ({ ...prev, deps: false }));
           setIsLoadingNotifications(false);
       }
   }, []);
 
   useEffect(() => {
-    fetchInitialDataFromFirebase();
-  }, [fetchInitialDataFromFirebase]);
+    fetchInitialData();
+  }, [fetchInitialData]);
 
   const handleDepartmentChange = async (departmentId: string) => {
-    const depIdStr = String(departmentId);
-    setSelectedDepartment(depIdStr);
+    setSelectedDepartment(departmentId);
+    setSelectedMunicipality(null);
+    setSelectedCorporation(null);
     setMunicipalities([]);
-
-    setLoading(prev => ({ ...prev, municipalities: true }));
+    setCorporations([]);
+    setOffices([]);
+    setLoading(prev => ({ ...prev, muns: true }));
     setError(null);
     try {
-        const municipalitiesQuery = query(
-            collection(db, "provired_municipalities"),
-            where("IdDep", "==", depIdStr),
-            orderBy("municipio")
-        );
-        const munSnapshot = await getDocs(municipalitiesQuery);
-        let munData = munSnapshot.docs.map(doc => ({...doc.data(), isLoadingCorporations: true } as Municipality));
-
-        if (munData.length === 0) {
-            setMunicipalities([]);
-            setError(`No se encontraron municipios para este departamento en Firebase.`);
-        } else {
-             setMunicipalities(munData);
-             // Eagerly fetch corporations for all municipalities
-             const corporationsPromises = munData.map(async (mun) => {
-                const corpQuery = query(collection(db, "provired_corporations"), where("IdMun", "==", mun.IdMun));
-                const corpSnapshot = await getDocs(corpQuery);
-                const corpData = corpSnapshot.docs.map(doc => doc.data() as Corporation);
-                return { ...mun, corporations: corpData, isLoadingCorporations: false };
-             });
-             const municipalitiesWithCorps = await Promise.all(corporationsPromises);
-             setMunicipalities(municipalitiesWithCorps);
-        }
-    } catch(err: any) {
-        setError(`Error al leer municipios desde Firebase: ${err.message}`);
+        const q = query(collection(db, "provired_municipalities"), where("IdDep", "==", departmentId), orderBy("municipio"));
+        const snapshot = await getDocs(q);
+        setMunicipalities(snapshot.docs.map(doc => doc.data() as Municipality));
+    } catch (err: any) {
+        setError(`Error al cargar municipios: ${err.message}`);
     } finally {
-        setLoading(prev => ({ ...prev, municipalities: false }));
+        setLoading(prev => ({ ...prev, muns: false }));
     }
   };
-    
-  const fetchOfficesForCorporation = async (municipalityId: string, corporationId: string) => {
-      setMunicipalities(prevMuns => prevMuns.map(mun => {
-          if (mun.IdMun !== municipalityId) return mun;
-          return {
-              ...mun,
-              corporations: mun.corporations?.map(corp => 
-                  corp.IdCorp === corporationId ? { ...corp, isLoadingOffices: true } : corp
-              )
-          };
-      }));
 
+  const handleMunicipalitySelect = async (municipality: Municipality) => {
+    setSelectedMunicipality(municipality);
+    setSelectedCorporation(null);
+    setCorporations([]);
+    setOffices([]);
+    setLoading(prev => ({ ...prev, corps: true }));
+    try {
+        const q = query(collection(db, "provired_corporations"), where("IdMun", "==", municipality.IdMun), orderBy("corporacion"));
+        const snapshot = await getDocs(q);
+        setCorporations(snapshot.docs.map(doc => doc.data() as Corporation));
+    } catch (err: any) {
+        setError(`Error al cargar corporaciones: ${err.message}`);
+    } finally {
+        setLoading(prev => ({ ...prev, corps: false }));
+    }
+  };
+
+  const handleCorporationSelect = async (corporation: Corporation) => {
+      setSelectedCorporation(corporation);
+      setOffices([]);
+      setLoading(prev => ({ ...prev, offices: true }));
       try {
-          const q = query(collection(db, "provired_offices"), where("IdCorp", "==", corporationId));
+          const q = query(collection(db, "provired_offices"), where("IdCorp", "==", corporation.IdCorp), orderBy("despacho"));
           const snapshot = await getDocs(q);
           const officeData = snapshot.docs.map(doc => ({
               ...doc.data(),
               hasNotifications: notificationDespachoIds.has(doc.data().IdDes)
-          })).sort((a,b) => (b.hasNotifications ? 1 : 0) - (a.hasNotifications ? 1 : 0)) as Office[];
-          
-          setMunicipalities(prevMuns => prevMuns.map(mun => {
-              if (mun.IdMun !== municipalityId) return mun;
-              return {
-                  ...mun,
-                  corporations: mun.corporations?.map(corp => 
-                      corp.IdCorp === corporationId ? { ...corp, offices: officeData, isLoadingOffices: false } : corp
-                  )
-              };
-          }));
+          }) as Office);
+          setOffices(officeData.sort((a,b) => (b.hasNotifications ? 1 : 0) - (a.hasNotifications ? 1 : 0)));
       } catch (err: any) {
-          setError(`Error al leer despachos: ${err.message}`);
-          setMunicipalities(prevMuns => prevMuns.map(mun => {
-              if (mun.IdMun !== municipalityId) return mun;
-              return {
-                  ...mun,
-                  corporations: mun.corporations?.map(corp => 
-                      corp.IdCorp === corporationId ? { ...corp, offices: [], isLoadingOffices: false } : corp
-                  )
-              };
-          }));
+          setError(`Error al cargar despachos: ${err.message}`);
+      } finally {
+        setLoading(prev => ({ ...prev, offices: false }));
       }
   };
 
   const handleSyncData = () => {
     startSyncTransition(async () => {
         setSyncProgress(0);
-        
         toast({ title: "Iniciando sincronización...", description: "Este proceso puede tardar varios minutos."});
         const result = await syncAllProviredDataToFirebase();
-        
         if (result.success) {
             setSyncProgress(100);
             toast({ title: 'Sincronización Completa', description: 'Los datos de Provired han sido guardados en Firebase.' });
-            await fetchInitialDataFromFirebase();
+            await fetchInitialData();
         } else {
             setSyncProgress(0);
             toast({ variant: 'destructive', title: 'Error de Sincronización', description: result.message });
             setError(result.message || 'Ocurrió un error desconocido durante la sincronización.');
         }
-        setTimeout(() => setSyncProgress(0), 2000); // Reset progress bar
+        setTimeout(() => setSyncProgress(0), 2000);
     });
   };
 
@@ -215,7 +182,15 @@ export default function JuzgadosPage() {
     setSelectedOffice(office);
     setIsNotificationsModalOpen(true);
   };
-
+  
+  const Column = ({ title, isLoading, children }: { title: string, isLoading: boolean, children: React.ReactNode }) => (
+    <div className="flex-1 min-w-0">
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider pb-2 border-b mb-2">{title}</h3>
+        <ScrollArea className="h-96">
+            {isLoading ? <div className="p-4 flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin"/> Cargando...</div> : children}
+        </ScrollArea>
+    </div>
+  );
 
   return (
     <>
@@ -248,96 +223,80 @@ export default function JuzgadosPage() {
         )}
       </Card>
       
-      {error && (
-        <Alert variant="destructive">
-            <ServerCrash className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+      {error && <Alert variant="destructive"><ServerCrash className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
 
       <Card>
         <CardHeader>
-            <CardTitle className="text-xl">Selección de Ubicación</CardTitle>
-        </CardHeader>
-        <CardContent>
-            <div>
-                <Label htmlFor="department-select">Departamento</Label>
-                 {loading.departments ? (
+            <Label htmlFor="department-select">1. Seleccione un Departamento</Label>
+                 {loading.deps ? (
                     <Skeleton className="h-10 w-full md:w-1/3" />
                  ) : (
-                    <Select onValueChange={handleDepartmentChange} disabled={loading.departments}>
+                    <Select onValueChange={handleDepartmentChange} disabled={loading.deps}>
                         <SelectTrigger id="department-select" className="w-full md:w-1/3"><SelectValue placeholder="Seleccione un departamento..." /></SelectTrigger>
                         <SelectContent>
                             {departments.map((dep) => <SelectItem key={dep.IdDep} value={dep.IdDep}>{dep.departamento}</SelectItem>)}
                         </SelectContent>
                     </Select>
                  )}
+        </CardHeader>
+        <CardContent>
+            <div className="flex flex-col md:flex-row gap-4 border-t pt-4">
+                {selectedDepartment && (
+                    <Column title="2. Municipios" isLoading={loading.muns}>
+                        <div className="space-y-1 pr-4">
+                            {municipalities.map(mun => (
+                                <Button 
+                                    key={mun.IdMun} 
+                                    variant="ghost" 
+                                    onClick={() => handleMunicipalitySelect(mun)}
+                                    className={cn("w-full justify-start", selectedMunicipality?.IdMun === mun.IdMun && "bg-accent text-accent-foreground")}
+                                >
+                                    {mun.municipio}
+                                </Button>
+                            ))}
+                        </div>
+                    </Column>
+                )}
+
+                 {selectedMunicipality && (
+                    <Column title="3. Corporaciones" isLoading={loading.corps}>
+                        <div className="space-y-1 pr-4">
+                             {corporations.map(corp => (
+                                <Button 
+                                    key={corp.IdCorp} 
+                                    variant="ghost" 
+                                    onClick={() => handleCorporationSelect(corp)}
+                                    className={cn("w-full justify-start", selectedCorporation?.IdCorp === corp.IdCorp && "bg-accent text-accent-foreground")}
+                                >
+                                    <University className="mr-2 h-4 w-4 shrink-0" />
+                                    <span className="truncate">{corp.corporacion}</span>
+                                </Button>
+                            ))}
+                        </div>
+                    </Column>
+                )}
+
+                 {selectedCorporation && (
+                    <Column title="4. Despachos" isLoading={loading.offices}>
+                        <div className="space-y-1 pr-4">
+                            {offices.map(office => (
+                                <div key={office.IdDes} className="flex items-center justify-between gap-2 p-2 rounded-md hover:bg-muted">
+                                    <div className="flex items-center gap-2 text-sm truncate">
+                                        <Building className="mr-2 h-4 w-4 shrink-0 text-primary" />
+                                        <span className="truncate">{office.despacho}</span>
+                                    </div>
+                                    {office.hasNotifications && (
+                                        <Button variant="ghost" size="sm" className="shrink-0" onClick={() => handleOpenNotifications(office)}>
+                                            <Bell className="h-3 w-3 mr-1 text-accent" /> Notificaciones
+                                        </Button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </Column>
+                )}
             </div>
         </CardContent>
-      </Card>
-
-      <Card>
-          <CardHeader>
-              <CardTitle>Resultados</CardTitle>
-          </CardHeader>
-          <CardContent>
-              {loading.municipalities ? (
-                  <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Cargando municipios...</div>
-              ) : municipalities.length > 0 ? (
-                  <Accordion type="single" collapsible className="w-full space-y-2">
-                      {municipalities.map((mun) => (
-                          <AccordionItem value={mun.IdMun} key={mun.IdMun} className="border rounded-md px-4">
-                              <AccordionTrigger className="font-medium hover:no-underline">{mun.municipio}</AccordionTrigger>
-                              <AccordionContent>
-                                  {mun.isLoadingCorporations ? (
-                                      <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Cargando corporaciones...</div>
-                                  ) : mun.corporations && mun.corporations.length > 0 ? (
-                                      <Accordion type="single" collapsible className="w-full space-y-2">
-                                          {mun.corporations.map((corp) => (
-                                              <AccordionItem value={corp.IdCorp} key={corp.IdCorp} className="border bg-card rounded-md">
-                                                  <AccordionTrigger className="p-3 hover:no-underline text-sm" onClick={() => fetchOfficesForCorporation(mun.IdMun, corp.IdCorp)}>
-                                                      <div className="flex items-center gap-2"><University className="h-4 w-4"/> {corp.corporacion}</div>
-                                                  </AccordionTrigger>
-                                                  <AccordionContent className="p-3 pt-0">
-                                                        {corp.isLoadingOffices ? (
-                                                          <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Cargando despachos...</div>
-                                                      ) : corp.offices && corp.offices.length > 0 ? (
-                                                          <div className="space-y-2 pl-4 border-l">
-                                                              {corp.offices.map((office) => (
-                                                                  <div key={office.IdDes} className="flex items-center justify-between gap-2 text-xs py-1">
-                                                                      <div className="flex items-center gap-2">
-                                                                        <Building className="h-3 w-3 text-primary"/>
-                                                                        {office.despacho}
-                                                                      </div>
-                                                                      {office.hasNotifications && (
-                                                                          <Button variant="ghost" size="sm" onClick={() => handleOpenNotifications(office)}>
-                                                                              <Bell className="h-3 w-3 mr-1 text-accent" /> Notificaciones
-                                                                          </Button>
-                                                                      )}
-                                                                  </div>
-                                                              ))}
-                                                          </div>
-                                                      ) : (
-                                                            <p className="text-xs text-muted-foreground pl-4">No se encontraron despachos para esta corporación.</p>
-                                                      )}
-                                                  </AccordionContent>
-                                              </AccordionItem>
-                                          ))}
-                                      </Accordion>
-                                  ) : (
-                                        <p className="text-sm text-muted-foreground">No se encontraron corporaciones para este municipio.</p>
-                                  )}
-                              </AccordionContent>
-                          </AccordionItem>
-                      ))}
-                  </Accordion>
-              ) : selectedDepartment ? (
-                  <p className="text-muted-foreground">No se encontraron municipios para este departamento.</p>
-              ) : (
-                 <p className="text-muted-foreground">Seleccione un departamento para ver los resultados.</p>
-              )}
-          </CardContent>
       </Card>
     </div>
     
@@ -351,3 +310,4 @@ export default function JuzgadosPage() {
     </>
   );
 }
+
