@@ -33,10 +33,6 @@ export function GlobalHeader() {
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
     const searchGlobal = useCallback(async (searchVal: string) => {
-        if (searchVal.length < 3) {
-            setSearchResults([]);
-            return;
-        }
         setIsSearching(true);
         try {
             const searchPromises = [];
@@ -95,8 +91,11 @@ export function GlobalHeader() {
         }
     }, []);
 
-
     useEffect(() => {
+        if (debouncedSearchTerm.length < 3) {
+            setSearchResults([]);
+            return;
+        }
         searchGlobal(debouncedSearchTerm);
     }, [debouncedSearchTerm, searchGlobal]);
 
