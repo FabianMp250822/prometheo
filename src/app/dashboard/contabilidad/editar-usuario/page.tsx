@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, doc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore';
-import { db, storage } from '@/lib/firebase';
+import { collection, getDocs, doc, updateDoc, setDoc, where, query } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import type { DajusticiaClient } from '@/lib/data';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -11,7 +11,6 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { UserCog, Search, Loader2, Edit, Trash2, Save, XCircle } from 'lucide-react';
 import { DataTableSkeleton } from '@/components/dashboard/data-table-skeleton';
@@ -47,7 +46,9 @@ export default function EditarUsuarioPage() {
     const fetchClients = useCallback(async () => {
         setIsLoading(true);
         try {
-            const clientsSnapshot = await getDocs(collection(db, 'nuevosclientes'));
+            // Query only for active clients
+            const q = query(collection(db, 'nuevosclientes'), where('estado', '!=', 'inactivo'));
+            const clientsSnapshot = await getDocs(q);
             const clientsData = clientsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DajusticiaClient));
             clientsData.sort((a,b) => a.nombres.localeCompare(b.nombres));
             setClients(clientsData);
@@ -139,12 +140,15 @@ export default function EditarUsuarioPage() {
     const handleDelete = async (clientId: string) => {
         setIsLoading(true);
          try {
-            await deleteDoc(doc(db, "nuevosclientes", clientId));
-            toast({ title: 'Cliente Eliminado', description: 'El cliente ha sido eliminado del sistema.' });
+            const clientDocRef = doc(db, "nuevosclientes", clientId);
+            await updateDoc(clientDocRef, { estado: 'inactivo' });
+
+            toast({ title: 'Cliente Desactivado', description: 'El cliente ha sido ocultado de la lista.' });
             await fetchClients();
         } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error', description: `No se pudo eliminar el cliente: ${error.message}` });
-            setIsLoading(false);
+            toast({ variant: 'destructive', title: 'Error', description: `No se pudo desactivar el cliente: ${error.message}` });
+        } finally {
+             setIsLoading(false);
         }
     };
 
@@ -157,7 +161,7 @@ export default function EditarUsuarioPage() {
                         <UserCog className="h-6 w-6" />
                         Editar Cliente
                     </CardTitle>
-                    <CardDescription>Busque un cliente para editar o eliminar su información.</CardDescription>
+                    <CardDescription>Busque un cliente para editar o desactivar su información.</CardDescription>
                 </CardHeader>
             </Card>
 
@@ -193,13 +197,13 @@ export default function EditarUsuarioPage() {
                                         </Button>
                                          <AlertDialog>
                                             <AlertDialogTrigger asChild>
-                                                <Button variant="destructive" size="sm"><Trash2 className="h-3 w-3 mr-1"/> Eliminar</Button>
+                                                <Button variant="destructive" size="sm"><Trash2 className="h-3 w-3 mr-1"/> Desactivar</Button>
                                             </AlertDialogTrigger>
                                             <AlertDialogContent>
                                                 <AlertDialogHeader>
-                                                <AlertDialogTitle>¿Está absolutamente seguro?</AlertDialogTitle>
+                                                <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
                                                 <AlertDialogDescription>
-                                                    Esta acción no se puede deshacer. Esto eliminará permanentemente al cliente y todos sus datos asociados.
+                                                    Esta acción no eliminará al cliente, solo lo ocultará de la lista. Podrá ser reactivado en el futuro si es necesario.
                                                 </AlertDialogDescription>
                                                 </AlertDialogHeader>
                                                 <AlertDialogFooter>

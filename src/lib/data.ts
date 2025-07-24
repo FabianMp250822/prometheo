@@ -191,6 +191,7 @@ export interface DajusticiaClient {
   salario: number;
   telefonoFijo: string;
   archivos: { [key: string]: string };
+  estado?: 'activo' | 'inactivo';
 }
 
 export interface DajusticiaPayment {
