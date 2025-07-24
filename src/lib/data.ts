@@ -100,7 +100,7 @@ export interface Anotacion {
     num_registro: string;
     fecha: string;
     fecha_limite: string;
-    fecha_limite_ordenable?: string; // YYYY-MM-DD format for querying
+    fecha_limite_ordenable?: string; // YYYY-MM-DD for querying
     hora_limite: string;
     detalle: string;
     clase: string;
@@ -176,10 +176,40 @@ export interface LegalProcess {
     estado: string;
 }
 
+export interface DajusticiaClient {
+  id: string;
+  apellidos: string;
+  cedula: string;
+  celular: string;
+  correo: string;
+  cuotaMensual: string;
+  direccion: string;
+  grupo: string;
+  multiplicadorSalario: number;
+  nombres: string;
+  plazoMeses: string;
+  salario: number;
+  telefonoFijo: string;
+  archivos: { [key: string]: string };
+}
+
+export interface DajusticiaPayment {
+  id: string;
+  descuento: number;
+  empresa: number;
+  fecha: string;
+  monto: number;
+  montoNeto: number;
+  soporteURL: string;
+  vendedor: number;
+}
+
 export interface PensionerProfileData {
     payments: Payment[];
     legalProcesses: LegalProcess[];
     parris1Data: Parris1 | null;
     causanteData: Causante | null;
     historicalPayment: PagosHistoricoRecord | null;
+    dajusticiaClientData: DajusticiaClient | null;
+    dajusticiaPayments: DajusticiaPayment[];
 }

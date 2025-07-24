@@ -4,12 +4,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight } from 'lucide-react';
+import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight, Briefcase, FileDown } from 'lucide-react';
 import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parsePaymentDetailName, formatFirebaseTimestamp, parsePeriodoPago, parseDepartmentName } from '@/lib/helpers';
-import type { Payment, Parris1, LegalProcess, Causante, PagosHistoricoRecord, PensionerProfileData } from '@/lib/data';
+import type { Payment, Parris1, LegalProcess, Causante, PagosHistoricoRecord, PensionerProfileData, DajusticiaClient, DajusticiaPayment } from '@/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { Button } from '@/components/ui/button';
 
 function InfoField({ icon, label, value }: { icon: React.ReactNode, label: string, value: React.ReactNode }) {
     return (
@@ -89,6 +90,22 @@ export default function PensionadoPage() {
             const causanteQuery = query(collection(db, "causante"), where("cedula_causante", "==", document));
             const causanteSnapshot = await getDocs(causanteQuery);
             const causanteData = !causanteSnapshot.empty ? { id: causanteSnapshot.docs[0].id, ...causanteSnapshot.docs[0].data() } as Causante : null;
+            
+            // 6. Fetch DAJUSTICIA Client Data
+            const clientQuery = query(collection(db, "nuevosclientes"), where("cedula", "==", document), limit(1));
+            const clientSnapshot = await getDocs(clientQuery);
+            let dajusticiaClientData: DajusticiaClient | null = null;
+            let dajusticiaPayments: DajusticiaPayment[] = [];
+
+            if (!clientSnapshot.empty) {
+                const clientDoc = clientSnapshot.docs[0];
+                dajusticiaClientData = { id: clientDoc.id, ...clientDoc.data() } as DajusticiaClient;
+                
+                // 7. Fetch DAJUSTICIA Payments Subcollection
+                const clientPaymentsQuery = query(collection(db, "nuevosclientes", clientDoc.id, "pagos"));
+                const clientPaymentsSnapshot = await getDocs(clientPaymentsQuery);
+                dajusticiaPayments = clientPaymentsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as DajusticiaPayment));
+            }
 
 
             setProfileData({
@@ -96,7 +113,9 @@ export default function PensionadoPage() {
                 legalProcesses,
                 parris1Data,
                 causanteData,
-                historicalPayment
+                historicalPayment,
+                dajusticiaClientData,
+                dajusticiaPayments
             });
 
         } catch (e) {
@@ -159,7 +178,7 @@ export default function PensionadoPage() {
         );
     }
 
-    const { parris1Data, causanteData, legalProcesses, payments, historicalPayment } = profileData || {};
+    const { parris1Data, causanteData, legalProcesses, payments, historicalPayment, dajusticiaClientData, dajusticiaPayments } = profileData || {};
 
     return (
         <div className="p-4 md:p-8 space-y-6">
@@ -188,6 +207,63 @@ export default function PensionadoPage() {
 
             {!isLoading && !error && (
                 <>
+                    {dajusticiaClientData && (
+                        <Card className="border-accent">
+                            <CardHeader>
+                                <CardTitle className="text-xl flex items-center gap-2 text-accent">
+                                    <Briefcase className="h-5 w-5" /> Cliente DAJUSTICIA
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                                <InfoField icon={<Users />} label="Grupo" value={dajusticiaClientData.grupo} />
+                                <InfoField icon={<Banknote />} label="Salario a Cancelar" value={formatCurrency(dajusticiaClientData.salario)} />
+                                <InfoField icon={<Calendar />} label="Plazo" value={`${dajusticiaClientData.plazoMeses} meses`} />
+                                <InfoField icon={<Sigma />} label="Cuota Mensual" value={formatCurrency(parseFloat(dajusticiaClientData.cuotaMensual))} />
+                            </CardContent>
+                        </Card>
+                    )}
+                    
+                     {dajusticiaPayments && dajusticiaPayments.length > 0 && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-xl flex items-center gap-2">
+                                    <FileText className="h-5 w-5" /> Pagos a DAJUSTICIA
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Fecha</TableHead>
+                                            <TableHead>Monto Neto</TableHead>
+                                            <TableHead>Empresa</TableHead>
+                                            <TableHead>Vendedor</TableHead>
+                                            <TableHead className="text-right">Soporte</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {dajusticiaPayments.map(p => (
+                                            <TableRow key={p.id}>
+                                                <TableCell>{p.fecha}</TableCell>
+                                                <TableCell className="font-medium">{formatCurrency(p.montoNeto)}</TableCell>
+                                                <TableCell>{formatCurrency(p.empresa)}</TableCell>
+                                                <TableCell>{formatCurrency(p.vendedor)}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button asChild variant="outline" size="sm" disabled={!p.soporteURL}>
+                                                        <a href={p.soporteURL} target="_blank" rel="noopener noreferrer">
+                                                            <FileDown className="mr-2 h-3 w-3" /> Ver
+                                                        </a>
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    )}
+
+
                     <Card>
                         <CardHeader>
                             <CardTitle className="text-xl flex items-center gap-2">
