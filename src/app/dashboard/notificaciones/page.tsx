@@ -12,7 +12,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { collection, getDocs, query, where, or, limit, orderBy, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { syncProviredNotifications } from '@/services/provired-api-service';
-import { Progress } from '@/components/ui/progress';
 
 interface Notification {
     id: string;
@@ -117,11 +116,14 @@ export default function NotificacionesPage() {
             const demandanteQuery = query(notificationsRef, where("demandante_lower", ">=", searchLower), where("demandante_lower", "<=", searchLower + '\uf8ff'), limit(ITEMS_PER_PAGE));
             const demandadoQuery = query(notificationsRef, where("demandado_lower", ">=", searchLower), where("demandado_lower", "<=", searchLower + '\uf8ff'), limit(ITEMS_PER_PAGE));
             const radicacionQuery = query(notificationsRef, where("radicacion", ">=", searchVal), where("radicacion", "<=", searchVal + '\uf8ff'), limit(ITEMS_PER_PAGE));
+            const procesoQuery = query(notificationsRef, where("proceso", ">=", searchVal.toUpperCase()), where("proceso", "<=", searchVal.toUpperCase() + '\uf8ff'), limit(ITEMS_PER_PAGE));
 
-            const [demandanteSnap, demandadoSnap, radicacionSnap] = await Promise.all([
+
+            const [demandanteSnap, demandadoSnap, radicacionSnap, procesoSnap] = await Promise.all([
                 getDocs(demandanteQuery),
                 getDocs(demandadoQuery),
-                getDocs(radicacionQuery)
+                getDocs(radicacionQuery),
+                getDocs(procesoQuery),
             ]);
 
             const resultsMap = new Map<string, Notification>();
@@ -136,6 +138,7 @@ export default function NotificacionesPage() {
             addResultsToMap(demandanteSnap);
             addResultsToMap(demandadoSnap);
             addResultsToMap(radicacionSnap);
+            addResultsToMap(procesoSnap);
             
             const combinedResults = Array.from(resultsMap.values())
               .sort((a, b) => new Date(b.fechaPublicacion).getTime() - new Date(a.fechaPublicacion).getTime());
