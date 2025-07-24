@@ -29,7 +29,7 @@ export default function AgregarPagoPage() {
   const [isLoading, setIsLoading] = useState(true);
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [groupFilter, setGroupFilter] = useState('');
+  const [groupFilter, setGroupFilter] = useState('all');
   const [uniqueGroups, setUniqueGroups] = useState<string[]>([]);
 
   const [selectedClient, setSelectedClient] = useState<ClientWithPayments | null>(null);
@@ -77,7 +77,7 @@ export default function AgregarPagoPage() {
             const searchLower = searchTerm.toLowerCase();
             const nameMatch = `${client.nombres} ${client.apellidos}`.toLowerCase().includes(searchLower);
             const cedulaMatch = client.cedula.includes(searchLower);
-            const groupMatch = !groupFilter || client.grupo === groupFilter;
+            const groupMatch = groupFilter === 'all' || client.grupo === groupFilter;
             return (nameMatch || cedulaMatch) && groupMatch;
         });
         setFilteredClients(filtered);
@@ -205,7 +205,7 @@ export default function AgregarPagoPage() {
                         <SelectValue placeholder="Filtrar por grupo" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="">Todos los Grupos</SelectItem>
+                        <SelectItem value="all">Todos los Grupos</SelectItem>
                         {uniqueGroups.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
                     </SelectContent>
                 </Select>
@@ -308,3 +308,5 @@ export default function AgregarPagoPage() {
     </>
   );
 }
+
+    
