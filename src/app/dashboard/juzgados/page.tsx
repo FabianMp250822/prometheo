@@ -23,6 +23,7 @@ interface Municipality {
     depto_IdDep: string;
 }
 interface Corporation {
+    id: string; // Unified ID
     IdCorp: string;
     IdMun: string;
     corporacion: string;
@@ -89,14 +90,16 @@ export default function JuzgadosPage() {
   };
   
   const fetchCorporationsForMunicipality = useCallback(async (municipalityId: string) => {
-    if (corporations[municipalityId]?.data) return;
+    if (corporations[municipalityId]) return;
 
     setCorporations(prev => ({ ...prev, [municipalityId]: { data: [], isLoading: true } })); 
 
     const response = await getCorporations(municipalityId);
     
     if (response.success && Array.isArray(response.data)) {
-        const stringifiedData = response.data.map(c => ({ ...c, IdCorp: String(c.IdCorp) }));
+        // API returns all corporations, so we must filter them manually.
+        const filteredData = response.data.filter(c => String(c.IdMun) === String(municipalityId));
+        const stringifiedData = filteredData.map(c => ({ ...c, IdCorp: String(c.IdCorp), id: String(c.IdCorp) }));
         setCorporations(prev => ({ ...prev, [municipalityId]: { data: stringifiedData, isLoading: false } }));
     } else {
         setCorporations(prev => ({ ...prev, [municipalityId]: { data: [], isLoading: false } }));
@@ -105,7 +108,7 @@ export default function JuzgadosPage() {
   
   const fetchOfficesForCorporation = async (municipalityId: string, corporationId: string) => {
     const munCorpsData = corporations[municipalityId]?.data || [];
-    const corpToUpdate = munCorpsData.find(c => c.IdCorp === corporationId);
+    const corpToUpdate = munCorpsData.find(c => c.id === corporationId);
     
     if (!corpToUpdate || corpToUpdate.offices) return;
 
@@ -114,7 +117,7 @@ export default function JuzgadosPage() {
         [municipalityId]: {
             ...prev[municipalityId],
             data: prev[municipalityId].data.map(c => 
-                c.IdCorp === corporationId ? { ...c, isLoadingOffices: true } : c
+                c.id === corporationId ? { ...c, isLoadingOffices: true } : c
             )
         }
     }));
@@ -123,7 +126,7 @@ export default function JuzgadosPage() {
 
     setCorporations(prev => {
         const newMunCorps = (prev[municipalityId]?.data || []).map(c => {
-            if (c.IdCorp !== corporationId) return c;
+            if (c.id !== corporationId) return c;
             if (response.success && Array.isArray(response.data)) {
                 return { ...c, offices: response.data.map(o => ({...o, id: String(o.id)})), isLoadingOffices: false };
             }
@@ -194,10 +197,10 @@ export default function JuzgadosPage() {
                       <TableBody>
                           {municipalities.map((mun) => (
                               <TableRow key={mun.IdMun}>
-                                  <TableCell className="font-medium">{mun.municipio}</TableCell>
+                                  <TableCell className="font-medium align-top pt-4">{mun.municipio}</TableCell>
                                   <TableCell>
                                     <Accordion type="single" collapsible className="w-full" onValueChange={() => fetchCorporationsForMunicipality(mun.IdMun)}>
-                                        <AccordionItem value={`mun-${mun.IdMun}`}>
+                                        <AccordionItem value={`mun-${mun.IdMun}`} className="border-b-0">
                                             <AccordionTrigger>Ver Corporaciones</AccordionTrigger>
                                             <AccordionContent>
                                                 {corporations[mun.IdMun]?.isLoading ? (
@@ -205,8 +208,8 @@ export default function JuzgadosPage() {
                                                 ) : corporations[mun.IdMun]?.data?.length > 0 ? (
                                                     <Accordion type="single" collapsible className="w-full space-y-2">
                                                         {corporations[mun.IdMun].data.map((corp) => (
-                                                            <AccordionItem value={`corp-${corp.IdCorp}`} key={corp.IdCorp} className="border bg-card rounded-md">
-                                                                <AccordionTrigger className="p-3 hover:no-underline text-sm" onClick={() => fetchOfficesForCorporation(mun.IdMun, corp.IdCorp)}>
+                                                            <AccordionItem value={corp.id} key={corp.id} className="border bg-card rounded-md">
+                                                                <AccordionTrigger className="p-3 hover:no-underline text-sm" onClick={() => fetchOfficesForCorporation(mun.IdMun, corp.id)}>
                                                                     <div className="flex items-center gap-2"><University className="h-4 w-4"/> {corp.corporacion}</div>
                                                                 </AccordionTrigger>
                                                                 <AccordionContent className="p-3 pt-0">
