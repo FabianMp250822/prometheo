@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, query, where, limit, or } from 'firebase/firestore';
+import { collection, getDocs, query, where, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { usePensioner } from '@/context/pensioner-provider';
 import { Pensioner } from '@/lib/data';
@@ -37,19 +37,35 @@ export function GlobalHeader() {
         try {
             const pensionadosRef = collection(db, "pensionados");
             
-            const q = query(pensionadosRef, 
-                or(
-                    where("empleado", ">=", searchVal.toUpperCase()),
-                    where("empleado", "<=", searchVal.toUpperCase() + '\uf8ff'),
-                    where("documento", ">=", searchVal),
-                    where("documento", "<=", searchVal + '\uf8ff')
-                ),
+            // Query for document
+            const docQuery = query(pensionadosRef, 
+                where("documento", ">=", searchVal), 
+                where("documento", "<=", searchVal + '\uf8ff'), 
                 limit(15)
             );
 
-            const querySnapshot = await getDocs(q);
-            const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
-            setSearchResults(results);
+            // Query for name (empleado)
+            const nameQuery = query(pensionadosRef, 
+                where("empleado", ">=", searchVal.toUpperCase()), 
+                where("empleado", "<=", searchVal.toUpperCase() + '\uf8ff'), 
+                limit(15)
+            );
+
+            const [docSnapshot, nameSnapshot] = await Promise.all([
+                getDocs(docQuery),
+                getDocs(nameQuery)
+            ]);
+
+            const combinedResults: Map<string, Pensioner> = new Map();
+
+            docSnapshot.forEach(doc => {
+                combinedResults.set(doc.id, { id: doc.id, ...doc.data() } as Pensioner);
+            });
+            nameSnapshot.forEach(doc => {
+                combinedResults.set(doc.id, { id: doc.id, ...doc.data() } as Pensioner);
+            });
+
+            setSearchResults(Array.from(combinedResults.values()));
 
         } catch (error) {
             console.error("Error searching pensionados:", error);
