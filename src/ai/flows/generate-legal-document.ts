@@ -72,7 +72,7 @@ const prompt = ai.definePrompt({
 
     **Instructions:**
     - Generate the complete document text.
-    - Use Handlebars syntax ` + "(`{{` and `}}`)" + ` for all placeholders.
+    - Use Handlebars syntax ({{'{{'}} and {{'}}'}}) for all placeholders.
     - Do not invent legal advice. Stick to generating the document structure and text.
     - The output must be only the document content, without any additional comments or explanations.
     - Ensure the document is formatted cleanly with appropriate line breaks for readability.
