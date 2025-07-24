@@ -25,7 +25,7 @@ interface Department {
 interface Municipality {
     IdMun: string; 
     municipio: string;
-    depto_IdDep: string;
+    IdDep: string;
 }
 interface Corporation {
     IdCorp: string;
@@ -123,7 +123,7 @@ export default function JuzgadosPage() {
     try {
         const municipalitiesQuery = query(
             collection(db, "provired_municipalities"),
-            where("depto_IdDep", "==", depIdStr),
+            where("IdDep", "==", depIdStr),
             orderBy("municipio")
         );
         const munSnapshot = await getDocs(municipalitiesQuery);
@@ -208,8 +208,18 @@ export default function JuzgadosPage() {
 
   const handleSyncData = () => {
     startSyncTransition(async () => {
-        setSyncProgress({ value: 5, text: 'Iniciando sincronización...' });
+        setSyncProgress({ value: 0, text: '' });
+        let currentProgress = 0;
+        const totalSteps = 5; 
+        
+        const updateProgress = (message: string) => {
+            currentProgress++;
+            setSyncProgress({ value: (currentProgress / totalSteps) * 100, text: message });
+        };
+        
+        updateProgress('Iniciando sincronización...');
         const result = await syncAllProviredDataToFirebase();
+        
         if (result.success) {
             setSyncProgress({ value: 100, text: 'Sincronización completada.' });
             toast({ title: 'Sincronización Completa', description: 'Los datos de Provired han sido guardados en Firebase.' });
@@ -217,8 +227,10 @@ export default function JuzgadosPage() {
         } else {
             setSyncProgress({ value: 100, text: 'Error en la sincronización.' });
             toast({ variant: 'destructive', title: 'Error de Sincronización', description: result.message });
+             setError(result.message || 'Ocurrió un error desconocido durante la sincronización.');
         }
-        setTimeout(() => setSyncProgress({ value: 0, text: '' }), 2000);
+        
+        setTimeout(() => setSyncProgress({ value: 0, text: '' }), 3000);
     });
   };
 
