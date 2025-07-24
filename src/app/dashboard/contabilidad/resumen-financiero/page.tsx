@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
-import { BarChartHorizontal, DollarSign, Target, TrendingDown, Loader2 } from 'lucide-react';
+import { BarChartHorizontal, DollarSign, Target, TrendingUp, Loader2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/helpers';
 import { DataTableSkeleton } from '@/components/dashboard/data-table-skeleton';
 import { parseEmployeeName } from '@/lib/helpers';
@@ -24,7 +24,7 @@ const monthNames = [
 ];
 
 const currentYear = new Date().getFullYear();
-const years = Array.from({ length: 5 }, (_, i) => (currentYear + i).toString());
+const years = Array.from({ length: 5 }, (_, i) => (currentYear -2 + i).toString());
 
 export default function ResumenFinancieroPage() {
   const [clients, setClients] = useState<ClientWithPayments[]>([]);
@@ -46,7 +46,7 @@ export default function ResumenFinancieroPage() {
           return { ...clientData, pagos };
         })
       );
-      setClients(clientsData);
+      setClients(clientsData.filter(c => c.estado !== 'inactivo'));
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -58,59 +58,59 @@ export default function ResumenFinancieroPage() {
     fetchClientsWithPayments();
   }, [fetchClientsWithPayments]);
   
-  const parseSalario = (salario: number | string) => {
+  const parseSalario = (salario: number | string): number => {
     if (typeof salario === 'number') return salario;
     if (typeof salario === 'string') {
-        const cleaned = salario.replace(/\./g, '').replace(',', '.');
-        return parseFloat(cleaned) || 0;
+      const cleaned = salario.replace(/\./g, '').replace(',', '.');
+      return parseFloat(cleaned) || 0;
     }
     return 0;
   };
-
+  
   const financialSummary = useMemo(() => {
     let totalContractAmount = 0;
     let totalCollectedGlobal = 0;
     let monthlyProjection = 0;
     let monthlyCollected = 0;
-    
+  
     clients.forEach(client => {
-        const salary = parseSalario(client.salario);
-        totalContractAmount += salary;
-        
-        client.pagos.forEach(pago => {
-            totalCollectedGlobal += pago.montoNeto;
-            
-            if (selectedMonth && selectedYear) {
-                 const paymentDate = new Date(pago.fecha);
-                 if (paymentDate.getFullYear() === parseInt(selectedYear, 10) && (paymentDate.getMonth() + 1) === parseInt(selectedMonth, 10)) {
-                     monthlyCollected += pago.montoNeto;
-                 }
-            }
-        });
-        
+      const salary = parseSalario(client.salario);
+      const cuotaMensual = parseSalario(client.cuotaMensual);
+      
+      totalContractAmount += salary;
+  
+      let clientTotalPaid = 0;
+      client.pagos.forEach(pago => {
+        const montoNeto = parseSalario(pago.montoNeto);
+        totalCollectedGlobal += montoNeto;
+        clientTotalPaid += montoNeto;
+  
         if (selectedMonth && selectedYear) {
-            const targetDate = new Date(parseInt(selectedYear, 10), parseInt(selectedMonth, 10) - 1, 1);
-            const totalPaidBefore = client.pagos
-                .filter(p => new Date(p.fecha) < targetDate)
-                .reduce((sum, p) => sum + p.montoNeto, 0);
-
-            if (totalPaidBefore < salary) {
-                const remaining = salary - totalPaidBefore;
-                monthlyProjection += Math.min(parseSalario(client.cuotaMensual), remaining);
-            }
+          const paymentDate = new Date(pago.fecha);
+          if (paymentDate.getFullYear() === parseInt(selectedYear, 10) && (paymentDate.getMonth() + 1) === parseInt(selectedMonth, 10)) {
+            monthlyCollected += montoNeto;
+          }
         }
+      });
+  
+      // Calculate monthly projection only if there's a remaining balance
+      if (selectedMonth && selectedYear && salary > clientTotalPaid) {
+          const remainingBalance = salary - clientTotalPaid;
+          // The projection is the monthly payment, but not more than the remaining balance
+          monthlyProjection += Math.min(cuotaMensual, remainingBalance);
+      }
     });
-
+  
     return {
-        totalContractAmount,
-        totalCollectedGlobal,
-        globalDeficit: totalContractAmount - totalCollectedGlobal,
-        globalProgress: totalContractAmount > 0 ? (totalCollectedGlobal / totalContractAmount) * 100 : 0,
-        monthlyProjection,
-        monthlyCollected
+      totalContractAmount,
+      totalCollectedGlobal,
+      globalPending: totalContractAmount - totalCollectedGlobal,
+      globalProgress: totalContractAmount > 0 ? (totalCollectedGlobal / totalContractAmount) * 100 : 0,
+      monthlyProjection,
+      monthlyCollected,
     };
-
   }, [clients, selectedMonth, selectedYear]);
+
   
   const paymentStatusByClient = useMemo(() => {
     return clients.map(client => {
@@ -120,7 +120,7 @@ export default function ResumenFinancieroPage() {
       
       let cumulativePaid = client.pagos
           .filter(p => new Date(p.fecha).getFullYear() < parseInt(displayYear, 10))
-          .reduce((sum, p) => sum + p.montoNeto, 0);
+          .reduce((sum, p) => sum + parseSalario(p.montoNeto), 0);
 
       for (let i = 0; i < 12; i++) {
         const month = i + 1;
@@ -129,16 +129,15 @@ export default function ResumenFinancieroPage() {
           return d.getFullYear() === parseInt(displayYear, 10) && d.getMonth() + 1 === month;
         });
 
-        const monthTotal = paymentsInMonth.reduce((sum, p) => sum + p.montoNeto, 0);
+        const monthTotal = paymentsInMonth.reduce((sum, p) => sum + parseSalario(p.montoNeto), 0);
         
         cumulativePaid += monthTotal;
         totalPaidInYear += monthTotal;
 
         if (cumulativePaid >= salary) {
           monthlyPayments[i] = 'Completado';
-          // Fill subsequent months with 'Completado' as well
           for (let j = i + 1; j < 12; j++) monthlyPayments[j] = 'Completado';
-          break; // Exit loop once paid in full
+          break;
         } else if(monthTotal > 0) {
           monthlyPayments[i] = monthTotal;
         }
@@ -191,20 +190,20 @@ export default function ResumenFinancieroPage() {
         <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Recaudado</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(financialSummary.totalCollectedGlobal)}</div>
+                <div className="text-2xl font-bold text-green-600">{formatCurrency(financialSummary.totalCollectedGlobal)}</div>
                 <p className="text-xs text-muted-foreground">Suma de todos los pagos netos recibidos.</p>
             </CardContent>
         </Card>
         <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Déficit Global</CardTitle>
-                <TrendingDown className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Saldo Pendiente Global</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(financialSummary.globalDeficit)}</div>
+                <div className="text-2xl font-bold text-red-600">{formatCurrency(financialSummary.globalPending)}</div>
                 <Progress value={financialSummary.globalProgress} className="mt-2 h-2" />
             </CardContent>
         </Card>
@@ -235,8 +234,8 @@ export default function ResumenFinancieroPage() {
            <div className="flex items-center space-x-4 rounded-md border p-4">
                 <Target className="h-10 w-10 text-primary"/>
                 <div className="flex-1 space-y-1">
-                <p className="text-sm font-medium leading-none">Meta a Recaudar</p>
-                <p className="text-sm text-muted-foreground">Proyección de cobro para {monthNames[parseInt(selectedMonth,10)-1]} {selectedYear}.</p>
+                <p className="text-sm font-medium leading-none">Proyección de Recaudo</p>
+                <p className="text-sm text-muted-foreground">Suma de cuotas esperadas para {monthNames[parseInt(selectedMonth,10)-1]} {selectedYear}.</p>
                 </div>
                 <div className="text-xl font-bold">{formatCurrency(financialSummary.monthlyProjection)}</div>
             </div>
@@ -254,7 +253,7 @@ export default function ResumenFinancieroPage() {
         <Card>
             <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                  <CardTitle>Estado de Pagos Mensual por Cliente</CardTitle>
+                  <CardTitle>Estado de Pagos Anual por Cliente</CardTitle>
                   <CardDescription>Trazabilidad de pagos para el año seleccionado.</CardDescription>
                 </div>
                 <Select value={displayYear} onValueChange={setDisplayYear}>
@@ -269,7 +268,7 @@ export default function ResumenFinancieroPage() {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="min-w-[200px]">Cliente</TableHead>
+                            <TableHead className="min-w-[200px] sticky left-0 bg-card z-10">Cliente</TableHead>
                             {monthNames.map(m => <TableHead key={m} className="text-center">{m.substring(0,3)}</TableHead>)}
                             <TableHead className="text-right font-bold">Total Año</TableHead>
                         </TableRow>
@@ -277,7 +276,7 @@ export default function ResumenFinancieroPage() {
                     <TableBody>
                         {paymentStatusByClient.map(({ client, monthlyPayments, totalPaidInYear }) => (
                             <TableRow key={client.id} className="hover:bg-muted/50">
-                                <TableCell className="font-medium">{parseEmployeeName(client.nombres)}</TableCell>
+                                <TableCell className="font-medium sticky left-0 bg-card z-10">{parseEmployeeName(client.nombres)}</TableCell>
                                 {monthlyPayments.map((status, index) => (
                                     <TableCell key={index} className="text-center text-xs p-2">
                                         {status === 'Completado' ? (
@@ -293,9 +292,9 @@ export default function ResumenFinancieroPage() {
                             </TableRow>
                         ))}
                          <TableRow className="bg-muted font-bold">
-                            <TableCell>TOTAL MENSUAL</TableCell>
+                            <TableCell className="sticky left-0 bg-muted z-10">TOTAL MENSUAL</TableCell>
                             {monthlyTotals.map((total, index) => (
-                                <TableCell key={index} className="text-center text-xs p-2">
+                                <TableCell key={index} className="text-center text-sm p-2">
                                     {formatCurrency(total)}
                                 </TableCell>
                             ))}
