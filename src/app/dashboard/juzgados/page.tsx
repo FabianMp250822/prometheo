@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Landmark, Loader2, University, Building, Bell, Download, ServerCrash } from 'lucide-react';
+import { Landmark, University, Building, Bell, Download, ServerCrash, Loader2 } from 'lucide-react';
 import { syncAllProviredDataToFirebase } from '@/services/provired-api-service';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -116,7 +116,9 @@ export default function JuzgadosPage() {
     try {
         const q = query(collection(db, "provired_municipalities"), where("IdDep", "==", departmentId), orderBy("municipio"));
         const snapshot = await getDocs(q);
-        setMunicipalities(snapshot.docs.map(doc => doc.data() as Municipality));
+        const municipalitiesData = snapshot.docs.map(doc => doc.data() as Municipality);
+        console.log("Municipios recibidos de Firebase:", municipalitiesData);
+        setMunicipalities(municipalitiesData);
     } catch (err: any) {
         setError(`Error al cargar municipios: ${err.message}`);
     } finally {
@@ -266,10 +268,10 @@ export default function JuzgadosPage() {
                                     key={corp.IdCorp} 
                                     variant="ghost" 
                                     onClick={() => handleCorporationSelect(corp)}
-                                    className={cn("w-full justify-start", selectedCorporation?.IdCorp === corp.IdCorp && "bg-accent text-accent-foreground")}
+                                    className={cn("w-full justify-start text-left h-auto", selectedCorporation?.IdCorp === corp.IdCorp && "bg-accent text-accent-foreground")}
                                 >
                                     <University className="mr-2 h-4 w-4 shrink-0" />
-                                    <span className="truncate">{corp.corporacion}</span>
+                                    <span className="truncate whitespace-normal">{corp.corporacion}</span>
                                 </Button>
                             ))}
                         </div>
@@ -310,4 +312,3 @@ export default function JuzgadosPage() {
     </>
   );
 }
-
