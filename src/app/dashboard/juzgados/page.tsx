@@ -42,7 +42,7 @@ type LoadingState = {
 export default function JuzgadosPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
-  const [corporations, setCorporations] = useState<{ [municipalityId: string]: Corporation[] }>({});
+  const [corporations, setCorporations] = useState<{ [municipalityId: string]: { data: Corporation[], isLoading: boolean } }>({});
   
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
 
@@ -89,44 +89,47 @@ export default function JuzgadosPage() {
   };
   
   const fetchCorporationsForMunicipality = useCallback(async (municipalityId: string) => {
-    if (corporations[municipalityId]) return;
+    if (corporations[municipalityId]?.data) return;
 
-    setCorporations(prev => ({ ...prev, [municipalityId]: [] })); 
+    setCorporations(prev => ({ ...prev, [municipalityId]: { data: [], isLoading: true } })); 
 
-    const response = await getCorporationsByMunicipality(municipalityId);
+    const response = await getCorporations(municipalityId);
     
     if (response.success && Array.isArray(response.data)) {
         const stringifiedData = response.data.map(c => ({ ...c, IdCorp: String(c.IdCorp) }));
-        setCorporations(prev => ({ ...prev, [municipalityId]: stringifiedData }));
+        setCorporations(prev => ({ ...prev, [municipalityId]: { data: stringifiedData, isLoading: false } }));
     } else {
-        setCorporations(prev => ({ ...prev, [municipalityId]: [] }));
+        setCorporations(prev => ({ ...prev, [municipalityId]: { data: [], isLoading: false } }));
     }
   }, [corporations]);
   
   const fetchOfficesForCorporation = async (municipalityId: string, corporationId: string) => {
-    const munCorps = corporations[municipalityId] || [];
-    const corpToUpdate = munCorps.find(c => c.IdCorp === corporationId);
+    const munCorpsData = corporations[municipalityId]?.data || [];
+    const corpToUpdate = munCorpsData.find(c => c.IdCorp === corporationId);
     
     if (!corpToUpdate || corpToUpdate.offices) return;
 
     setCorporations(prev => ({
         ...prev,
-        [municipalityId]: prev[municipalityId].map(c => 
-            c.IdCorp === corporationId ? { ...c, isLoadingOffices: true } : c
-        )
+        [municipalityId]: {
+            ...prev[municipalityId],
+            data: prev[municipalityId].data.map(c => 
+                c.IdCorp === corporationId ? { ...c, isLoadingOffices: true } : c
+            )
+        }
     }));
 
     const response = await getOfficesByCorporation(corporationId);
 
     setCorporations(prev => {
-        const newMunCorps = (prev[municipalityId] || []).map(c => {
+        const newMunCorps = (prev[municipalityId]?.data || []).map(c => {
             if (c.IdCorp !== corporationId) return c;
             if (response.success && Array.isArray(response.data)) {
                 return { ...c, offices: response.data.map(o => ({...o, id: String(o.id)})), isLoadingOffices: false };
             }
             return { ...c, offices: [], isLoadingOffices: false };
         });
-        return { ...prev, [municipalityId]: newMunCorps };
+        return { ...prev, [municipalityId]: { ...prev[municipalityId], data: newMunCorps } };
     });
   };
 
@@ -197,11 +200,11 @@ export default function JuzgadosPage() {
                                         <AccordionItem value={`mun-${mun.IdMun}`}>
                                             <AccordionTrigger>Ver Corporaciones</AccordionTrigger>
                                             <AccordionContent>
-                                                {!corporations[mun.IdMun] ? (
+                                                {corporations[mun.IdMun]?.isLoading ? (
                                                      <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Cargando...</div>
-                                                ) : corporations[mun.IdMun].length > 0 ? (
+                                                ) : corporations[mun.IdMun]?.data?.length > 0 ? (
                                                     <Accordion type="single" collapsible className="w-full space-y-2">
-                                                        {corporations[mun.IdMun].map((corp) => (
+                                                        {corporations[mun.IdMun].data.map((corp) => (
                                                             <AccordionItem value={`corp-${corp.IdCorp}`} key={corp.IdCorp} className="border bg-card rounded-md">
                                                                 <AccordionTrigger className="p-3 hover:no-underline text-sm" onClick={() => fetchOfficesForCorporation(mun.IdMun, corp.IdCorp)}>
                                                                     <div className="flex items-center gap-2"><University className="h-4 w-4"/> {corp.corporacion}</div>
