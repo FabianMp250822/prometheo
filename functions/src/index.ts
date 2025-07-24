@@ -12,7 +12,8 @@ import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import {initializeApp, getApps} from "firebase-admin/app";
 import {getFirestore, Timestamp, WriteBatch} from "firebase-admin/firestore";
-import {onRequest, Request, Response} from "firebase-functions/v2/https";
+import {onRequest, Request} from "firebase-functions/v2/https";
+import type {Response} from "firebase-functions";
 import * as nodemailer from "nodemailer";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import fetch, {Response as FetchResponse} from "node-fetch";
@@ -96,10 +97,9 @@ export const onNewPaymentCreate = onDocumentCreated(
 
     const newProcessDocRef = db.collection("procesoscancelados").doc();
 
-    const fechaLiquidacionDate =
-      paymentData.fechaProcesado?.toDate ?
-        paymentData.fechaProcesado.toDate() :
-        new Date();
+    const fechaLiquidacionDate = paymentData.fechaProcesado?.toDate ?
+      paymentData.fechaProcesado.toDate() :
+      new Date();
 
     const newProcessData = {
       año: paymentData.año,
