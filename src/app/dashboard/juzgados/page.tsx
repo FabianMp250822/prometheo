@@ -57,7 +57,6 @@ export default function JuzgadosPage() {
       setError(null);
       const response = await getDepartments();
       if (response.success && Array.isArray(response.data)) {
-        console.log('--- Departamentos Recibidos de la API ---', response.data);
         const stringifiedData = response.data.map(d => ({ ...d, IdDep: String(d.IdDep) }));
         setDepartments(stringifiedData);
       } else {
@@ -78,7 +77,6 @@ export default function JuzgadosPage() {
     const response = await getMunicipalitiesByDepartment(depIdStr);
     
     if (response.success && Array.isArray(response.data)) {
-        console.log('--- Municipios Recibidos de la API ---', response.data);
         const stringifiedData = response.data.map(m => ({ ...m, IdMun: String(m.IdMun) }));
         setMunicipalities(stringifiedData);
     } else {
@@ -117,8 +115,6 @@ export default function JuzgadosPage() {
     }));
 
     const response = await getOfficesByCorporation(corporationId);
-    
-    console.log(`--- Despachos Recibidos para Corporación ${corporationId} ---`, response.data);
 
     setMunicipalities(prev => prev.map(mun => {
         if (mun.IdMun !== municipalityId || !mun.corporations) return mun;
