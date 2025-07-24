@@ -1,10 +1,10 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Landmark, Loader2, ServerCrash, University, Building, Bell } from 'lucide-react';
-import { getDepartments, getMunicipalitiesByDepartment, getCorporations, getOfficesByCorporation, getReportNotifications, getOffices } from '@/services/provired-api-service';
+import { Landmark, Loader2, University, Building, Bell, Download, ServerCrash } from 'lucide-react';
+import { syncAllProviredDataToFirebase } from '@/services/provired-api-service';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -13,6 +13,10 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { NotificationsModal } from '@/components/dashboard/notifications-modal';
 import { Button } from '@/components/ui/button';
+import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useToast } from '@/hooks/use-toast';
+import { Progress } from '@/components/ui/progress';
 
 interface Department {
   IdDep: string;
@@ -36,6 +40,11 @@ interface Office {
     despacho: string;
     hasNotifications?: boolean;
 }
+interface Notification {
+    notificacion: string;
+    despacho: string;
+    [key: string]: any;
+}
 
 type LoadingState = {
     departments: boolean;
@@ -49,15 +58,17 @@ export default function JuzgadosPage() {
   
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
 
-  const [loading, setLoading] = useState<LoadingState>({
-    departments: true,
-    municipalities: false,
-  });
+  const [loading, setLoading] = useState<LoadingState>({ departments: true, municipalities: false });
   const [error, setError] = useState<string | null>(null);
 
+  // Sync state
+  const [isSyncing, startSyncTransition] = useTransition();
+  const [syncProgress, setSyncProgress] = useState({ value: 0, text: '' });
+  const { toast } = useToast();
+
   // State for notifications
-  const [allNotifications, setAllNotifications] = useState<any[]>([]);
   const [notificationDespachoIds, setNotificationDespachoIds] = useState<Set<string>>(new Set());
+  const [allNotifications, setAllNotifications] = useState<Notification[]>([]);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(true);
   const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState(false);
   const [selectedOffice, setSelectedOffice] = useState<Office | null>(null);
@@ -67,37 +78,39 @@ export default function JuzgadosPage() {
     return allNotifications.filter(n => n.despacho === selectedOffice.IdDes);
   }, [selectedOffice, allNotifications]);
 
-  useEffect(() => {
-    const fetchInitialData = async () => {
+  const fetchInitialDataFromFirebase = useCallback(async () => {
       setLoading({ departments: true, municipalities: false });
       setIsLoadingNotifications(true);
       setError(null);
 
-      const [depResponse, notificationsResponse] = await Promise.all([
-          getDepartments(),
-          getReportNotifications()
-      ]);
-      
-      if (depResponse.success && Array.isArray(depResponse.data)) {
-        const stringifiedData = depResponse.data.map(d => ({ ...d, IdDep: String(d.IdDep) }));
-        setDepartments(stringifiedData);
-      } else {
-        setError(depResponse.message || 'Error al conectar con la API de Provired.');
+      try {
+          const departmentsQuery = query(collection(db, "provired_departments"), orderBy("departamento"));
+          const notificationsQuery = query(collection(db, "provired_notifications"));
+          
+          const [depSnapshot, notificationsSnapshot] = await Promise.all([
+              getDocs(departmentsQuery),
+              getDocs(notificationsQuery)
+          ]);
+
+          const depsData = depSnapshot.docs.map(doc => doc.data() as Department);
+          setDepartments(depsData);
+          
+          const notifsData = notificationsSnapshot.docs.map(doc => doc.data() as Notification);
+          setAllNotifications(notifsData);
+          const idsWithNotifications = new Set(notifsData.map(n => n.despacho));
+          setNotificationDespachoIds(idsWithNotifications);
+
+      } catch (err: any) {
+          setError(`Error al leer desde Firebase: ${err.message}. Intente sincronizar los datos.`);
+      } finally {
+          setLoading(prev => ({ ...prev, departments: false }));
+          setIsLoadingNotifications(false);
       }
-      
-      if (notificationsResponse.success && Array.isArray(notificationsResponse.data)) {
-        setAllNotifications(notificationsResponse.data);
-        const idsWithNotifications = new Set(notificationsResponse.data.map(n => n.despacho));
-        setNotificationDespachoIds(idsWithNotifications);
-      } else {
-        console.error("Could not fetch notifications:", notificationsResponse.message);
-      }
-      
-      setLoading(prev => ({ ...prev, departments: false }));
-      setIsLoadingNotifications(false);
-    };
-    fetchInitialData();
   }, []);
+
+  useEffect(() => {
+    fetchInitialDataFromFirebase();
+  }, [fetchInitialDataFromFirebase]);
 
   const handleDepartmentChange = async (departmentId: string) => {
     const depIdStr = String(departmentId);
@@ -107,16 +120,26 @@ export default function JuzgadosPage() {
 
     setLoading(prev => ({ ...prev, municipalities: true }));
     setError(null);
-    const munResponse = await getMunicipalitiesByDepartment(depIdStr);
-    
-    if (munResponse.success && Array.isArray(munResponse.data)) {
-        const stringifiedData = munResponse.data.map(m => ({ ...m, IdMun: String(m.IdMun) }));
-        setMunicipalities(stringifiedData);
-    } else {
-        setMunicipalities([]);
-        setError(`No se encontraron municipios para este departamento.`);
+    try {
+        const municipalitiesQuery = query(
+            collection(db, "provired_municipalities"),
+            where("depto_IdDep", "==", depIdStr),
+            orderBy("municipio")
+        );
+        const munSnapshot = await getDocs(municipalitiesQuery);
+        const munData = munSnapshot.docs.map(doc => doc.data() as Municipality);
+
+        if (munData.length > 0) {
+            setMunicipalities(munData);
+        } else {
+            setMunicipalities([]);
+            setError(`No se encontraron municipios para este departamento en Firebase.`);
+        }
+    } catch(err: any) {
+        setError(`Error al leer municipios desde Firebase: ${err.message}`);
+    } finally {
+        setLoading(prev => ({ ...prev, municipalities: false }));
     }
-    setLoading(prev => ({ ...prev, municipalities: false }));
   };
   
   const fetchCorporationsForMunicipality = useCallback(async (municipalityId: string) => {
@@ -124,13 +147,17 @@ export default function JuzgadosPage() {
 
     setCorporations(prev => ({ ...prev, [municipalityId]: { data: [], isLoading: true } })); 
 
-    const response = await getCorporations();
-    
-    if (response.success && Array.isArray(response.data)) {
-        const filteredData = response.data.filter((c: any) => String(c.IdMun) === String(municipalityId));
-        setCorporations(prev => ({ ...prev, [municipalityId]: { data: filteredData, isLoading: false } }));
-    } else {
+    try {
+      const q = query(
+        collection(db, "provired_corporations"),
+        where("IdMun", "==", municipalityId)
+      );
+      const snapshot = await getDocs(q);
+      const corpData = snapshot.docs.map(doc => doc.data() as Corporation);
+      setCorporations(prev => ({ ...prev, [municipalityId]: { data: corpData, isLoading: false } }));
+    } catch(err: any) {
         setCorporations(prev => ({ ...prev, [municipalityId]: { data: [], isLoading: false } }));
+        setError(`Error al leer corporaciones: ${err.message}`);
     }
   }, [corporations]);
   
@@ -149,24 +176,47 @@ export default function JuzgadosPage() {
             )
         }
     }));
-
-    const response = await getOfficesByCorporation(corporationId);
-
-    setCorporations(prev => {
-        const newMunCorps = (prev[municipalityId]?.data || []).map(c => {
-            if (c.IdCorp !== corporationId) return c;
-            if (response.success && Array.isArray(response.data)) {
-                // Enrich and sort offices
-                const enrichedOffices = response.data.map(office => ({
-                    ...office,
-                    hasNotifications: notificationDespachoIds.has(office.IdDes)
-                })).sort((a, b) => (b.hasNotifications ? 1 : 0) - (a.hasNotifications ? 1 : 0));
-
-                return { ...c, offices: enrichedOffices, isLoadingOffices: false };
-            }
-            return { ...c, offices: [], isLoadingOffices: false };
+    
+    try {
+        const q = query(collection(db, "provired_offices"), where("IdCorp", "==", corporationId));
+        const snapshot = await getDocs(q);
+        const officeData = snapshot.docs.map(doc => ({
+          ...doc.data(),
+          hasNotifications: notificationDespachoIds.has(doc.data().IdDes)
+        })).sort((a,b) => (b.hasNotifications ? 1 : 0) - (a.hasNotifications ? 1 : 0)) as Office[];
+        
+        setCorporations(prev => {
+            const newMunCorps = (prev[municipalityId]?.data || []).map(c => 
+                c.IdCorp === corporationId ? { ...c, offices: officeData, isLoadingOffices: false } : c
+            );
+            return { ...prev, [municipalityId]: { ...prev[municipalityId], data: newMunCorps } };
         });
-        return { ...prev, [municipalityId]: { ...prev[municipalityId], data: newMunCorps } };
+
+    } catch (err: any) {
+        setError(`Error al leer despachos: ${err.message}`);
+        setCorporations(prev => ({
+            ...prev,
+            [municipalityId]: {
+                ...prev[municipalityId],
+                data: prev[municipalityId].data.map(c => 
+                    c.IdCorp === corporationId ? { ...c, offices: [], isLoadingOffices: false } : c
+                )
+            }
+        }));
+    }
+  };
+
+  const handleSyncData = () => {
+    startSyncTransition(async () => {
+        setSyncProgress({ value: 0, text: 'Iniciando sincronización...' });
+        const result = await syncAllProviredDataToFirebase(setSyncProgress);
+        if (result.success) {
+            toast({ title: 'Sincronización Completa', description: 'Los datos de Provired han sido guardados en Firebase.' });
+            await fetchInitialDataFromFirebase();
+        } else {
+            toast({ variant: 'destructive', title: 'Error de Sincronización', description: result.message });
+        }
+        setSyncProgress({ value: 0, text: '' });
     });
   };
 
@@ -180,21 +230,37 @@ export default function JuzgadosPage() {
     <>
     <div className="p-4 md:p-8 space-y-6">
       <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl font-headline flex items-center gap-2">
-            <Landmark className="h-6 w-6" />
-            Consulta de Juzgados
-          </CardTitle>
-          <CardDescription>
-            Explore la jerarquía de juzgados desde la API de Provired seleccionando un departamento.
-          </CardDescription>
+        <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle className="text-2xl font-headline flex items-center gap-2">
+                <Landmark className="h-6 w-6" />
+                Consulta de Juzgados
+              </CardTitle>
+              <CardDescription>
+                Explore la jerarquía de juzgados desde la base de datos de Firebase.
+              </CardDescription>
+            </div>
+            <Button onClick={handleSyncData} disabled={isSyncing}>
+                {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Download className="mr-2 h-4 w-4"/>}
+                Sincronizar Datos de Provired
+            </Button>
         </CardHeader>
+        {isSyncing && (
+            <CardContent>
+                <div className="flex items-center gap-4">
+                    <div className="flex-1 space-y-1">
+                        <p className="text-sm font-medium leading-none">{syncProgress.text}</p>
+                        <Progress value={syncProgress.value} />
+                    </div>
+                </div>
+            </CardContent>
+        )}
       </Card>
       
       {error && (
         <Alert variant="destructive">
             <ServerCrash className="h-4 w-4" />
-            <AlertTitle>Error de Conexión</AlertTitle>
+            <AlertTitle>Error</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}

@@ -1,20 +1,21 @@
 
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, Search, FileDown, BellRing, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getReportNotifications } from '@/services/provired-api-service';
 import { DocumentViewerModal } from '../document-viewer-modal';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { collection, getDocs, query, where, or, limit } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 interface Notification {
-    notificacion: string; // Unique ID for notification
+    notificacion: string;
     fechaPublicacion: string;
     demandante: string;
     demandado: string;
@@ -24,11 +25,25 @@ interface Notification {
     rutaAuto: string;
 }
 
+function useDebounce<T>(value: T, delay: number): T {
+    const [debouncedValue, setDebouncedValue] = useState<T>(value);
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [value, delay]);
+    return debouncedValue;
+}
+
 export function NotificationsSearchPage() {
-    const [allNotifications, setAllNotifications] = useState<Notification[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
     const [documentUrl, setDocumentUrl] = useState<string | null>(null);
     const [documentTitle, setDocumentTitle] = useState<string | null>(null);
@@ -36,37 +51,54 @@ export function NotificationsSearchPage() {
     const { toast } = useToast();
 
     useEffect(() => {
-        const fetchNotifications = async () => {
+        const fetchNotificationsFromFirebase = async () => {
+            if (debouncedSearchTerm.length < 3) {
+                setNotifications([]);
+                if (debouncedSearchTerm === '') setIsLoading(false);
+                return;
+            }
+            
             setIsLoading(true);
             setError(null);
             try {
-                const response = await getReportNotifications();
-                if (response.success && Array.isArray(response.data)) {
-                    setAllNotifications(response.data);
-                } else {
-                    throw new Error(response.message || 'Failed to fetch notifications.');
-                }
+                const notificationsRef = collection(db, "provired_notifications");
+                const searchLower = debouncedSearchTerm.toLowerCase();
+                
+                // Firestore doesn't support OR queries on different fields without a composite index.
+                // A better approach for full-text search would be a dedicated service like Algolia or Meilisearch.
+                // For now, we'll search on a primary field or fetch and filter client-side if the dataset is small.
+                // Here, we query on demandante and then will have to filter more on client side if needed, or create indexes.
+                // Let's assume we have `demandante_lower` and `demandado_lower` fields for case-insensitive search.
+                const q = query(
+                    notificationsRef,
+                    where("demandante_lower", ">=", searchLower),
+                    where("demandante_lower", "<=", searchLower + '\uf8ff'),
+                    limit(50) 
+                );
+
+                const snapshot = await getDocs(q);
+                let results = snapshot.docs.map(doc => doc.data() as Notification);
+                
+                // You could add more queries here and merge results if needed, handling duplicates.
+                
+                setNotifications(results);
+                
             } catch (err: any) {
-                setError(err.message);
-                toast({ variant: 'destructive', title: 'Error', description: err.message });
+                console.error("Error searching notifications:", err);
+                setError("Ocurrió un error al buscar en Firebase. Asegúrese de que los índices necesarios estén creados. Por ejemplo: un índice para `provired_notifications` sobre `demandante_lower`.");
+                toast({ variant: 'destructive', title: 'Error de Búsqueda', description: err.message });
             } finally {
                 setIsLoading(false);
             }
         };
-        fetchNotifications();
-    }, [toast]);
 
-    const filteredNotifications = useMemo(() => {
-        if (!searchTerm) {
-            return allNotifications;
+        if(debouncedSearchTerm) {
+            fetchNotificationsFromFirebase();
+        } else {
+            setNotifications([]);
+            setIsLoading(false);
         }
-        const lowercasedTerm = searchTerm.toLowerCase();
-        return allNotifications.filter(n =>
-            n.demandante?.toLowerCase().includes(lowercasedTerm) ||
-            n.demandado?.toLowerCase().includes(lowercasedTerm) ||
-            n.radicacion?.toLowerCase().includes(lowercasedTerm)
-        );
-    }, [searchTerm, allNotifications]);
+    }, [debouncedSearchTerm, toast]);
 
     const handleViewDocument = (url: string, title: string) => {
         setDocumentUrl(url);
@@ -83,14 +115,14 @@ export function NotificationsSearchPage() {
                             Búsqueda de Notificaciones
                         </CardTitle>
                         <CardDescription>
-                            Busque notificaciones por demandante, demandado o número de radicación.
+                            Busque en el archivo de notificaciones de Firebase por demandante, demandado o número de radicación.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
-                                placeholder="Escriba para buscar..."
+                                placeholder="Buscar por demandante (mín. 3 caracteres)..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-10"
@@ -103,7 +135,7 @@ export function NotificationsSearchPage() {
                     <CardHeader>
                         <CardTitle>Resultados</CardTitle>
                         <CardDescription>
-                            {isLoading ? 'Cargando...' : `${filteredNotifications.length} notificaciones encontradas.`}
+                            {isLoading ? 'Buscando...' : `${notifications.length} notificaciones encontradas.`}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -129,9 +161,9 @@ export function NotificationsSearchPage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {filteredNotifications.length > 0 ? (
-                                            filteredNotifications.map((n, index) => (
-                                                <TableRow key={`${n.notificacion}-${n.radicacion}-${n.descripcion}-${index}`}>
+                                        {notifications.length > 0 ? (
+                                            notifications.map((n, index) => (
+                                                <TableRow key={`${n.notificacion}-${n.radicacion}-${index}`}>
                                                     <TableCell className="font-medium">{n.demandante}</TableCell>
                                                     <TableCell>{n.demandado}</TableCell>
                                                     <TableCell>{n.radicacion}</TableCell>
@@ -153,7 +185,7 @@ export function NotificationsSearchPage() {
                                         ) : (
                                             <TableRow>
                                                 <TableCell colSpan={6} className="h-24 text-center">
-                                                    No se encontraron notificaciones con los criterios de búsqueda.
+                                                    {searchTerm.length < 3 ? "Ingrese al menos 3 caracteres para buscar." : "No se encontraron notificaciones."}
                                                 </TableCell>
                                             </TableRow>
                                         )}
