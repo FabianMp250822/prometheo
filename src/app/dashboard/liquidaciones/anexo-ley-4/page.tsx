@@ -7,12 +7,12 @@ import { FileText, User, Hash, Loader2, UserX } from 'lucide-react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { parseEmployeeName, formatCurrency } from '@/lib/helpers';
 import type { Payment, PagosHistoricoRecord } from '@/lib/data';
-import { collection, doc, getDocs, query } from 'firebase/firestore';
+import { collection, doc, getDocs, query, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 
 // --- Static Data ---
-const datosConsolidados = {
+const datosConsolidados: { [year: number]: { smlmv: number; ipc: number; reajusteSMLMV: number; } } = {
     1999: { smlmv: 236460, ipc: 16.70, reajusteSMLMV: 16.01 },
     2000: { smlmv: 260100, ipc: 9.23, reajusteSMLMV: 10.00 },
     2001: { smlmv: 286000, ipc: 8.75, reajusteSMLMV: 9.96 },
@@ -24,7 +24,7 @@ const datosConsolidados = {
     2007: { smlmv: 433700, ipc: 4.48, reajusteSMLMV: 6.30 },
 };
 
-const datosIPC = {
+const datosIPC: { [year: number]: number } = {
     1998: 16.70,
     1999: 9.23,
     2000: 8.75,
@@ -83,20 +83,32 @@ export default function AnexoLey4Page() {
 
     const tabla1Data = useMemo(() => {
         if (!selectedPensioner) return [];
-        
+
         const getFirstPensionInYear = (year: number): number => {
-            const recentPayment = payments.find(p => parseInt(p.año, 10) === year);
-            if (recentPayment) {
-                const mesada = recentPayment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
+            const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
+            if (paymentsInYear.length > 0) {
+                const firstPayment = paymentsInYear.sort((a,b) => a.periodoPago.localeCompare(b.periodoPago))[0];
+                const mesada = firstPayment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
                 if (mesada && mesada.ingresos > 0) return mesada.ingresos;
             }
             const historicalRecord = historicalPayments.find(p => p.ANO_RET === year && p.VALOR_ACT);
             if (historicalRecord) return parseFloat(historicalRecord.VALOR_ACT!.replace(',', '.'));
             return 0;
         };
-        
-        const firstPensionYear = Object.keys(datosConsolidados).map(Number).find(year => getFirstPensionInYear(year) > 0);
 
+        const countMesadasInYear = (year: number): number => {
+            const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
+            let count = 0;
+            paymentsInYear.forEach(p => {
+                const hasMesad = p.detalles.some(d => d.codigo === 'MESAD' && d.ingresos > 0);
+                const hasMesad14 = p.detalles.some(d => d.codigo === 'MESAD14' && d.ingresos > 0);
+                if (hasMesad) count++;
+                if (hasMesad14) count++;
+            });
+            return count;
+        };
+
+        const firstPensionYear = Object.keys(datosConsolidados).map(Number).find(year => getFirstPensionInYear(year) > 0);
         if (!firstPensionYear) return [];
 
         const relevantYears = Object.keys(datosConsolidados)
@@ -112,7 +124,8 @@ export default function AnexoLey4Page() {
             const reajusteIPC = datosIPC[year - 1 as keyof typeof datosIPC] || 0;
             
             const mesadaPagada = getFirstPensionInYear(year);
-            
+            const numMesadas = countMesadasInYear(year);
+
             let proyeccionMesada = 0;
             if (index === 0) {
                  proyeccionMesada = mesadaPagada > 0 ? mesadaPagada : 0;
@@ -136,7 +149,7 @@ export default function AnexoLey4Page() {
                 mesadaPagada,
                 numSmlmvPagado,
                 diferencia,
-                numMesadas: 0,
+                numMesadas,
                 totalRetroactivas: 0,
             };
         });
@@ -223,14 +236,14 @@ export default function AnexoLey4Page() {
                                            <TableCell>{row.año}</TableCell>
                                            <TableCell>{formatCurrency(row.smlmv)}</TableCell>
                                            <TableCell>{row.reajusteSMLMV.toFixed(2)}%</TableCell>
-                                           <TableCell>{formatCurrency(row.proyeccionMesada)}</TableCell>
+                                           <TableCell>{formatCurrency(Math.round(row.proyeccionMesada))}</TableCell>
                                            <TableCell>{row.numSmlmvProyectado.toFixed(2)}</TableCell>
                                            <TableCell>{row.reajusteIPC.toFixed(2)}%</TableCell>
                                            <TableCell>{formatCurrency(row.mesadaPagada)}</TableCell>
                                            <TableCell>{row.numSmlmvPagado.toFixed(2)}</TableCell>
-                                           <TableCell>{formatCurrency(row.diferencia)}</TableCell>
+                                           <TableCell>{formatCurrency(Math.round(row.diferencia))}</TableCell>
                                            <TableCell>{row.numMesadas}</TableCell>
-                                           <TableCell>{row.totalRetroactivas}</TableCell>
+                                           <TableCell>{formatCurrency(row.totalRetroactivas)}</TableCell>
                                        </TableRow>
                                    ))}
                                 </TableBody>
