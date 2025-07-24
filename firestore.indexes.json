@@ -117,6 +117,16 @@
       ]
     },
     {
+      "collectionGroup": "procesoscancelados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "creadoEn",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "pagos",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
