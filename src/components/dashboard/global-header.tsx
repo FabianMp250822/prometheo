@@ -33,58 +33,53 @@ export function GlobalHeader() {
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
     const searchGlobal = useCallback(async (searchVal: string) => {
+        if (searchVal.length < 3) {
+            setSearchResults([]);
+            return;
+        }
+        
         setIsSearching(true);
         try {
+            const pensionadosRef = collection(db, "pensionados");
             const searchPromises = [];
+
+            // Query by name (empleado)
             const upperSearchVal = searchVal.toUpperCase();
-
-            // Queries for text fields (names)
-            const pensionadosNameQuery = query(collection(db, "pensionados"), where("empleado", ">=", upperSearchVal), where("empleado", "<=", upperSearchVal + '\uf8ff'), limit(5));
-            const procesosNameQuery = query(collection(db, "procesos"), where("nombres_demandante", ">=", upperSearchVal), where("nombres_demandante", "<=", upperSearchVal + '\uf8ff'), limit(5));
-            
-            // Queries for numeric fields (documents)
-            const pensionadosDocQuery = query(collection(db, "pensionados"), where("documento", ">=", searchVal), where("documento", "<=", searchVal + '\uf8ff'), limit(5));
-            const procesosDocQuery = query(collection(db, "procesos"), where("identidad_clientes", ">=", searchVal), where("identidad_clientes", "<=", searchVal + '\uf8ff'), limit(5));
-
-            searchPromises.push(
-                getDocs(pensionadosNameQuery), 
-                getDocs(procesosNameQuery),
-                getDocs(pensionadosDocQuery),
-                getDocs(procesosDocQuery)
+            const nameQuery = query(pensionadosRef, 
+                where("empleado", ">=", upperSearchVal), 
+                where("empleado", "<=", upperSearchVal + '\uf8ff'), 
+                limit(10)
             );
+            searchPromises.push(getDocs(nameQuery));
 
-            const [
-                pensionadosNameSnapshot, 
-                procesosNameSnapshot,
-                pensionadosDocSnapshot,
-                procesosDocSnapshot
-            ] = await Promise.all(searchPromises);
+            // Query by document
+            const docQuery = query(pensionadosRef, 
+                where("documento", ">=", searchVal), 
+                where("documento", "<=", searchVal + '\uf8ff'), 
+                limit(10)
+            );
+            searchPromises.push(getDocs(docQuery));
 
-            const fromPensionados = new Map<string, Pensioner>();
-            pensionadosNameSnapshot.docs.forEach(doc => fromPensionados.set(doc.id, { id: doc.id, ...doc.data() } as Pensioner));
-            pensionadosDocSnapshot.docs.forEach(doc => fromPensionados.set(doc.id, { id: doc.id, ...doc.data() } as Pensioner));
+            const [nameSnapshot, docSnapshot] = await Promise.all(searchPromises);
 
-            const fromProcesos = new Map<string, Pensioner>();
-            const processToPensionerAdapter = (doc: any): Pensioner => {
-                const data = doc.data();
-                return {
-                    id: data.identidad_clientes || doc.id,
-                    documento: data.identidad_clientes,
-                    empleado: data.nombres_demandante,
-                    dependencia1: data.jurisdiccion || 'N/A',
-                    centroCosto: 'N/A',
-                }
-            };
-            procesosNameSnapshot.docs.forEach(doc => fromProcesos.set(doc.id, processToPensionerAdapter(doc)));
-            procesosDocSnapshot.docs.forEach(doc => fromProcesos.set(doc.id, processToPensionerAdapter(doc)));
+            const resultsMap = new Map<string, Pensioner>();
             
-            const combinedResults = [...Array.from(fromPensionados.values()), ...Array.from(fromProcesos.values())];
-            const uniqueResults = Array.from(new Map(combinedResults.map(p => [p.documento, p])).values());
+            const processSnapshot = (snapshot: any) => {
+                snapshot.docs.forEach((doc: any) => {
+                    const data = { id: doc.id, ...doc.data() } as Pensioner;
+                    if (!resultsMap.has(data.documento)) {
+                        resultsMap.set(data.documento, data);
+                    }
+                });
+            };
 
-            setSearchResults(uniqueResults);
+            processSnapshot(nameSnapshot);
+            processSnapshot(docSnapshot);
+
+            setSearchResults(Array.from(resultsMap.values()));
 
         } catch (error) {
-            console.error("Error searching:", error);
+            console.error("Error searching pensionados:", error);
             setSearchResults([]);
         } finally {
             setIsSearching(false);
@@ -92,11 +87,11 @@ export function GlobalHeader() {
     }, []);
 
     useEffect(() => {
-        if (debouncedSearchTerm.length < 3) {
+        if (debouncedSearchTerm) {
+            searchGlobal(debouncedSearchTerm);
+        } else {
             setSearchResults([]);
-            return;
         }
-        searchGlobal(debouncedSearchTerm);
     }, [debouncedSearchTerm, searchGlobal]);
 
     const handleSelect = (pensioner: Pensioner) => {
