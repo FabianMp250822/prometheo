@@ -35,18 +35,13 @@ export function GlobalHeader() {
 
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-    const searchPensioners = useCallback(async (searchVal: string) => {
-        if (searchVal.length < 3) {
-            setSearchResults([]);
-            return;
-        }
-
+    const searchGlobal = useCallback(async (searchVal: string) => {
         setIsSearching(true);
         try {
+            // --- 1. Primary Search in 'pensionados' ---
             const pensionersRef = collection(db, 'pensionados');
             const searchTermUpper = searchVal.toUpperCase();
 
-            // Query for document
             const docQuery = query(
                 pensionersRef,
                 where('documento', '>=', searchVal),
@@ -54,7 +49,6 @@ export function GlobalHeader() {
                 limit(15)
             );
 
-            // Query for name
             const nameQuery = query(
                 pensionersRef,
                 where('empleado', '>=', searchTermUpper),
@@ -62,28 +56,56 @@ export function GlobalHeader() {
                 limit(15)
             );
 
-            const [docSnapshot, nameSnapshot] = await Promise.all([
+            const [pensionerDocSnapshot, pensionerNameSnapshot] = await Promise.all([
                 getDocs(docQuery),
-                getDocs(nameQuery)
+                getDocs(nameQuery),
             ]);
-
-            const combinedResults: Map<string, Pensioner> = new Map();
-
-            docSnapshot.forEach(doc => {
-                if (!combinedResults.has(doc.id)) {
-                    combinedResults.set(doc.id, { id: doc.id, ...doc.data() } as Pensioner);
-                }
-            });
-
-            nameSnapshot.forEach(doc => {
-                if (!combinedResults.has(doc.id)) {
-                    combinedResults.set(doc.id, { id: doc.id, ...doc.data() } as Pensioner);
-                }
-            });
             
-            setSearchResults(Array.from(combinedResults.values()));
+            const combinedPensionerResults: Map<string, Pensioner> = new Map();
+            pensionerDocSnapshot.forEach(doc => combinedPensionerResults.set(doc.id, { id: doc.id, ...doc.data() } as Pensioner));
+            pensionerNameSnapshot.forEach(doc => combinedPensionerResults.set(doc.id, { id: doc.id, ...doc.data() } as Pensioner));
+
+            let finalResults = Array.from(combinedPensionerResults.values());
+
+            // --- 2. Secondary Search in 'procesos' if no results in 'pensionados' ---
+            if (finalResults.length === 0) {
+                const procesosRef = collection(db, 'procesos');
+                let procesosQuery;
+
+                if (/^\d+$/.test(searchVal)) { // Search by document
+                    procesosQuery = query(
+                        procesosRef,
+                        where('identidad_clientes', '>=', searchVal),
+                        where('identidad_clientes', '<=', searchVal + '\uf8ff'),
+                        limit(15)
+                    );
+                } else { // Search by name
+                    procesosQuery = query(
+                        procesosRef,
+                        where('nombres_demandante', '>=', searchTermUpper),
+                        where('nombres_demandante', '<=', searchTermUpper + '\uf8ff'),
+                        limit(15)
+                    );
+                }
+                
+                const procesosSnapshot = await getDocs(procesosQuery);
+                const procesosResults = procesosSnapshot.docs.map(doc => {
+                    const data = doc.data();
+                    // Adapt process data to Pensioner type
+                    return {
+                        id: doc.id,
+                        documento: data.identidad_clientes || 'N/A',
+                        empleado: data.nombres_demandante || 'Proceso sin nombre',
+                        dependencia1: 'PROCESO', // To identify the source
+                        centroCosto: data.despacho || 'N/A',
+                    } as Pensioner;
+                });
+                finalResults = procesosResults;
+            }
+
+            setSearchResults(finalResults);
         } catch (error) {
-            console.error("Error searching pensioners:", error);
+            console.error("Error during global search:", error);
             setSearchResults([]);
         } finally {
             setIsSearching(false);
@@ -91,8 +113,12 @@ export function GlobalHeader() {
     }, []);
 
     useEffect(() => {
-        searchPensioners(debouncedSearchTerm);
-    }, [debouncedSearchTerm, searchPensioners]);
+        if (debouncedSearchTerm.length >= 3) {
+            searchGlobal(debouncedSearchTerm);
+        } else {
+            setSearchResults([]);
+        }
+    }, [debouncedSearchTerm, searchGlobal]);
 
     const handleSelect = (pensioner: Pensioner) => {
         setSelectedPensioner(pensioner);
