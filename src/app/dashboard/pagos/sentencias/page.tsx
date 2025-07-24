@@ -6,14 +6,28 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Gavel, Loader2, Download, Search, Filter } from 'lucide-react';
+import { Gavel, Loader2, Download, Search, Filter, Printer } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { formatCurrency, formatPeriodoToMonthYear, parsePaymentDetailName } from '@/lib/helpers';
+import { formatCurrency, formatPeriodoToMonthYear, parsePaymentDetailName, formatFirebaseTimestamp } from '@/lib/helpers';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 import { Button } from '@/components/ui/button';
 import { collection, getDocs, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { DataTableSkeleton } from '@/components/dashboard/data-table-skeleton';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+
+
+// Extend the jsPDF type to include the autoTable method
+declare module 'jspdf' {
+    interface jsPDF {
+      autoTable: (options: any) => jsPDF;
+    }
+}
+
+const ITEMS_PER_PAGE = 20;
 
 export default function PagoSentenciasPage() {
     const [isLoading, setIsLoading] = useState(true);
@@ -22,8 +36,8 @@ export default function PagoSentenciasPage() {
 
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedYear, setSelectedYear] = useState('all');
-
     const [uniqueYears, setUniqueYears] = useState<string[]>([]);
+    const [currentPage, setCurrentPage] = useState(1);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -59,6 +73,7 @@ export default function PagoSentenciasPage() {
     }, [toast]);
 
      const filteredProcesos = useMemo(() => {
+        setCurrentPage(1); // Reset page when filters change
         return procesos.filter(p => {
             const searchTermLower = searchTerm.toLowerCase();
             const searchMatch = searchTermLower === '' ||
@@ -69,6 +84,13 @@ export default function PagoSentenciasPage() {
             return searchMatch && yearMatch;
         });
     }, [procesos, searchTerm, selectedYear]);
+
+    const paginatedProcesos = useMemo(() => {
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredProcesos.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    }, [filteredProcesos, currentPage]);
+
+    const totalPages = Math.ceil(filteredProcesos.length / ITEMS_PER_PAGE);
 
     const exportToExcel = () => {
         if (filteredProcesos.length === 0) {
@@ -96,6 +118,48 @@ export default function PagoSentenciasPage() {
         XLSX.writeFile(workbook, `Reporte_Pagos_Sentencias_${new Date().toISOString().split('T')[0]}.xlsx`);
         toast({ title: "Exportación exitosa", description: "El archivo de Excel ha sido generado." });
     };
+    
+    const handlePrint = () => {
+        if (filteredProcesos.length === 0) {
+            toast({ variant: 'destructive', title: "Sin Datos", description: "No hay datos filtrados para imprimir." });
+            return;
+        }
+
+        const doc = new jsPDF({ orientation: 'landscape' });
+        doc.setFontSize(18);
+        doc.text('Reporte de Pagos por Sentencias', 14, 22);
+        doc.setFontSize(11);
+        const dateStr = `Generado el: ${format(new Date(), "d 'de' LLLL, yyyy", { locale: es })}`;
+        doc.text(dateStr, 14, 30);
+
+        const tableColumn = ["ID Pensionado", "Periodo", "Concepto", "Ingresos", "Egresos", "Año Liquid."];
+        const tableRows: any[][] = [];
+
+        filteredProcesos.forEach(p => {
+            p.conceptos.forEach(c => {
+                 const row = [
+                    p.pensionadoId,
+                    formatPeriodoToMonthYear(p.periodoPago),
+                    parsePaymentDetailName(c.nombre),
+                    formatCurrency(c.ingresos),
+                    formatCurrency(c.egresos),
+                    p.año
+                ];
+                tableRows.push(row);
+            });
+        });
+
+        doc.autoTable({
+            head: [tableColumn],
+            body: tableRows,
+            startY: 35,
+            theme: 'grid',
+            headStyles: { fillColor: [22, 163, 74] },
+            styles: { fontSize: 8, cellPadding: 2 },
+        });
+
+        doc.save(`Reporte_Pagos_Sentencias_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    };
 
     return (
         <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -114,6 +178,10 @@ export default function PagoSentenciasPage() {
                             </div>
                         </div>
                          <div className="flex items-center gap-2">
+                            <Button size="sm" onClick={handlePrint} disabled={isLoading || filteredProcesos.length === 0}>
+                                <Printer className="mr-2 h-4 w-4" />
+                                Exportar a PDF
+                            </Button>
                             <Button size="sm" onClick={exportToExcel} disabled={isLoading || filteredProcesos.length === 0}>
                                 <Download className="mr-2 h-4 w-4" />
                                 Exportar a Excel
@@ -178,7 +246,7 @@ export default function PagoSentenciasPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {filteredProcesos.map((p) => {
+                                    {paginatedProcesos.map((p) => {
                                         const totalProceso = p.conceptos.reduce((acc, c) => acc + c.ingresos, 0);
                                         return (
                                             <TableRow key={p.id}>
@@ -200,7 +268,7 @@ export default function PagoSentenciasPage() {
                                             </TableRow>
                                         );
                                     })}
-                                    {filteredProcesos.length === 0 && !isLoading && (
+                                    {paginatedProcesos.length === 0 && !isLoading && (
                                         <TableRow>
                                             <TableCell colSpan={5} className="text-center text-muted-foreground h-24">
                                                 No se encontraron datos con los filtros aplicados.
@@ -209,6 +277,27 @@ export default function PagoSentenciasPage() {
                                     )}
                                 </TableBody>
                             </Table>
+                             {totalPages > 1 && (
+                                <div className="flex justify-between items-center p-4">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                    >
+                                        Anterior
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Página {currentPage} de {totalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage === totalPages}
+                                    >
+                                        Siguiente
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </CardContent>
