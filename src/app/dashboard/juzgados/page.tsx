@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Landmark, Loader2, ServerCrash, University, Building, Bell } from 'lucide-react';
 import { getDepartments, getMunicipalitiesByDepartment, getCorporations, getOfficesByCorporation, getReportNotifications } from '@/services/provired-api-service';
@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { NotificationsModal } from '@/components/dashboard/notifications-modal';
+import { Button } from '@/components/ui/button';
 
 interface Department {
   IdDep: string;
@@ -298,4 +299,3 @@ export default function JuzgadosPage() {
     </>
   );
 }
-
