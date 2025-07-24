@@ -34,7 +34,7 @@ const getJwtToken = cache(
     }
   },
   ['provired_jwt_token'],
-  { revalidate: 18000 } // Revalidate every 5 hours
+  { revalidate: 18000, tags: ['provired-auth'] } // Revalidate every 5 hours and add a tag
 );
 
 async function makeApiRequest(endpoint: string, method: string, params?: object) {
