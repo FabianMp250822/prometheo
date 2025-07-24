@@ -7,26 +7,25 @@ import { FileText, User, Hash, Loader2, UserX } from 'lucide-react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { parseEmployeeName, formatCurrency } from '@/lib/helpers';
 import type { Payment, PagosHistoricoRecord } from '@/lib/data';
-import { collection, doc, getDocs, getDoc, query } from 'firebase/firestore';
+import { collection, doc, getDocs, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 // --- Static Data ---
-const datosConsolidados: { [year: number]: { smlmv: number; ipc: number; reajusteSMLMV: number } } = {
-    1999: { smlmv: 236460, ipc: 16.70, reajusteSMLMV: 16.01 },
-    2000: { smlmv: 260100, ipc: 9.23, reajusteSMLMV: 10.00 },
-    2001: { smlmv: 286000, ipc: 8.75, reajusteSMLMV: 9.96 },
-    2002: { smlmv: 309000, ipc: 7.65, reajusteSMLMV: 8.04 },
-    2003: { smlmv: 332000, ipc: 6.99, reajusteSMLMV: 7.44 },
-    2004: { smlmv: 358000, ipc: 6.49, reajusteSMLMV: 7.83 },
-    2005: { smlmv: 381500, ipc: 5.50, reajusteSMLMV: 6.56 },
-    2006: { smlmv: 408000, ipc: 4.85, reajusteSMLMV: 6.95 },
-    2007: { smlmv: 433700, ipc: 4.48, reajusteSMLMV: 6.30 },
+const smlmvData: { [year: number]: number } = {
+    1999: 236460, 2000: 260100, 2001: 286000, 2002: 309000, 2003: 332000, 
+    2004: 358000, 2005: 381500, 2006: 408000, 2007: 433700
 };
 
-const datosIPC: { [year: number]: number } = {
+const reajusteSMLMVData: { [year: number]: number } = {
+    1999: 16.01, 2000: 10.00, 2001: 9.96, 2002: 8.04, 2003: 7.44,
+    2004: 7.83, 2005: 6.56, 2006: 6.95, 2007: 6.30
+};
+
+const ipcData: { [year: number]: number } = {
     1998: 16.70, 1999: 9.23, 2000: 8.75, 2001: 7.65, 2002: 6.99,
     2003: 6.49, 2004: 5.50, 2005: 4.85, 2006: 4.48, 2007: 5.69,
 };
+
 
 // --- Component ---
 export default function AnexoLey4Page() {
@@ -45,7 +44,6 @@ export default function AnexoLey4Page() {
         const fetchPayments = async () => {
             setIsLoading(true);
             try {
-                // Fetch recent payments
                 const paymentsQuery = query(collection(db, 'pensionados', selectedPensioner.id, 'pagos'));
                 const querySnapshot = await getDocs(paymentsQuery);
                 const paymentsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
@@ -55,7 +53,6 @@ export default function AnexoLey4Page() {
                 );
                 setPayments(uniquePayments);
 
-                // Fetch historical payments
                 const historicalDocRef = doc(db, 'pagosHistorico', selectedPensioner.documento);
                 const historicalDocSnap = await getDoc(historicalDocRef);
                 if (historicalDocSnap.exists() && Array.isArray(historicalDocSnap.data().records)) {
@@ -77,46 +74,78 @@ export default function AnexoLey4Page() {
     const tabla1Data = useMemo(() => {
         if (!selectedPensioner) return [];
 
-        const allYearsWithPayments = new Set([
-            ...payments.map(p => parseInt(p.año, 10)),
-            ...historicalPayments.map(p => p.ANO_RET ?? 0)
-        ].filter(year => year > 0));
+        const getFirstPension = (year: number): number => {
+            const recentPayment = payments.find(p => parseInt(p.año, 10) === year);
+            if (recentPayment) {
+                const mesada = recentPayment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
+                if (mesada && mesada.ingresos > 0) return mesada.ingresos;
+            }
+            const historicalRecord = historicalPayments.find(p => p.ANO_RET === year && p.VALOR_ACT);
+            if (historicalRecord) return parseFloat(historicalRecord.VALOR_ACT!.replace(',', '.'));
+            return 0;
+        };
         
-        if (allYearsWithPayments.size === 0) return [];
+        const countPaymentsInYear = (year: number): number => {
+            return payments.filter(p => parseInt(p.año, 10) === year).length;
+        }
+
+        let firstPensionYear = 0;
+        for(let year = 1999; year <= 2007; year++){
+            if(getFirstPension(year) > 0) {
+                firstPensionYear = year;
+                break;
+            }
+        }
         
-        const firstPaymentYear = Math.min(...Array.from(allYearsWithPayments));
-        const relevantYears = Object.keys(datosConsolidados)
+        if (!firstPensionYear) return [];
+        
+        const relevantYears = Object.keys(smlmvData)
             .map(Number)
-            .filter(year => year >= firstPaymentYear && year <= 2007)
+            .filter(year => year >= firstPensionYear && year <= 2007)
             .sort((a, b) => a - b);
         
-        return relevantYears.map(year => {
-            const smlmvData = datosConsolidados[year];
-            const ipcAnterior = datosIPC[year - 1] || 0;
-            
-            let mesadaPagada = 0;
-            const paymentsForYear = payments.filter(p => parseInt(p.año, 10) === year);
-            if (paymentsForYear.length > 0) {
-                 const firstPayment = paymentsForYear.sort((a,b) => a.periodoPago.localeCompare(b.periodoPago))[0];
-                 const mesadaDetail = firstPayment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
-                 if(mesadaDetail) mesadaPagada = mesadaDetail.ingresos;
+        let lastProjectedPension = 0;
+
+        return relevantYears.map((year, index) => {
+            const smlmv = smlmvData[year] || 0;
+            const reajusteSMLMV = reajusteSMLMVData[year] || 0;
+            const ipcAnterior = ipcData[year - 1] || 0;
+            const mesadaPagada = getFirstPension(year);
+
+            let proyeccionMesada = 0;
+            if (index === 0) {
+                proyeccionMesada = mesadaPagada;
             } else {
-                const historicalRecord = historicalPayments.find(rec => rec.ANO_RET === year && rec.VALOR_ACT);
-                if (historicalRecord) {
-                    mesadaPagada = parseFloat(historicalRecord.VALOR_ACT!.replace(',', '.'));
-                }
+                proyeccionMesada = lastProjectedPension * (1 + (reajusteSMLMVData[year -1]/100));
             }
+            lastProjectedPension = proyeccionMesada;
+
+            const numSmlmvProyectado = smlmv > 0 ? proyeccionMesada / smlmv : 0;
+            const numSmlmvPagado = smlmv > 0 ? mesadaPagada / smlmv : 0;
+            const diferencia = proyeccionMesada - mesadaPagada;
+            const numMesadas = countPaymentsInYear(year);
+            const totalRetroactivas = diferencia > 0 ? diferencia * numMesadas : 0;
 
             return {
                 año: year,
-                smlmv: smlmvData.smlmv,
-                reajusteSMLMV: smlmvData.reajusteSMLMV || 0,
+                smlmv,
+                reajusteSMLMV,
+                proyeccionMesada,
+                numSmlmvProyectado,
                 reajusteIPC: ipcAnterior,
-                mesadaPagada: mesadaPagada
+                mesadaPagada,
+                numSmlmvPagado,
+                diferencia,
+                numMesadas,
+                totalRetroactivas,
             };
         });
 
     }, [selectedPensioner, payments, historicalPayments]);
+
+    const totalRetroactivasGeneral = useMemo(() => {
+        return tabla1Data.reduce((acc, row) => acc + row.totalRetroactivas, 0);
+    }, [tabla1Data]);
 
     return (
         <div className="p-4 md:p-8 space-y-6">
@@ -175,6 +204,7 @@ export default function AnexoLey4Page() {
                         {isLoading ? (
                             <div className="flex justify-center items-center p-10"><Loader2 className="h-8 w-8 animate-spin" /></div>
                         ) : tabla1Data.length > 0 ? (
+                            <div className="overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -196,21 +226,28 @@ export default function AnexoLey4Page() {
                                        <TableRow key={row.año}>
                                            <TableCell>{row.año}</TableCell>
                                            <TableCell>{formatCurrency(row.smlmv)}</TableCell>
-                                           <TableCell>{row.reajusteSMLMV}%</TableCell>
-                                           <TableCell>{formatCurrency(0)}</TableCell>
-                                           <TableCell>0.00</TableCell>
-                                           <TableCell>{row.reajusteIPC}%</TableCell>
+                                           <TableCell>{row.reajusteSMLMV.toFixed(2)}%</TableCell>
+                                           <TableCell>{formatCurrency(row.proyeccionMesada)}</TableCell>
+                                           <TableCell>{row.numSmlmvProyectado.toFixed(2)}</TableCell>
+                                           <TableCell>{row.reajusteIPC.toFixed(2)}%</TableCell>
                                            <TableCell>{formatCurrency(row.mesadaPagada)}</TableCell>
-                                           <TableCell>0.00</TableCell>
-                                           <TableCell>{formatCurrency(0)}</TableCell>
-                                           <TableCell>0</TableCell>
-                                           <TableCell>{formatCurrency(0)}</TableCell>
+                                           <TableCell>{row.numSmlmvPagado.toFixed(2)}</TableCell>
+                                           <TableCell>{formatCurrency(row.diferencia)}</TableCell>
+                                           <TableCell>{row.numMesadas}</TableCell>
+                                           <TableCell>{formatCurrency(row.totalRetroactivas)}</TableCell>
                                        </TableRow>
                                    ))}
                                 </TableBody>
+                                <tfoot className="font-bold">
+                                    <TableRow>
+                                        <TableCell colSpan={10} className="text-right">TOTAL</TableCell>
+                                        <TableCell>{formatCurrency(totalRetroactivasGeneral)}</TableCell>
+                                    </TableRow>
+                                </tfoot>
                             </Table>
+                            </div>
                         ) : (
-                            <p className="text-center text-muted-foreground py-4">No se encontraron datos de pagos para este pensionado en los años relevantes.</p>
+                            <p className="text-center text-muted-foreground py-4">No se encontraron datos de pagos para este pensionado en los años relevantes (1999-2007).</p>
                         )}
                     </CardContent>
                 </Card>
