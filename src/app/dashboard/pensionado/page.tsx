@@ -1,11 +1,11 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight, Briefcase, FileDown } from 'lucide-react';
+import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight, Briefcase, FileDown, TrendingDown } from 'lucide-react';
 import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parsePaymentDetailName, formatFirebaseTimestamp, parsePeriodoPago, parseDepartmentName } from '@/lib/helpers';
 import type { Payment, Parris1, LegalProcess, Causante, PagosHistoricoRecord, PensionerProfileData, DajusticiaClient, DajusticiaPayment } from '@/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -155,6 +155,22 @@ export default function PensionadoPage() {
         return foundPayments;
     }, [profileData?.payments]);
 
+    const dajusticiaAccountSummary = useMemo(() => {
+        if (!profileData?.dajusticiaClientData || !profileData.dajusticiaPayments) {
+            return null;
+        }
+
+        const totalPagado = profileData.dajusticiaPayments.reduce((acc, pago) => acc + pago.monto, 0);
+        const saldoPendiente = profileData.dajusticiaClientData.salario - totalPagado;
+
+        return {
+            totalPagado,
+            saldoPendiente,
+        };
+
+    }, [profileData?.dajusticiaClientData, profileData?.dajusticiaPayments]);
+
+
     if (isLoading) {
          return (
             <div className="flex flex-col items-center justify-center h-full p-8 text-center">
@@ -179,7 +195,7 @@ export default function PensionadoPage() {
         );
     }
 
-    const { parris1Data, causanteData, legalProcesses, payments, historicalPayment, dajusticiaClientData, dajusticiaPayments } = profileData || {};
+    const { parris1Data, causanteData, legalProcesses, payments, historicalPayment, dajusticiaClientData } = profileData || {};
 
     return (
         <div className="p-4 md:p-8 space-y-6">
@@ -215,55 +231,20 @@ export default function PensionadoPage() {
                                     <Briefcase className="h-5 w-5" /> Cliente DAJUSTICIA
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                            <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 text-sm">
                                 <InfoField icon={<Users />} label="Grupo" value={dajusticiaClientData.grupo} />
                                 <InfoField icon={<Banknote />} label="Salario a Cancelar" value={formatCurrency(dajusticiaClientData.salario)} />
                                 <InfoField icon={<Calendar />} label="Plazo" value={`${dajusticiaClientData.plazoMeses} meses`} />
                                 <InfoField icon={<Sigma />} label="Cuota Mensual" value={formatCurrency(parseFloat(dajusticiaClientData.cuotaMensual))} />
+                                {dajusticiaAccountSummary && (
+                                    <>
+                                        <InfoField icon={<TrendingUp className="text-green-600" />} label="Total Pagado" value={<span className="text-green-600 font-bold">{formatCurrency(dajusticiaAccountSummary.totalPagado)}</span>} />
+                                        <InfoField icon={<TrendingDown className="text-red-600" />} label="Saldo Pendiente" value={<span className="text-red-600 font-bold">{formatCurrency(dajusticiaAccountSummary.saldoPendiente)}</span>} />
+                                    </>
+                                )}
                             </CardContent>
                         </Card>
                     )}
-                    
-                     {dajusticiaPayments && dajusticiaPayments.length > 0 && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-xl flex items-center gap-2">
-                                    <FileText className="h-5 w-5" /> Pagos a DAJUSTICIA
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Fecha</TableHead>
-                                            <TableHead>Monto Neto</TableHead>
-                                            <TableHead>Empresa</TableHead>
-                                            <TableHead>Vendedor</TableHead>
-                                            <TableHead className="text-right">Soporte</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {dajusticiaPayments.map(p => (
-                                            <TableRow key={p.id}>
-                                                <TableCell>{p.fecha}</TableCell>
-                                                <TableCell className="font-medium">{formatCurrency(p.montoNeto)}</TableCell>
-                                                <TableCell>{formatCurrency(p.empresa)}</TableCell>
-                                                <TableCell>{formatCurrency(p.vendedor)}</TableCell>
-                                                <TableCell className="text-right">
-                                                    <Button asChild variant="outline" size="sm" disabled={!p.soporteURL}>
-                                                        <a href={p.soporteURL} target="_blank" rel="noopener noreferrer">
-                                                            <FileDown className="mr-2 h-3 w-3" /> Ver
-                                                        </a>
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </CardContent>
-                        </Card>
-                    )}
-
 
                     <Card>
                         <CardHeader>
