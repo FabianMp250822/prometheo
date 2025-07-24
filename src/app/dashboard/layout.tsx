@@ -237,17 +237,9 @@ export default function DashboardLayout({
                        <SidebarMenuSub>
                           <SidebarMenuSubItem>
                              <SidebarMenuSubButton asChild>
-                              <Link href="/dashboard/contabilidad/ver-pagos-cliente">
-                                <Wallet />
-                                <span>Ver Pagos de Cliente</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                          <SidebarMenuSubItem>
-                             <SidebarMenuSubButton asChild>
                               <Link href="/dashboard/contabilidad/historial-pagos">
                                 <History />
-                                <span>Ver Historial de Pagos</span>
+                                <span>Historial de Pagos</span>
                               </Link>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -372,5 +364,3 @@ export default function DashboardLayout({
     </SidebarProvider>
   )
 }
-
-    

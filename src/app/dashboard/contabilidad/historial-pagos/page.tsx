@@ -8,76 +8,41 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { History, Search, Download, Calendar as CalendarIcon, Loader2, FileDown, RefreshCw } from 'lucide-react';
+import { History, Search, Calendar as CalendarIcon, Loader2, RefreshCw, Eye } from 'lucide-react';
 import { DataTableSkeleton } from '@/components/dashboard/data-table-skeleton';
-import { formatCurrency, formatFirebaseTimestamp } from '@/lib/helpers';
 import { DateRange } from 'react-day-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { es } from 'date-fns/locale';
 import { format } from 'date-fns';
-import * as XLSX from 'xlsx';
 import { useToast } from '@/hooks/use-toast';
 import { DocumentViewerModal } from '@/components/dashboard/document-viewer-modal';
+import Link from 'next/link';
 
 type CombinedPayment = DajusticiaPayment & {
   clientInfo: DajusticiaClient;
 };
 
-type GroupedClientPayments = {
-    clientInfo: DajusticiaClient;
-    payments: DajusticiaPayment[];
-}
-
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 20;
 
 export default function HistorialPagosPage() {
-  const [groupedPayments, setGroupedPayments] = useState<GroupedClientPayments[]>([]);
+  const [clients, setClients] = useState<DajusticiaClient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const { toast } = useToast();
   
-  const [documentUrl, setDocumentUrl] = useState<string | null>(null);
-  const [documentTitle, setDocumentTitle] = useState<string | null>(null);
-
   const fetchAllData = useCallback(async () => {
     setIsLoading(true);
     try {
         const clientsSnapshot = await getDocs(collection(db, "nuevosclientes"));
         const clientsData = clientsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DajusticiaClient));
-
-        const allPayments: CombinedPayment[] = [];
-        for (const client of clientsData) {
-            const paymentsCollectionRef = collection(db, "nuevosclientes", client.id, "pagos");
-            const paymentsSnapshot = await getDocs(paymentsCollectionRef);
-            
-            paymentsSnapshot.forEach(doc => {
-                allPayments.push({
-                    ...(doc.data() as DajusticiaPayment),
-                    id: doc.id,
-                    clientInfo: client
-                });
-            });
-        }
         
-        allPayments.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
-        
-        const groupedData = allPayments.reduce((acc, payment) => {
-            const clientId = payment.clientInfo.id;
-            if (!acc[clientId]) {
-                acc[clientId] = {
-                    clientInfo: payment.clientInfo,
-                    payments: []
-                };
-            }
-            acc[clientId].payments.push(payment);
-            return acc;
-        }, {} as Record<string, GroupedClientPayments>);
+        // Sort clients by name for consistent display
+        clientsData.sort((a, b) => a.nombres.localeCompare(b.nombres));
 
-        const finalData = Object.values(groupedData);
-        setGroupedPayments(finalData);
+        setClients(clientsData);
 
     } catch (error) {
         console.error("Error fetching payment history:", error);
@@ -93,9 +58,8 @@ export default function HistorialPagosPage() {
 
   const filteredData = useMemo(() => {
     setCurrentPage(1);
-    return groupedPayments.filter(group => {
+    return clients.filter(client => {
       const searchTermLower = searchTerm.toLowerCase();
-      const client = group.clientInfo;
       
       const searchMatch = !searchTermLower ||
         client.nombres.toLowerCase().includes(searchTermLower) ||
@@ -105,16 +69,12 @@ export default function HistorialPagosPage() {
       
       if (!searchMatch) return false;
 
-      if (dateRange?.from && dateRange?.to) {
-        return group.payments.some(p => {
-          const paymentDate = new Date(p.fecha);
-          return paymentDate >= dateRange.from! && paymentDate <= dateRange.to!;
-        });
-      }
+      // Date range filtering on payments is complex here, so we keep it simple.
+      // A more advanced implementation might fetch payments if a date range is selected.
 
       return true;
     });
-  }, [groupedPayments, searchTerm, dateRange]);
+  }, [clients, searchTerm, dateRange]);
 
   const paginatedData = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -122,35 +82,6 @@ export default function HistorialPagosPage() {
   }, [filteredData, currentPage]);
 
   const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
-  
-  const exportToExcel = () => {
-      const dataToExport = filteredData.flatMap(group => 
-        group.payments.map(p => ({
-          'Nombre Cliente': `${group.clientInfo.nombres} ${group.clientInfo.apellidos}`,
-          'Cédula': group.clientInfo.cedula,
-          'Grupo': group.clientInfo.grupo,
-          'Fecha de Pago': formatFirebaseTimestamp(p.fecha, 'dd/MM/yyyy'),
-          'Monto': p.monto,
-          'Monto Neto': p.montoNeto,
-          'Descuento': p.descuento,
-          'Empresa': p.empresa,
-          'Vendedor': p.vendedor,
-          'URL Soporte': p.soporteURL
-        }))
-      );
-
-      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Historial de Pagos");
-      XLSX.writeFile(workbook, `Historial_Pagos_${new Date().toISOString().split('T')[0]}.xlsx`);
-      toast({ title: 'Éxito', description: 'El archivo de Excel ha sido generado.' });
-  };
-  
-  const handleViewDocument = (url: string, title: string) => {
-    setDocumentUrl(url);
-    setDocumentTitle(title);
-  };
-
 
   return (
     <>
@@ -161,20 +92,16 @@ export default function HistorialPagosPage() {
                 <div>
                   <CardTitle className="text-2xl font-headline flex items-center gap-2">
                       <History className="h-6 w-6" />
-                      Historial de Pagos de Clientes
+                      Historial de Clientes
                   </CardTitle>
                   <CardDescription>
-                      Consulte todos los pagos realizados por los clientes de DAJUSTICIA.
+                      Consulte todos los clientes registrados en DAJUSTICIA.
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
                     <Button onClick={fetchAllData} variant="outline" disabled={isLoading}>
                       {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
                       Refrescar
-                    </Button>
-                    <Button onClick={exportToExcel} disabled={isLoading || filteredData.length === 0}>
-                        <Download className="mr-2 h-4 w-4" />
-                        Exportar a Excel
                     </Button>
                 </div>
             </div>
@@ -194,40 +121,6 @@ export default function HistorialPagosPage() {
                           disabled={isLoading}
                       />
                   </div>
-                  <Popover>
-                      <PopoverTrigger asChild>
-                      <Button
-                          id="date"
-                          variant={"outline"}
-                          className="w-full md:w-[300px] justify-start text-left font-normal"
-                      >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {dateRange?.from ? (
-                          dateRange.to ? (
-                              <>
-                              {format(dateRange.from, "LLL dd, y", { locale: es })} -{" "}
-                              {format(dateRange.to, "LLL dd, y", { locale: es })}
-                              </>
-                          ) : (
-                              format(dateRange.from, "LLL dd, y", { locale: es })
-                          )
-                          ) : (
-                          <span>Seleccione un rango</span>
-                          )}
-                      </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                          initialFocus
-                          mode="range"
-                          defaultMonth={dateRange?.from}
-                          selected={dateRange}
-                          onSelect={setDateRange}
-                          numberOfMonths={2}
-                          locale={es}
-                      />
-                      </PopoverContent>
-                  </Popover>
               </div>
             </CardHeader>
             <CardContent>
@@ -240,52 +133,32 @@ export default function HistorialPagosPage() {
                           <TableHeader>
                               <TableRow>
                                   <TableHead>Cliente</TableHead>
+                                  <TableHead>Cédula</TableHead>
                                   <TableHead>Grupo</TableHead>
-                                  <TableHead>Detalle de Pagos</TableHead>
+                                  <TableHead className="text-right">Acciones</TableHead>
                               </TableRow>
                           </TableHeader>
                           <TableBody>
-                              {paginatedData.map(({ clientInfo, payments }) => (
-                                  <TableRow key={clientInfo.id}>
-                                      <TableCell className="align-top py-3">
-                                          <div className="font-medium">{clientInfo.nombres} {clientInfo.apellidos}</div>
-                                          <div className="text-xs text-muted-foreground">{clientInfo.cedula}</div>
+                              {paginatedData.map((client) => (
+                                  <TableRow key={client.id}>
+                                      <TableCell>
+                                          <div className="font-medium">{client.nombres} {client.apellidos}</div>
                                       </TableCell>
-                                      <TableCell className="align-top py-3">{clientInfo.grupo}</TableCell>
-                                      <TableCell className="p-0">
-                                          <Table>
-                                            <TableHeader>
-                                                <TableRow className="bg-muted/50">
-                                                    <TableHead className="w-1/4">Fecha</TableHead>
-                                                    <TableHead className="text-right w-1/4">Monto</TableHead>
-                                                    <TableHead className="text-right w-1/4">Vendedor</TableHead>
-                                                    <TableHead className="text-center w-1/4">Soporte</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {payments.map(p => (
-                                                    <TableRow key={p.id}>
-                                                        <TableCell>{formatFirebaseTimestamp(p.fecha, 'dd/MM/yyyy')}</TableCell>
-                                                        <TableCell className="text-right font-medium">{formatCurrency(p.monto)}</TableCell>
-                                                        <TableCell className="text-right">{formatCurrency(p.vendedor)}</TableCell>
-                                                        <TableCell className="text-center">
-                                                           <Button
-                                                                variant="outline" size="sm"
-                                                                disabled={!p.soporteURL}
-                                                                onClick={() => handleViewDocument(p.soporteURL, `Soporte de ${clientInfo.nombres}`)}>
-                                                                <FileDown className="h-4 w-4" />
-                                                            </Button>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                          </Table>
+                                      <TableCell>{client.cedula}</TableCell>
+                                      <TableCell>{client.grupo}</TableCell>
+                                      <TableCell className="text-right">
+                                        <Button asChild variant="outline" size="sm">
+                                            <Link href={`/dashboard/contabilidad/pagos-cliente/${client.id}`}>
+                                                <Eye className="mr-2 h-4 w-4" />
+                                                Ver Historial Completo
+                                            </Link>
+                                        </Button>
                                       </TableCell>
                                   </TableRow>
                               ))}
                               {paginatedData.length === 0 && (
                                   <TableRow>
-                                      <TableCell colSpan={3} className="text-center h-24">No se encontraron pagos con los filtros aplicados.</TableCell>
+                                      <TableCell colSpan={4} className="text-center h-24">No se encontraron clientes con los filtros aplicados.</TableCell>
                                   </TableRow>
                               )}
                           </TableBody>
@@ -317,14 +190,6 @@ export default function HistorialPagosPage() {
             </CardContent>
         </Card>
       </div>
-
-      {documentUrl && (
-        <DocumentViewerModal
-          url={documentUrl}
-          title={documentTitle || "Visor de Documento"}
-          onClose={() => setDocumentUrl(null)}
-        />
-      )}
     </>
   );
 }
