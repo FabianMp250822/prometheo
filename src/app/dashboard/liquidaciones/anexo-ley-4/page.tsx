@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, Printer, FileText, UserX, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useToast } from '@/hooks/use-toast';
 
 // --- Static Data ---
 const datosConsolidados: { [key: number]: { smlmv: number; ipc: number; reajusteSMLMV: number; } } = {
@@ -50,7 +51,6 @@ const datosIPC: { [key: number]: number } = {
     2018: 3.18, 2019: 3.80, 2020: 1.61, 2021: 5.62, 2022: 13.12,
     2023: 9.28, 2024: 5.20
 };
-
 
 const formatNumber = (value?: number) => {
     if (value === undefined || value === null || isNaN(value)) return 'N/D';
@@ -95,29 +95,66 @@ export default function AnexoLey4Page() {
     
     const tableData = useMemo(() => {
         if (!payments.length) return [];
+
+        const uniquePaymentsMap = new Map<string, Payment>();
+        payments.forEach(pago => {
+            const clave = `${pago.año}-${pago.periodoPago?.trim() || 'sin-periodo'}`;
+            if (!uniquePaymentsMap.has(clave)) {
+                uniquePaymentsMap.set(clave, pago);
+            }
+        });
+        const uniquePayments = Array.from(uniquePaymentsMap.values());
+
         let proyeccionMesada = 0;
-        let porcentajeSMLMVBase = 0;
 
-        return Object.keys(datosConsolidados).map((yearStr, index) => {
+        const allYearsData = Object.keys(datosConsolidados).map((yearStr) => {
             const year = parseInt(yearStr);
-            const { smlmv, ipc: ipcAnterior, reajusteSMLMV } = datosConsolidados[year];
-            
-            const pagosAño = payments.filter(p => p.año === yearStr);
-            const mesadaPagada = pagosAño.length > 0
-                ? pagosAño[0].detalles.find(d => d.nombre.toLowerCase().includes('mesada'))?.ingresos || 0
-                : 0;
+            const { smlmv, reajusteSMLMV } = datosConsolidados[year];
 
-            if (index === 0) {
+            const pagosAño = uniquePayments.filter(p => p.año === yearStr);
+            
+            const getMesadaValue = (payment: Payment): number => {
+                const mesadaDetail = payment.detalles.find(d => 
+                    d.nombre?.toLowerCase().includes('mesada pensional') || 
+                    d.nombre?.toLowerCase().includes('mesada') ||
+                    d.codigo === 'MESAD'
+                );
+                return mesadaDetail?.ingresos || 0;
+            };
+
+            let mesadaPagada = 0;
+            if (pagosAño.length > 0) {
+                 const pagoEnero = pagosAño.find(p => p.periodoPago?.toLowerCase().includes('ene')) || pagosAño[0];
+                 mesadaPagada = getMesadaValue(pagoEnero);
+            }
+            
+            if (year === 1999) {
                 proyeccionMesada = mesadaPagada;
-                porcentajeSMLMVBase = smlmv > 0 ? (proyeccionMesada / smlmv) : 0;
             } else {
-                proyeccionMesada *= (1 + (datosConsolidados[year - 1]?.reajusteSMLMV / 100 || 0));
+                 const reajusteAnterior = datosConsolidados[year - 1]?.reajusteSMLMV / 100 || 0;
+                 proyeccionMesada *= (1 + reajusteAnterior);
             }
 
             const smlmvEnReajusteSMLMV = smlmv > 0 ? (proyeccionMesada / smlmv) : 0;
-            const ipcActual = datosIPC[year] || 0;
-            const smlmvEnReajusteIPCs = smlmv > 0 ? (mesadaPagada / smlmv) : 0;
-            const diferenciaMesadas = proyeccionMesada - mesadaPagada;
+            const ipcAnterior = datosIPC[year - 1] || 0;
+            
+            let ultimoValorValido = 0;
+            let valorMesadaAnterior = -1;
+            
+            const pagosOrdenadosAño = [...pagosAño].sort((a,b) => (a.periodoPago || "").localeCompare(b.periodoPago || ""));
+
+            for (const pago of pagosOrdenadosAño) {
+                 const valorActual = getMesadaValue(pago);
+                 if (valorMesadaAnterior !== -1 && valorActual < valorMesadaAnterior * 0.5) {
+                     break; // Caída drástica
+                 }
+                 ultimoValorValido = valorActual > 0 ? valorActual : ultimoValorValido;
+                 if(valorActual > 0) valorMesadaAnterior = valorActual;
+            }
+            
+            const mesadaPagadaIPCs = ultimoValorValido || mesadaPagada;
+            const smlmvEnReajusteIPCs = smlmv > 0 ? (mesadaPagadaIPCs / smlmv) : 0;
+            const diferenciaMesadas = proyeccionMesada - mesadaPagadaIPCs;
             const numeroPagosReales = pagosAño.length;
             const retroactivas = diferenciaMesadas * numeroPagosReales;
 
@@ -128,13 +165,15 @@ export default function AnexoLey4Page() {
                 proyeccionMesadaDinamica: proyeccionMesada,
                 smlmvEnReajusteSMLMV,
                 ipcAño: ipcAnterior,
-                mesadaPagadaIPCs: mesadaPagada,
+                mesadaPagadaIPCs,
                 smlmvEnReajusteIPCs,
                 diferenciaMesadas,
                 numeroPagosReales,
                 retroactivas,
             };
-        }).filter(row => row.mesadaPagadaIPCs > 0); // Only show years with actual payments
+        });
+        
+        return allYearsData.filter(row => row.mesadaPagadaIPCs > 0);
     }, [payments]);
     
     const totalRetroactivas = useMemo(() => {
