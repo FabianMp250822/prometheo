@@ -10,20 +10,30 @@ import type { Payment, PagosHistoricoRecord } from '@/lib/data';
 import { collection, doc, getDocs, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
+
 // --- Static Data ---
-const smlmvData: { [year: number]: number } = {
-    1999: 236460, 2000: 260100, 2001: 286000, 2002: 309000, 2003: 332000, 
-    2004: 358000, 2005: 381500, 2006: 408000, 2007: 433700
+const datosConsolidados = {
+  1999: { smlmv: 236460, ipc: 16.70, reajusteSMLMV: 16.01 },
+  2000: { smlmv: 260100, ipc: 9.23, reajusteSMLMV: 10.00 },
+  2001: { smlmv: 286000, ipc: 8.75, reajusteSMLMV: 9.96 },
+  2002: { smlmv: 309000, ipc: 7.65, reajusteSMLMV: 8.04 },
+  2003: { smlmv: 332000, ipc: 6.99, reajusteSMLMV: 7.44 },
+  2004: { smlmv: 358000, ipc: 6.49, reajusteSMLMV: 7.83 },
+  2005: { smlmv: 381500, ipc: 5.50, reajusteSMLMV: 6.56 },
+  2006: { smlmv: 408000, ipc: 4.85, reajusteSMLMV: 6.95 },
+  2007: { smlmv: 433700, ipc: 4.48, reajusteSMLMV: 6.30 },
 };
 
-const reajusteSMLMVData: { [year: number]: number } = {
-    1999: 16.01, 2000: 10.00, 2001: 9.96, 2002: 8.04, 2003: 7.44,
-    2004: 7.83, 2005: 6.56, 2006: 6.95, 2007: 6.30
-};
-
-const ipcData: { [year: number]: number } = {
-    1998: 16.70, 1999: 9.23, 2000: 8.75, 2001: 7.65, 2002: 6.99,
-    2003: 6.49, 2004: 5.50, 2005: 4.85, 2006: 4.48, 2007: 5.69,
+const datosIPC = {
+  1998: 16.70,
+  1999: 9.23,
+  2000: 8.75,
+  2001: 7.65,
+  2002: 6.99,
+  2003: 6.49,
+  2004: 5.50,
+  2005: 4.85,
+  2006: 4.48,
 };
 
 
@@ -73,8 +83,8 @@ export default function AnexoLey4Page() {
 
     const tabla1Data = useMemo(() => {
         if (!selectedPensioner) return [];
-
-        const getFirstPension = (year: number): number => {
+        
+        const getFirstPensionInYear = (year: number): number => {
             const recentPayment = payments.find(p => parseInt(p.año, 10) === year);
             if (recentPayment) {
                 const mesada = recentPayment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
@@ -85,21 +95,11 @@ export default function AnexoLey4Page() {
             return 0;
         };
         
-        const countPaymentsInYear = (year: number): number => {
-            return payments.filter(p => parseInt(p.año, 10) === year).length;
-        };
+        const firstPensionYear = Object.keys(datosConsolidados).map(Number).find(year => getFirstPensionInYear(year) > 0);
 
-        let firstPensionYear = 0;
-        for(let year = 1999; year <= 2007; year++){
-            if(getFirstPension(year) > 0) {
-                firstPensionYear = year;
-                break;
-            }
-        }
-        
         if (!firstPensionYear) return [];
-        
-        const relevantYears = Object.keys(smlmvData)
+
+        const relevantYears = Object.keys(datosConsolidados)
             .map(Number)
             .filter(year => year >= firstPensionYear && year <= 2007)
             .sort((a, b) => a - b);
@@ -107,22 +107,21 @@ export default function AnexoLey4Page() {
         let proyeccionAnterior = 0;
 
         return relevantYears.map((year, index) => {
-            const smlmv = smlmvData[year] || 0;
-            const reajusteSMLMV = reajusteSMLMVData[year] || 0;
-            const ipcAnterior = ipcData[year - 1] || 0;
-            const mesadaPagada = getFirstPension(year);
-
+            const smlmv = datosConsolidados[year as keyof typeof datosConsolidados]?.smlmv || 0;
+            const reajusteSMLMV = datosConsolidados[year as keyof typeof datosConsolidados]?.reajusteSMLMV || 0;
+            const ipcAnterior = datosIPC[year - 1 as keyof typeof datosIPC] || 0;
+            const mesadaPagada = getFirstPensionInYear(year);
+            
             let proyeccionMesada = 0;
             if (index === 0) {
-                proyeccionMesada = mesadaPagada;
+                 proyeccionMesada = mesadaPagada > 0 ? mesadaPagada : 0;
             } else {
-                const reajusteMayor = Math.max(reajusteSMLMV, ipcAnterior);
-                proyeccionMesada = proyeccionAnterior * (1 + (reajusteMayor / 100));
+                 const reajusteMayor = Math.max(reajusteSMLMV, ipcAnterior);
+                 proyeccionMesada = proyeccionAnterior * (1 + reajusteMayor / 100);
             }
             proyeccionAnterior = proyeccionMesada;
 
-
-            const numSmlmvProyectado = 0;
+            const numSmlmvProyectado = smlmv > 0 ? proyeccionMesada / smlmv : 0;
             const numSmlmvPagado = 0;
             const diferencia = 0;
             const numMesadas = 0;
@@ -210,9 +209,9 @@ export default function AnexoLey4Page() {
                                         <TableHead>SMLMV</TableHead>
                                         <TableHead>Reajuste en % SMLMV</TableHead>
                                         <TableHead>Proyección de Mesada Fiduprevisora con % SMLMV</TableHead>
-                                        <TableHead># de SMLMV (SMLMV)</TableHead>
+                                        <TableHead># de SMLMV (En el Reajuste x SMLMV)</TableHead>
                                         <TableHead>Reajuste en % IPC</TableHead>
-                                        <TableHead>Mesada Pagada (IPC)</TableHead>
+                                        <TableHead>Mesada Pagada Fiduprevisora reajuste con IPC</TableHead>
                                         <TableHead># de SMLMV (IPC)</TableHead>
                                         <TableHead>Diferencias</TableHead>
                                         <TableHead># Mesadas</TableHead>
