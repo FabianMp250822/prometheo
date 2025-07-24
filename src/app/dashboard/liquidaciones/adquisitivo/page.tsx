@@ -47,9 +47,16 @@ export default function AdquisitivoPage() {
                 // Fetch recent payments
                 const paymentsQuery = query(collection(db, 'pensionados', selectedPensioner.id, 'pagos'));
                 const querySnapshot = await getDocs(paymentsQuery);
-                let paymentsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
+                const paymentsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
                 
-                setPayments(paymentsData);
+                // Deduplicate payments based on 'periodoPago'
+                const uniquePayments = paymentsData.filter((payment, index, self) =>
+                    index === self.findIndex((p) => (
+                        p.periodoPago === payment.periodoPago
+                    ))
+                );
+                
+                setPayments(uniquePayments);
                 
                 // Fetch historical payments
                 const historicalDocRef = doc(db, 'pagosHistorico', selectedPensioner.documento);
