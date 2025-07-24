@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { collection, getDocs, doc, updateDoc, setDoc, where, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { DajusticiaClient } from '@/lib/data';
@@ -27,6 +27,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
+const ITEMS_PER_PAGE = 20;
 
 export default function EditarUsuarioPage() {
     const { toast } = useToast();
@@ -34,6 +35,7 @@ export default function EditarUsuarioPage() {
     const [filteredClients, setFilteredClients] = useState<DajusticiaClient[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
     
     // Edit Modal State
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -50,7 +52,6 @@ export default function EditarUsuarioPage() {
             const clientsSnapshot = await getDocs(q);
             const clientsData = clientsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DajusticiaClient));
             
-            // Filter out inactive clients on the client-side
             const activeClients = clientsData.filter(c => c.estado !== 'inactivo');
             
             activeClients.sort((a,b) => a.nombres.localeCompare(b.nombres));
@@ -68,12 +69,20 @@ export default function EditarUsuarioPage() {
     }, [fetchClients]);
 
     useEffect(() => {
+        setCurrentPage(1);
         const filtered = clients.filter(client => 
             `${client.nombres} ${client.apellidos}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
             client.cedula.includes(searchTerm)
         );
         setFilteredClients(filtered);
     }, [searchTerm, clients]);
+
+    const paginatedClients = useMemo(() => {
+        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+        return filteredClients.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    }, [filteredClients, currentPage]);
+
+    const totalPages = Math.ceil(filteredClients.length / ITEMS_PER_PAGE);
 
     const openEditModal = (client: DajusticiaClient) => {
         setSelectedClient(client);
@@ -170,61 +179,92 @@ export default function EditarUsuarioPage() {
 
             <Card>
                 <CardHeader>
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input placeholder="Buscar por nombre o cédula..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
+                    <div className="flex justify-between items-center">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input placeholder="Buscar por nombre o cédula..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
+                        </div>
+                        <span className="ml-4 text-sm text-muted-foreground whitespace-nowrap">
+                            {filteredClients.length} cliente(s) encontrado(s)
+                        </span>
                     </div>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
-                        <DataTableSkeleton columnCount={4} />
+                        <DataTableSkeleton columnCount={5} />
                     ) : (
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Nombre</TableHead>
-                                <TableHead>Cédula</TableHead>
-                                <TableHead>Grupo</TableHead>
-                                <TableHead className="text-right">Acciones</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {filteredClients.map(client => (
-                                <TableRow key={client.id}>
-                                    <TableCell className="font-medium">{parseEmployeeName(client.nombres)} {client.apellidos}</TableCell>
-                                    <TableCell>{client.cedula}</TableCell>
-                                    <TableCell>{client.grupo}</TableCell>
-                                    <TableCell className="text-right flex items-center justify-end gap-2">
-                                        <Button variant="outline" size="sm" onClick={() => openEditModal(client)}>
-                                            <Edit className="h-3 w-3 mr-1" /> Editar
-                                        </Button>
-                                         <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button variant="destructive" size="sm"><Trash2 className="h-3 w-3 mr-1"/> Desactivar</Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    Esta acción no eliminará al cliente, solo lo ocultará de la lista. Podrá ser reactivado en el futuro si es necesario.
-                                                </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDelete(client.id)}>Continuar</AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                            {filteredClients.length === 0 && (
+                        <>
+                        <Table>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center">No se encontraron clientes.</TableCell>
+                                    <TableHead className="w-[50px]">#</TableHead>
+                                    <TableHead>Nombre</TableHead>
+                                    <TableHead>Cédula</TableHead>
+                                    <TableHead>Grupo</TableHead>
+                                    <TableHead className="text-right">Acciones</TableHead>
                                 </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {paginatedClients.map((client, index) => (
+                                    <TableRow key={client.id}>
+                                        <TableCell>{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</TableCell>
+                                        <TableCell className="font-medium">{parseEmployeeName(client.nombres)} {client.apellidos}</TableCell>
+                                        <TableCell>{client.cedula}</TableCell>
+                                        <TableCell>{client.grupo}</TableCell>
+                                        <TableCell className="text-right flex items-center justify-end gap-2">
+                                            <Button variant="outline" size="sm" onClick={() => openEditModal(client)}>
+                                                <Edit className="h-3 w-3 mr-1" /> Editar
+                                            </Button>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="destructive" size="sm"><Trash2 className="h-3 w-3 mr-1"/> Desactivar</Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                    <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Esta acción no eliminará al cliente, solo lo ocultará de la lista. Podrá ser reactivado en el futuro si es necesario.
+                                                    </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDelete(client.id)}>Continuar</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                                {paginatedClients.length === 0 && (
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="h-24 text-center">No se encontraron clientes.</TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                        
+                        {totalPages > 1 && (
+                            <div className="flex justify-between items-center p-4">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1}
+                                >
+                                    Anterior
+                                </Button>
+                                <span className="text-sm text-muted-foreground">
+                                    Página {currentPage} de {totalPages}
+                                </span>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={currentPage === totalPages}
+                                >
+                                    Siguiente
+                                </Button>
+                            </div>
+                        )}
+                        </>
                     )}
                 </CardContent>
             </Card>
