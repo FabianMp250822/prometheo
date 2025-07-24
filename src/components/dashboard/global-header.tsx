@@ -9,13 +9,18 @@ import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { ChevronsUpDown, User, Search, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { searchPensioner } from '@/app/actions/search-pensioner';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 function useDebounce<T>(value: T, delay: number): T {
     const [debouncedValue, setDebouncedValue] = useState<T>(value);
     useEffect(() => {
-        const handler = setTimeout(() => setDebouncedValue(value), delay);
-        return () => clearTimeout(handler);
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+        return () => {
+            clearTimeout(handler);
+        };
     }, [value, delay]);
     return debouncedValue;
 }
@@ -30,15 +35,53 @@ export function GlobalHeader() {
 
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-    const searchGlobal = useCallback(async (searchVal: string) => {
+    const searchPensioners = useCallback(async (searchVal: string) => {
         if (searchVal.length < 3) {
             setSearchResults([]);
             return;
         }
+
         setIsSearching(true);
         try {
-            const results = await searchPensioner(searchVal);
-            setSearchResults(results);
+            const pensionersRef = collection(db, 'pensionados');
+            const searchTermUpper = searchVal.toUpperCase();
+
+            // Query for document
+            const docQuery = query(
+                pensionersRef,
+                where('documento', '>=', searchVal),
+                where('documento', '<=', searchVal + '\uf8ff'),
+                limit(15)
+            );
+
+            // Query for name
+            const nameQuery = query(
+                pensionersRef,
+                where('empleado', '>=', searchTermUpper),
+                where('empleado', '<=', searchTermUpper + '\uf8ff'),
+                limit(15)
+            );
+
+            const [docSnapshot, nameSnapshot] = await Promise.all([
+                getDocs(docQuery),
+                getDocs(nameQuery)
+            ]);
+
+            const combinedResults: Map<string, Pensioner> = new Map();
+
+            docSnapshot.forEach(doc => {
+                if (!combinedResults.has(doc.id)) {
+                    combinedResults.set(doc.id, { id: doc.id, ...doc.data() } as Pensioner);
+                }
+            });
+
+            nameSnapshot.forEach(doc => {
+                if (!combinedResults.has(doc.id)) {
+                    combinedResults.set(doc.id, { id: doc.id, ...doc.data() } as Pensioner);
+                }
+            });
+            
+            setSearchResults(Array.from(combinedResults.values()));
         } catch (error) {
             console.error("Error searching pensioners:", error);
             setSearchResults([]);
@@ -48,13 +91,14 @@ export function GlobalHeader() {
     }, []);
 
     useEffect(() => {
-        searchGlobal(debouncedSearchTerm);
-    }, [debouncedSearchTerm, searchGlobal]);
+        searchPensioners(debouncedSearchTerm);
+    }, [debouncedSearchTerm, searchPensioners]);
 
     const handleSelect = (pensioner: Pensioner) => {
         setSelectedPensioner(pensioner);
         setOpen(false);
         setSearchTerm('');
+        setSearchResults([]);
         router.push('/dashboard/pensionado');
     };
 
@@ -90,7 +134,7 @@ export function GlobalHeader() {
                                     {searchResults.map((pensioner) => (
                                         <CommandItem
                                             key={pensioner.id}
-                                            value={pensioner.documento}
+                                            value={`${pensioner.empleado} ${pensioner.documento}`}
                                             onSelect={() => handleSelect(pensioner)}
                                         >
                                             <div>

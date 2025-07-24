@@ -1,5 +1,9 @@
 'use server';
 
+// This file is no longer in use and can be deleted. 
+// The search logic has been simplified and moved directly into the
+// `global-header.tsx` component to resolve persistent search issues.
+
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Pensioner } from '@/lib/data';
@@ -54,7 +58,6 @@ export async function searchPensioner(searchTerm: string): Promise<Pensioner[]> 
         
     } catch (error) {
         console.error('Error in searchPensioner server action:', error);
-        // In a real app, you might want to log this error to a monitoring service
-        return []; // Return empty array on error to prevent crashing the client
+        return [];
     }
 }
