@@ -29,11 +29,14 @@ type GroupedClientPayments = {
     payments: DajusticiaPayment[];
 }
 
+// Session-level cache to store data
+let sessionCache: GroupedClientPayments[] | null = null;
+
 const ITEMS_PER_PAGE = 10;
 
 export default function HistorialPagosPage() {
-  const [groupedPayments, setGroupedPayments] = useState<GroupedClientPayments[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [groupedPayments, setGroupedPayments] = useState<GroupedClientPayments[]>(sessionCache || []);
+  const [isLoading, setIsLoading] = useState(!sessionCache);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
@@ -64,7 +67,6 @@ export default function HistorialPagosPage() {
         
         allPayments.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
         
-        // Group payments by client
         const groupedData = allPayments.reduce((acc, payment) => {
             const clientId = payment.clientInfo.id;
             if (!acc[clientId]) {
@@ -77,7 +79,9 @@ export default function HistorialPagosPage() {
             return acc;
         }, {} as Record<string, GroupedClientPayments>);
 
-        setGroupedPayments(Object.values(groupedData));
+        const finalData = Object.values(groupedData);
+        setGroupedPayments(finalData);
+        sessionCache = finalData; // Store in cache
 
     } catch (error) {
         console.error("Error fetching payment history:", error);
@@ -88,7 +92,10 @@ export default function HistorialPagosPage() {
 }, [toast]);
 
   useEffect(() => {
-    fetchAllData();
+    // Only fetch data if the cache is empty
+    if (!sessionCache) {
+      fetchAllData();
+    }
   }, [fetchAllData]);
 
   const filteredData = useMemo(() => {
