@@ -140,7 +140,7 @@ export const sendPaymentReminder = onRequest(async (req, res) => {
 
   const subject = "Recordatorio de Pago Pendiente - Dajusticia";
   const mailOptions = {
-    from: `"Dajusticia - Recordatorio" <noreply@tecnosalud.cloud>`,
+    from: "\"Dajusticia - Recordatorio\" <noreply@tecnosalud.cloud>",
     to: emailUsuario,
     cc: "director.dajusticia@gmail.com",
     subject,
