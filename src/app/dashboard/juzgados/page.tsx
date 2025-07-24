@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Landmark, Loader2, ServerCrash, University, Building } from 'lucide-react';
-import { getDepartments, getMunicipalitiesByDepartment, getCorporations, getOfficesByCorporation } from '@/services/provired-api-service';
+import { getDepartments, getMunicipalitiesByDepartment, getCorporations, getOfficesByCorporation, getOffices } from '@/services/provired-api-service';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -65,6 +65,11 @@ export default function JuzgadosPage() {
         setError(depResponse.message || 'Error al conectar con la API de Provired.');
       }
       setLoading(prev => ({ ...prev, departments: false }));
+
+      // Debug log for all offices
+      const officesResponse = await getOffices();
+      console.log("--- TODOS los Despachos (Juzgados) Recibidos de la API ---", officesResponse.data);
+
     };
     fetchInitialData();
   }, []);
@@ -90,16 +95,15 @@ export default function JuzgadosPage() {
   };
   
   const fetchCorporationsForMunicipality = useCallback(async (municipalityId: string) => {
-    if (corporations[municipalityId]) return;
+    if (corporations[municipalityId]?.data?.length > 0) return;
 
     setCorporations(prev => ({ ...prev, [municipalityId]: { data: [], isLoading: true } })); 
 
-    const response = await getCorporations(municipalityId);
+    const response = await getCorporations();
     
     if (response.success && Array.isArray(response.data)) {
-        // API returns all corporations, so we must filter them manually.
         const filteredData = response.data.filter(c => String(c.IdMun) === String(municipalityId));
-        const stringifiedData = filteredData.map(c => ({ ...c, IdCorp: String(c.IdCorp), id: String(c.IdCorp) }));
+        const stringifiedData = filteredData.map(c => ({ ...c, id: String(c.IdCorp) }));
         setCorporations(prev => ({ ...prev, [municipalityId]: { data: stringifiedData, isLoading: false } }));
     } else {
         setCorporations(prev => ({ ...prev, [municipalityId]: { data: [], isLoading: false } }));
@@ -208,7 +212,7 @@ export default function JuzgadosPage() {
                                                 ) : corporations[mun.IdMun]?.data?.length > 0 ? (
                                                     <Accordion type="single" collapsible className="w-full space-y-2">
                                                         {corporations[mun.IdMun].data.map((corp) => (
-                                                            <AccordionItem value={corp.id} key={corp.id} className="border bg-card rounded-md">
+                                                            <AccordionItem value={corp.id} key={corp.IdCorp} className="border bg-card rounded-md">
                                                                 <AccordionTrigger className="p-3 hover:no-underline text-sm" onClick={() => fetchOfficesForCorporation(mun.IdMun, corp.id)}>
                                                                     <div className="flex items-center gap-2"><University className="h-4 w-4"/> {corp.corporacion}</div>
                                                                 </AccordionTrigger>
