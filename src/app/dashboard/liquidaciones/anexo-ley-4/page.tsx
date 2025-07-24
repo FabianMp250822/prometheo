@@ -75,8 +75,21 @@ export default function AnexoLey4Page() {
     const [payments, setPayments] = useState<Payment[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     
-    const dependenciasPermitidas = ["V1-ATLANTICO PENSIONADOS", "V0-MAGDALENA PENSIONADOS", "V3-GUAJIRA PENSIONADOS"];
-    const puedeCalcular = selectedPensioner && dependenciasPermitidas.includes(selectedPensioner.dependencia1);
+    const getStandardizedDependencia = (dependencia: string | undefined): string => {
+        if (!dependencia) return '';
+        const upperDep = dependencia.toUpperCase();
+        if (upperDep.includes('BARRANQUILLA')) return 'ATLANTICO';
+        if (upperDep.includes('SANTA MARTA')) return 'MAGDALENA';
+        if (upperDep.includes('RIOHACHA')) return 'GUAJIRA';
+        if (upperDep.includes('ATLANTICO')) return 'ATLANTICO';
+        if (upperDep.includes('MAGDALENA')) return 'MAGDALENA';
+        if (upperDep.includes('GUAJIRA')) return 'GUAJIRA';
+        return dependencia;
+    };
+
+    const dependenciasPermitidas = ["ATLANTICO", "MAGDALENA", "GUAJIRA"];
+    const estandarizada = getStandardizedDependencia(selectedPensioner?.dependencia1);
+    const puedeCalcular = selectedPensioner && dependenciasPermitidas.some(dep => estandarizada.includes(dep));
 
     useEffect(() => {
         if (!selectedPensioner) return;
