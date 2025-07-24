@@ -13,6 +13,7 @@ import { BarChartHorizontal, DollarSign, Target, TrendingUp, Loader2 } from 'luc
 import { formatCurrency } from '@/lib/helpers';
 import { DataTableSkeleton } from '@/components/dashboard/data-table-skeleton';
 import { parseEmployeeName } from '@/lib/helpers';
+import { Badge } from '@/components/ui/badge';
 
 interface ClientWithPayments extends DajusticiaClient {
   pagos: DajusticiaPayment[];
@@ -264,13 +265,14 @@ export default function ResumenFinancieroPage() {
                 </Select>
             </CardHeader>
             <CardContent>
-            <div className="overflow-x-auto">
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
                 <Table>
-                    <TableHeader>
+                    <TableHeader className="sticky top-0 bg-card z-20">
                         <TableRow>
-                            <TableHead className="min-w-[200px] sticky left-0 bg-card z-10">Cliente</TableHead>
+                            <TableHead className="min-w-[200px] sticky left-0 bg-card z-30">Cliente</TableHead>
                             {monthNames.map(m => <TableHead key={m} className="text-center">{m.substring(0,3)}</TableHead>)}
-                            <TableHead className="text-right font-bold">Total Año</TableHead>
+                            <TableHead className="text-right font-bold sticky right-0 bg-card z-30">Total Año</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -280,30 +282,57 @@ export default function ResumenFinancieroPage() {
                                 {monthlyPayments.map((status, index) => (
                                     <TableCell key={index} className="text-center text-xs p-2">
                                         {status === 'Completado' ? (
-                                             <span className="font-semibold text-green-600">{status}</span>
+                                             <Badge variant="secondary" className="bg-green-100 text-green-800">Completado</Badge>
                                         ) : status === 'No Pago' ? (
-                                            <span className="text-red-500">{status}</span>
+                                            <Badge variant="destructive" className="bg-red-100 text-red-800">No Pago</Badge>
                                         ) : (
                                             formatCurrency(status as number)
                                         )}
                                     </TableCell>
                                 ))}
-                                <TableCell className="text-right font-bold">{formatCurrency(totalPaidInYear)}</TableCell>
+                                <TableCell className="text-right font-bold sticky right-0 bg-card z-10">{formatCurrency(totalPaidInYear)}</TableCell>
                             </TableRow>
                         ))}
-                         <TableRow className="bg-muted font-bold">
-                            <TableCell className="sticky left-0 bg-muted z-10">TOTAL MENSUAL</TableCell>
+                         <TableRow className="bg-muted font-bold sticky bottom-0 z-20">
+                            <TableCell className="sticky left-0 bg-muted z-30">TOTAL MENSUAL</TableCell>
                             {monthlyTotals.map((total, index) => (
                                 <TableCell key={index} className="text-center text-sm p-2">
                                     {formatCurrency(total)}
                                 </TableCell>
                             ))}
-                            <TableCell className="text-right">
+                            <TableCell className="text-right sticky right-0 bg-muted z-30">
                                 {formatCurrency(monthlyTotals.reduce((a,b) => a+b, 0))}
                             </TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
+            </div>
+             {/* Mobile Cards */}
+             <div className="md:hidden grid grid-cols-1 gap-4">
+                {paymentStatusByClient.map(({ client, monthlyPayments, totalPaidInYear }) => (
+                    <Card key={client.id}>
+                        <CardHeader>
+                            <CardTitle>{parseEmployeeName(client.nombres)}</CardTitle>
+                            <CardDescription>Total Año: <span className="font-bold text-primary">{formatCurrency(totalPaidInYear)}</span></CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-3 gap-2 text-xs">
+                                {monthlyPayments.map((status, index) => (
+                                    <div key={index} className="flex flex-col items-center p-1 rounded-md">
+                                        <span className="font-semibold">{monthNames[index].substring(0,3)}</span>
+                                        {status === 'Completado' ? (
+                                             <Badge variant="secondary" className="mt-1 bg-green-100 text-green-800">OK</Badge>
+                                        ) : status === 'No Pago' ? (
+                                            <Badge variant="destructive" className="mt-1 bg-red-100 text-red-800">NO</Badge>
+                                        ) : (
+                                            <span className="text-green-700 font-medium">{formatCurrency(status as number)}</span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                ))}
             </div>
             </CardContent>
         </Card>
