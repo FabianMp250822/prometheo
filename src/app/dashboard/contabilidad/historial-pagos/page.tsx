@@ -1,27 +1,20 @@
 'use client';
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { collection, getDocs, query } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { DajusticiaClient, DajusticiaPayment } from '@/lib/data';
+import type { DajusticiaClient, Pensioner } from '@/lib/data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { History, Search, Calendar as CalendarIcon, Loader2, RefreshCw, Eye } from 'lucide-react';
+import { History, Search, Eye, Loader2, RefreshCw } from 'lucide-react';
 import { DataTableSkeleton } from '@/components/dashboard/data-table-skeleton';
-import { DateRange } from 'react-day-picker';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { es } from 'date-fns/locale';
-import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { DocumentViewerModal } from '@/components/dashboard/document-viewer-modal';
 import Link from 'next/link';
+import { usePensioner } from '@/context/pensioner-provider';
+import { parseEmployeeName } from '@/lib/helpers';
 
-type CombinedPayment = DajusticiaPayment & {
-  clientInfo: DajusticiaClient;
-};
 
 const ITEMS_PER_PAGE = 20;
 
@@ -30,16 +23,15 @@ export default function HistorialPagosPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const { toast } = useToast();
-  
+  const { setSelectedPensioner } = usePensioner();
+
   const fetchAllData = useCallback(async () => {
     setIsLoading(true);
     try {
         const clientsSnapshot = await getDocs(collection(db, "nuevosclientes"));
         const clientsData = clientsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DajusticiaClient));
         
-        // Sort clients by name for consistent display
         clientsData.sort((a, b) => a.nombres.localeCompare(b.nombres));
 
         setClients(clientsData);
@@ -61,20 +53,13 @@ export default function HistorialPagosPage() {
     return clients.filter(client => {
       const searchTermLower = searchTerm.toLowerCase();
       
-      const searchMatch = !searchTermLower ||
+      return !searchTermLower ||
         client.nombres.toLowerCase().includes(searchTermLower) ||
         client.apellidos.toLowerCase().includes(searchTermLower) ||
         client.cedula.includes(searchTermLower) ||
         client.grupo.toLowerCase().includes(searchTermLower);
-      
-      if (!searchMatch) return false;
-
-      // Date range filtering on payments is complex here, so we keep it simple.
-      // A more advanced implementation might fetch payments if a date range is selected.
-
-      return true;
     });
-  }, [clients, searchTerm, dateRange]);
+  }, [clients, searchTerm]);
 
   const paginatedData = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -82,6 +67,19 @@ export default function HistorialPagosPage() {
   }, [filteredData, currentPage]);
 
   const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
+
+  const handleSelectClient = (client: DajusticiaClient) => {
+    // Adapt the client object to the Pensioner type for the context
+    const pensionerForContext: Pensioner = {
+      id: client.id,
+      documento: client.cedula,
+      empleado: `${client.nombres} ${client.apellidos}`,
+      dependencia1: client.grupo, 
+      centroCosto: 'N/A' 
+    };
+    setSelectedPensioner(pensionerForContext);
+  };
+
 
   return (
     <>
@@ -142,12 +140,12 @@ export default function HistorialPagosPage() {
                               {paginatedData.map((client) => (
                                   <TableRow key={client.id}>
                                       <TableCell>
-                                          <div className="font-medium">{client.nombres} {client.apellidos}</div>
+                                          <div className="font-medium">{parseEmployeeName(client.nombres)} {client.apellidos}</div>
                                       </TableCell>
                                       <TableCell>{client.cedula}</TableCell>
                                       <TableCell>{client.grupo}</TableCell>
                                       <TableCell className="text-right">
-                                        <Button asChild variant="outline" size="sm">
+                                        <Button asChild variant="outline" size="sm" onClick={() => handleSelectClient(client)}>
                                             <Link href={`/dashboard/contabilidad/pagos-cliente/${client.id}`}>
                                                 <Eye className="mr-2 h-4 w-4" />
                                                 Ver Historial Completo
