@@ -11,7 +11,8 @@ import { useToast } from '@/hooks/use-toast';
 import { formatCurrency, formatPeriodoToMonthYear, parsePaymentDetailName } from '@/lib/helpers';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
-import { getProcesosCancelados } from '@/services/pensioner-service';
+import { collection, getDocs, query } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { DataTableSkeleton } from '@/components/dashboard/data-table-skeleton';
 
 export default function PagoSentenciasPage() {
@@ -28,10 +29,24 @@ export default function PagoSentenciasPage() {
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                const data = await getProcesosCancelados();
-                setProcesos(data);
+                const q = query(collection(db, "procesoscancelados"));
+                const querySnapshot = await getDocs(q);
+                const data = querySnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                } as ProcesoCancelado));
+
+                const sortedData = data.sort((a, b) => {
+                    const dateA = a.creadoEn ? new Date((a.creadoEn as any).seconds * 1000) : new Date(0);
+                    const dateB = b.creadoEn ? new Date((b.creadoEn as any).seconds * 1000) : new Date(0);
+                    return dateB.getTime() - dateA.getTime();
+                });
+
+                setProcesos(sortedData);
+                
                 const years = [...new Set(data.map(p => p.año).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
                 setUniqueYears(years);
+
             } catch (error) {
                 console.error("Error fetching data:", error);
                 toast({ variant: 'destructive', title: "Error", description: "No se pudieron cargar los datos de sentencias." });
