@@ -130,7 +130,7 @@ export default function JuzgadosPage() {
         </CardHeader>
       </Card>
       
-      {error && (
+      {error && !loading.corporations && (
         <Alert variant="destructive">
             <ServerCrash className="h-4 w-4" />
             <AlertTitle>Error de Conexión</AlertTitle>
@@ -161,7 +161,7 @@ export default function JuzgadosPage() {
                 {loading.municipalities ? (
                     <Skeleton className="h-10 w-full" />
                 ) : (
-                    <Select onValueChange={handleMunicipalityChange} disabled={!selectedDepartment || loading.municipalities}>
+                    <Select onValueChange={handleMunicipalityChange} value={selectedMunicipality || ""} disabled={!selectedDepartment || loading.municipalities}>
                         <SelectTrigger id="municipality-select">
                             <SelectValue placeholder={!selectedDepartment ? "Seleccione un departamento primero" : "Seleccione un municipio..."} />
                         </SelectTrigger>
