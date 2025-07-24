@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Landmark, Loader2, ServerCrash, University, Building, Bell } from 'lucide-react';
-import { getDepartments, getMunicipalitiesByDepartment, getCorporations, getOfficesByCorporation, getReportNotifications } from '@/services/provired-api-service';
+import { getDepartments, getMunicipalitiesByDepartment, getCorporations, getOfficesByCorporation, getReportNotifications, getOffices } from '@/services/provired-api-service';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -84,6 +84,7 @@ export default function JuzgadosPage() {
       }
       
       if (notificationsResponse.success && Array.isArray(notificationsResponse.data)) {
+        console.log("--- TODAS las Notificaciones Recibidas de la API ---", notificationsResponse.data);
         setAllNotifications(notificationsResponse.data);
       } else {
         // We might not want to show a blocking error if only notifications fail
