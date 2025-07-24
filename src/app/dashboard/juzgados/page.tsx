@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Landmark, Loader2, ServerCrash, Building, University, Library, MapPin } from 'lucide-react';
+import { Landmark, Loader2, ServerCrash, University, Library, MapPin } from 'lucide-react';
 import { getDepartments, getMunicipalitiesByDepartment, getCorporationsByMunicipality, getOfficesByCorporation } from '@/services/provired-api-service';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -91,9 +91,17 @@ export default function JuzgadosPage() {
 
     setLoading(prev => ({ ...prev, corporations: true }));
     setError(null);
+    
     const response = await getCorporationsByMunicipality(municipalityId);
-     if (response.success && Array.isArray(response.data) && response.data.length > 0) {
-        setCorporations(response.data);
+    
+    if (response.success && response.data) {
+        // Handle both single object and array responses
+        const corpData = Array.isArray(response.data) ? response.data : [response.data];
+        if (corpData.length > 0) {
+            setCorporations(corpData);
+        } else {
+             setError(`No se encontraron corporaciones para este municipio.`);
+        }
     } else {
         setCorporations([]);
         setError(`No se encontraron corporaciones para este municipio.`);
