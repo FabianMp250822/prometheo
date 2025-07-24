@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { usePensioner } from '@/context/pensioner-provider';
-import { collection, getDocs, query } from 'firebase/firestore';
+import { collection, getDocs, query, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Payment, PagosHistoricoRecord } from '@/lib/data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -273,4 +273,3 @@ export default function AnexoLey4Page() {
         </div>
     );
 }
-
