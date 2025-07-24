@@ -1,3 +1,4 @@
+
 // eslint-disable-line max-len
 import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
@@ -6,7 +7,7 @@ import {getFirestore, Timestamp} from "firebase-admin/firestore";
 import {onRequest} from "firebase-functions/v2/https";
 import * as nodemailer from "nodemailer";
 
-// Inicializar Firebase Admin si no se ha hecho aún
+// Initialize Firebase Admin if not already initialized
 if (getApps().length === 0) {
   initializeApp();
 }
@@ -14,7 +15,7 @@ if (getApps().length === 0) {
 const db = getFirestore();
 
 // ============================
-// Configuración de Nodemailer
+// Nodemailer Configuration
 // ============================
 const transporter = nodemailer.createTransport({
   host: "smtp.hostinger.com",
@@ -29,7 +30,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Prefijos de conceptos jurídicos relevantes
+// Relevant legal concept prefixes
 const SENTENCE_CONCEPT_PREFIXES = ["470-", "785-", "475-"];
 
 interface PaymentDetail {
@@ -39,7 +40,7 @@ interface PaymentDetail {
   egresos?: number;
 }
 
-// Trigger para documentos nuevos en pagos
+// Trigger for new documents in payments
 export const onNewPaymentCreate = onDocumentCreated(
   "pensionados/{pensionadoId}/pagos/{pagoId}",
   async (event) => {
@@ -77,9 +78,9 @@ export const onNewPaymentCreate = onDocumentCreated(
 
     const newProcessDocRef = db.collection("procesoscancelados").doc();
 
-    const fechaLiquidacionDate = paymentData.fechaProcesado?.toDate ?
-      paymentData.fechaProcesado.toDate() :
-      new Date();
+    const fechaLiquidacionDate = paymentData.fechaProcesado?.toDate
+      ? paymentData.fechaProcesado.toDate()
+      : new Date();
 
     const newProcessData = {
       año: paymentData.año,
@@ -109,7 +110,7 @@ export const onNewPaymentCreate = onDocumentCreated(
 );
 
 // ===================================
-// Función HTTP: sendPaymentReminder
+// HTTP Function: sendPaymentReminder
 // ===================================
 export const sendPaymentReminder = onRequest(async (req, res) => {
   if (req.method === "OPTIONS") {
@@ -130,10 +131,10 @@ export const sendPaymentReminder = onRequest(async (req, res) => {
   } = req.body;
 
   if (!emailUsuario || !nombreUsuario || !deudaActual || !cuotaSugerida) {
-    logger.error("Faltan parámetros en la solicitud", req.body);
+    logger.error("Missing parameters in the request", req.body);
     return res.status(400).json({
       message:
-        "Parámetros requeridos: emailUsuario, nombreUsuario, etc.",
+        "Required parameters: emailUsuario, nombreUsuario, etc.",
     });
   }
 
@@ -231,15 +232,15 @@ export const sendPaymentReminder = onRequest(async (req, res) => {
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    logger.info("Recordatorio enviado:", info.messageId);
+    logger.info("Reminder sent:", info.messageId);
     return res.status(200).json({
-      message: "Recordatorio enviado exitosamente",
+      message: "Reminder sent successfully",
       messageId: info.messageId,
     });
   } catch (error) {
-    logger.error("Error al enviar el recordatorio:", error);
+    logger.error("Error sending reminder:", error);
     return res.status(500).json({
-      message: "Error al enviar el email de recordatorio",
+      message: "Error sending reminder email",
       error: (error as Error).message,
     });
   }
