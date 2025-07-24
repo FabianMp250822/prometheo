@@ -54,9 +54,8 @@ export default function NotificacionesPage() {
     const [documentTitle, setDocumentTitle] = useState<string | null>(null);
     const { toast } = useToast();
 
-    const fetchNotifications = useCallback(async (loadMore = false) => {
-        if (debouncedSearchTerm) return; // Don't fetch if searching
-        
+    const fetchNotifications = useCallback(async (cursor?: QueryDocumentSnapshot<DocumentData> | null) => {
+        const loadMore = !!cursor;
         if (!loadMore) {
             setIsLoading(true);
             setNotifications([]);
@@ -74,8 +73,8 @@ export default function NotificacionesPage() {
                 limit(ITEMS_PER_PAGE)
             );
 
-            if (loadMore && lastDoc) {
-                q = query(q, startAfter(lastDoc));
+            if (loadMore && cursor) {
+                q = query(q, startAfter(cursor));
             }
 
             const snapshot = await getDocs(q);
@@ -93,13 +92,13 @@ export default function NotificacionesPage() {
             setIsLoading(false);
             setIsLoadingMore(false);
         }
-    }, [lastDoc, debouncedSearchTerm]);
+    }, []);
 
 
     useEffect(() => {
         const searchNotifications = async () => {
             if (debouncedSearchTerm.length < 3) {
-                 if(debouncedSearchTerm === '') fetchNotifications(false);
+                 if(debouncedSearchTerm === '') fetchNotifications();
                 return;
             }
             
@@ -140,7 +139,7 @@ export default function NotificacionesPage() {
         if (debouncedSearchTerm) {
             searchNotifications();
         } else {
-            fetchNotifications(false);
+            fetchNotifications();
         }
     }, [debouncedSearchTerm, fetchNotifications, toast]);
 
@@ -239,7 +238,7 @@ export default function NotificacionesPage() {
                             </div>
                             {!debouncedSearchTerm && hasMore && (
                                 <div className="pt-4 flex justify-center">
-                                    <Button onClick={() => fetchNotifications(true)} disabled={isLoadingMore}>
+                                    <Button onClick={() => fetchNotifications(lastDoc)} disabled={isLoadingMore}>
                                         {isLoadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                         Cargar más
                                     </Button>
