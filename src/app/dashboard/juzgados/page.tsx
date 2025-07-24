@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Landmark, Loader2, ServerCrash, University, Building } from 'lucide-react';
-import { getDepartments, getMunicipalitiesByDepartment, getCorporations, getOfficesByCorporation } from '@/services/provired-api-service';
+import { getDepartments, getMunicipalitiesByDepartment, getCorporations, getOfficesByCorporation, getReportNotifications } from '@/services/provired-api-service';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -57,13 +57,20 @@ export default function JuzgadosPage() {
     const fetchInitialData = async () => {
       setLoading({ departments: true, municipalities: false });
       setError(null);
-      const depResponse = await getDepartments();
+      const [depResponse, notificationsResponse] = await Promise.all([
+          getDepartments(),
+          getReportNotifications()
+      ]);
+      
       if (depResponse.success && Array.isArray(depResponse.data)) {
         const stringifiedData = depResponse.data.map(d => ({ ...d, IdDep: String(d.IdDep) }));
         setDepartments(stringifiedData);
       } else {
         setError(depResponse.message || 'Error al conectar con la API de Provired.');
       }
+      
+      console.log('--- TODAS las Notificaciones Recibidas de la API ---', notificationsResponse.data);
+
       setLoading(prev => ({ ...prev, departments: false }));
     };
     fetchInitialData();
@@ -216,7 +223,7 @@ export default function JuzgadosPage() {
                                                                     ) : corp.offices && corp.offices.length > 0 ? (
                                                                         <div className="space-y-2 pl-4 border-l">
                                                                             {corp.offices.map((office, index) => (
-                                                                                <div key={office.IdDes || index} className="flex items-center gap-2 text-xs">
+                                                                                <div key={office.IdDes} className="flex items-center gap-2 text-xs">
                                                                                     <Building className="h-3 w-3 text-primary"/>
                                                                                     {office.despacho}
                                                                                 </div>
