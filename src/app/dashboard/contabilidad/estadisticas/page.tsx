@@ -63,7 +63,7 @@ export default function EstadisticasPage() {
     clients.forEach(client => {
       totalContracted += parseSalario(client.salario);
       client.pagos.forEach(pago => {
-        totalCollected += parseSalario(pago.montoNeto);
+        totalCollected += parseSalario(pago.monto);
       });
     });
     
@@ -86,7 +86,7 @@ export default function EstadisticasPage() {
         const paymentDate = new Date(pago.fecha);
         if (paymentDate.getFullYear() === currentYear) {
           const monthName = monthNames[paymentDate.getMonth()];
-          monthlyData[monthName] += parseSalario(pago.montoNeto);
+          monthlyData[monthName] += parseSalario(pago.monto);
         }
       });
     });
@@ -99,14 +99,14 @@ export default function EstadisticasPage() {
     clients.forEach(client => {
         const group = client.grupo || 'Sin Grupo';
         if (!groupData[group]) groupData[group] = 0;
-        groupData[group] += client.pagos.reduce((sum, p) => sum + parseSalario(p.montoNeto), 0);
+        groupData[group] += client.pagos.reduce((sum, p) => sum + parseSalario(p.monto), 0);
     });
     return Object.entries(groupData).map(([name, value]) => ({ name, value }));
   }, [clients]);
 
   const topClients = useMemo(() => {
     const clientSummaries = clients.map(client => {
-      const totalPaid = client.pagos.reduce((sum, pago) => sum + parseSalario(pago.montoNeto), 0);
+      const totalPaid = client.pagos.reduce((sum, pago) => sum + parseSalario(pago.monto), 0);
       const totalDebt = parseSalario(client.salario) - totalPaid;
       return {
         name: parseEmployeeName(`${client.nombres} ${client.apellidos}`),
