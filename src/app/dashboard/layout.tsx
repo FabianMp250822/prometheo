@@ -277,6 +277,14 @@ export default function DashboardLayout({
                           </SidebarMenuSubItem>
                           <SidebarMenuSubItem>
                              <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/contabilidad/estadisticas">
+                                <BarChart2 />
+                                <span>Estadísticas</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                          <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
                               <Link href="/dashboard/contabilidad/documentos-soporte">
                                 <FileText />
                                 <span>Documentos Soporte</span>
