@@ -98,8 +98,8 @@ export const onNewPaymentCreate = onDocumentCreated(
 
     const fechaLiquidacionDate =
       paymentData.fechaProcesado?.toDate ?
-      paymentData.fechaProcesado.toDate() :
-      new Date();
+        paymentData.fechaProcesado.toDate() :
+        new Date();
 
     const newProcessData = {
       año: paymentData.año,
