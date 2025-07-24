@@ -15,7 +15,7 @@ import {getFirestore, Timestamp, WriteBatch} from "firebase-admin/firestore";
 import {onRequest, Request, Response} from "firebase-functions/v2/https";
 import * as nodemailer from "nodemailer";
 import {onSchedule} from "firebase-functions/v2/scheduler";
-import fetch from "node-fetch";
+import fetch, {Response as FetchResponse} from "node-fetch";
 
 // Initialize admin SDK if not already initialized
 if (getApps().length === 0) {
@@ -96,7 +96,8 @@ export const onNewPaymentCreate = onDocumentCreated(
 
     const newProcessDocRef = db.collection("procesoscancelados").doc();
 
-    const fechaLiquidacionDate = paymentData.fechaProcesado?.toDate ?
+    const fechaLiquidacionDate =
+      paymentData.fechaProcesado?.toDate ?
       paymentData.fechaProcesado.toDate() :
       new Date();
 
@@ -281,13 +282,21 @@ const STATIC_TOKEN =
 let jwtToken: string | null = null;
 let tokenExpiresAt: number | null = null;
 
+interface ApiResponse {
+  data?: Record<string, unknown>[];
+}
+
+/**
+ * Retrieves a JWT token, fetching a new one if expired.
+ * @return {Promise<string>} The JWT token.
+ */
 async function getJwtToken(): Promise<string> {
   if (jwtToken && tokenExpiresAt && Date.now() < tokenExpiresAt) {
     return jwtToken;
   }
 
   logger.info("JWT is expired or null, fetching a new one.");
-  const response = await fetch(`${API_BASE_URL}/token`, {
+  const response: FetchResponse = await fetch(`${API_BASE_URL}/token`, {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({token: STATIC_TOKEN}),
@@ -307,12 +316,24 @@ async function getJwtToken(): Promise<string> {
   return jwtToken;
 }
 
-async function makeApiRequest(endpoint: string, method: string) {
+/**
+ * Makes an authenticated request to the Provired API.
+ * @param {string} endpoint The API endpoint to call.
+ * @param {string} method The method for the API request body.
+ * @return {Promise<Record<string, unknown>[]>} The data from the API.
+ */
+async function makeApiRequest(
+  endpoint: string,
+  method: string,
+): Promise<Record<string, unknown>[]> {
   const jwt = await getJwtToken();
   const body = JSON.stringify({method, params: {}});
   const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
     method: "POST",
-    headers: {"Content-Type": "application/json", Authorization: `Bearer ${jwt}`},
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${jwt}`,
+    },
     body,
   });
 
@@ -321,42 +342,47 @@ async function makeApiRequest(endpoint: string, method: string) {
     throw new Error(`API Error: ${response.status} ${errorBody}`);
   }
 
-  const responseData = (await response.json()) as {data?: any[]};
+  const responseData = (await response.json()) as ApiResponse;
   return responseData.data || [];
 }
 
-export const syncDailyNotifications = onSchedule("every day 07:00", async () => {
-  logger.info("Starting daily notification sync...");
-  try {
-    const notifications = await makeApiRequest("report", "getData");
-    if (!Array.isArray(notifications) || notifications.length === 0) {
-      logger.info("No new notifications to sync.");
-      return;
+export const syncDailyNotifications = onSchedule(
+  "every day 07:00",
+  async () => {
+    logger.info("Starting daily notification sync...");
+    try {
+      const notifications = await makeApiRequest("report", "getData");
+      if (!Array.isArray(notifications) || notifications.length === 0) {
+        logger.info("No new notifications to sync.");
+        return;
+      }
+
+      logger.info(`Fetched ${notifications.length} notifications from API.`);
+
+      const BATCH_SIZE = 400;
+      for (let i = 0; i < notifications.length; i += BATCH_SIZE) {
+        const batch: WriteBatch = db.batch();
+        const chunk = notifications.slice(i, i + BATCH_SIZE);
+
+        chunk.forEach((item) => {
+          const docId = db.collection("provired_notifications").doc().id;
+          const docRef = db.collection("provired_notifications").doc(docId);
+          item.demandante_lower =
+          (item.demandante as string)?.toLowerCase() || "";
+          item.demandado_lower =
+          (item.demandado as string)?.toLowerCase() || "";
+          batch.set(docRef, item);
+        });
+
+        await batch.commit();
+        logger.info(`Committed batch ${i / BATCH_SIZE + 1}.`);
+      }
+
+      logger.info("Daily notification sync completed successfully.");
+    } catch (error) {
+      logger.error("Error during daily notification sync:", error);
+      // Throw error to indicate failure for potential retries
+      throw error;
     }
-
-    logger.info(`Fetched ${notifications.length} notifications from API.`);
-
-    const BATCH_SIZE = 400;
-    for (let i = 0; i < notifications.length; i += BATCH_SIZE) {
-      const batch: WriteBatch = db.batch();
-      const chunk = notifications.slice(i, i + BATCH_SIZE);
-
-      chunk.forEach((item) => {
-        const docId = db.collection("provired_notifications").doc().id;
-        const docRef = db.collection("provired_notifications").doc(docId);
-        item.demandante_lower = item.demandante?.toLowerCase() || "";
-        item.demandado_lower = item.demandado?.toLowerCase() || "";
-        batch.set(docRef, item);
-      });
-
-      await batch.commit();
-      logger.info(`Committed batch ${i / BATCH_SIZE + 1}.`);
-    }
-
-    logger.info("Daily notification sync completed successfully.");
-  } catch (error) {
-    logger.error("Error during daily notification sync:", error);
-    // Throw error to indicate failure for potential retries
-    throw error;
-  }
-});
+  },
+);
