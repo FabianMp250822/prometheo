@@ -2,142 +2,90 @@
   "indexes": [
     {
       "collectionGroup": "anotaciones",
-      "queryScope": "COLLECTION",
+      "queryScope": "COLLECTION_GROUP",
       "fields": [
-        {
-          "fieldPath": "fecha_limite_ordenable",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "hora_limite",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "extractedText",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "documentoUsuario",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "updatedAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "pensionados",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "apellidos",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "nombres",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "pensionados",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "pnlDependencia",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "empleado",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "pensionados",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "dependencia1",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "documento",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "pensionados",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "centroCosto",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "documento",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "pensionados",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "dependencia1",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "centroCosto",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "documento",
-          "order": "ASCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "procesoscancelados",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "pensionadoId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "creadoEn",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "procesoscancelados",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "creadoEn",
-          "order": "DESCENDING"
-        }
+        { "fieldPath": "fecha_limite_ordenable", "order": "ASCENDING" },
+        { "fieldPath": "hora_limite", "order": "ASCENDING" }
       ]
     },
     {
       "collectionGroup": "pagos",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
-        {
-          "fieldPath": "`año`",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "`año`", "order": "DESCENDING" },
+        { "fieldPath": "fechaProcesado", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "pensionados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "empleado", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "pensionados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "documento", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "pensionados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "dependencia1", "order": "ASCENDING" },
+        { "fieldPath": "documento", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "pensionados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "centroCosto", "order": "ASCENDING" },
+        { "fieldPath": "documento", "order": "ASCENDING" }
+      ]
+    },
+     {
+      "collectionGroup": "procesos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "num_registro", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "procesos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "nombres_demandante", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "procesos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "nombres_demandado", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "procesos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "num_radicado_ini", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "procesos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "num_radicado_ult", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "tareas",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "fecha_limite_ordenable", "order": "ASCENDING" }
       ]
     }
   ],
