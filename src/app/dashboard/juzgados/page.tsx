@@ -31,7 +31,6 @@ type LoadingState = {
     departments: boolean;
     municipalities: boolean;
     corporations: boolean;
-    offices: string | null; // corporationId that is loading
 }
 
 export default function JuzgadosPage() {
@@ -39,6 +38,7 @@ export default function JuzgadosPage() {
   const [municipalities, setMunicipalities] = useState<Municipality[]>([]);
   const [corporations, setCorporations] = useState<Corporation[]>([]);
   const [offices, setOffices] = useState<Record<string, Office[]>>({});
+  const [officesLoading, setOfficesLoading] = useState<Record<string, boolean>>({});
 
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedMunicipality, setSelectedMunicipality] = useState<string | null>(null);
@@ -47,13 +47,12 @@ export default function JuzgadosPage() {
     departments: true,
     municipalities: false,
     corporations: false,
-    offices: null
   });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchDepartments = async () => {
-      setLoading({ departments: true, municipalities: false, corporations: false, offices: null });
+      setLoading({ departments: true, municipalities: false, corporations: false });
       setError(null);
       const response = await getDepartments();
       if (response.success && Array.isArray(response.data)) {
@@ -68,7 +67,8 @@ export default function JuzgadosPage() {
   }, []);
 
   const handleDepartmentChange = async (departmentId: string) => {
-    setSelectedDepartment(departmentId);
+    const depIdStr = String(departmentId);
+    setSelectedDepartment(depIdStr);
     setSelectedMunicipality(null);
     setMunicipalities([]);
     setCorporations([]);
@@ -76,7 +76,7 @@ export default function JuzgadosPage() {
 
     setLoading(prev => ({ ...prev, municipalities: true }));
     setError(null);
-    const response = await getMunicipalitiesByDepartment(String(departmentId)); // Ensure it's a string
+    const response = await getMunicipalitiesByDepartment(depIdStr);
     if (response.success && Array.isArray(response.data)) {
         const stringifiedData = response.data.map(m => ({ ...m, id: String(m.id) }));
         setMunicipalities(stringifiedData);
@@ -88,14 +88,15 @@ export default function JuzgadosPage() {
   };
   
   const handleMunicipalityChange = async (municipalityId: string) => {
-    setSelectedMunicipality(String(municipalityId)); // Ensure it's a string
+    const munIdStr = String(municipalityId);
+    setSelectedMunicipality(munIdStr);
     setCorporations([]);
     setOffices({});
 
     setLoading(prev => ({ ...prev, corporations: true }));
     setError(null);
     
-    const response = await getCorporationsByMunicipality(String(municipalityId));
+    const response = await getCorporationsByMunicipality(munIdStr);
     
     if (response.success && response.data) {
         const corpData = Array.isArray(response.data) ? response.data : [response.data];
@@ -107,22 +108,22 @@ export default function JuzgadosPage() {
         }
     } else {
         setCorporations([]);
-        setError(`No se encontraron corporaciones para este municipio.`);
+        setError(response.message || `No se encontraron corporaciones para este municipio.`);
     }
     setLoading(prev => ({ ...prev, corporations: false }));
   }
 
   const handleFetchOffices = async (corporationId: string) => {
-    if (offices[corporationId]) return;
+    if (offices[corporationId] || officesLoading[corporationId]) return;
 
-    setLoading(prev => ({ ...prev, offices: corporationId }));
+    setOfficesLoading(prev => ({ ...prev, [corporationId]: true }));
     const response = await getOfficesByCorporation(String(corporationId));
     if (response.success && Array.isArray(response.data)) {
         setOffices(prev => ({...prev, [corporationId]: response.data.map(o => ({...o, id: String(o.id)})) }));
     } else {
         setOffices(prev => ({...prev, [corporationId]: []}));
     }
-     setLoading(prev => ({ ...prev, offices: null }));
+     setOfficesLoading(prev => ({ ...prev, [corporationId]: false }));
   }
 
   return (
@@ -202,7 +203,7 @@ export default function JuzgadosPage() {
                         </div>
                     </AccordionTrigger>
                     <AccordionContent className="p-4 pt-0">
-                        {loading.offices === corp.id ? (
+                        {officesLoading[corp.id] ? (
                             <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Cargando despachos...</div>
                         ) : offices[corp.id] && offices[corp.id].length > 0 ? (
                              <div className="space-y-2 pl-6 border-l">
