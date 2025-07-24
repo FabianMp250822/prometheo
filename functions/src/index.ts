@@ -54,7 +54,7 @@ export const onNewPaymentCreate = onDocumentCreated(
 
     if (!paymentData || !Array.isArray(paymentData.detalles)) {
       logger.info(
-        `Payment ${pagoId} has no data or 'detalles' field. Exiting.`
+        `Payment ${pagoId} has no data or "detalles" field. Exiting.`
       );
       return;
     }
@@ -77,10 +77,9 @@ export const onNewPaymentCreate = onDocumentCreated(
 
     const newProcessDocRef = db.collection("procesoscancelados").doc();
 
-    const fechaLiquidacionDate =
-      paymentData.fechaProcesado?.toDate != null
-        ? paymentData.fechaProcesado.toDate()
-        : new Date();
+    const fechaLiquidacionDate = paymentData.fechaProcesado?.toDate ?
+      paymentData.fechaProcesado.toDate() :
+      new Date();
 
     const newProcessData = {
       año: paymentData.año,
@@ -134,13 +133,13 @@ export const sendPaymentReminder = onRequest(async (req, res) => {
     logger.error("Faltan parámetros en la solicitud", req.body);
     return res.status(400).json({
       message:
-        "Faltan parámetros requeridos: emailUsuario, nombreUsuario, deudaActual, cuotaSugerida.",
+        "Parámetros requeridos: emailUsuario, nombreUsuario, etc.",
     });
   }
 
   const subject = "Recordatorio de Pago Pendiente - Dajusticia";
   const mailOptions = {
-    from: `"Dajusticia - Recordatorio de Pago" <noreply@tecnosalud.cloud>`,
+    from: `"Dajusticia - Recordatorio" <noreply@tecnosalud.cloud>`,
     to: emailUsuario,
     cc: "director.dajusticia@gmail.com",
     subject,
@@ -213,12 +212,12 @@ export const sendPaymentReminder = onRequest(async (req, res) => {
     <div class="content">
       <h1>Recordatorio de Pago Pendiente</h1>
       <p>Estimado(a) ${nombreUsuario},</p>
-      <p>Le escribimos para recordarle que tiene un saldo pendiente con nosotros.</p>
+      <p>Le escribimos para recordarle que tiene un saldo pendiente.</p>
       <div class="details">
         <p>Deuda Actual: <strong>$${deudaActual}</strong></p>
-        <p>Valor de su próxima cuota: <strong>$${cuotaSugerida}</strong></p>
+        <p>Próxima cuota: <strong>$${cuotaSugerida}</strong></p>
       </div>
-      <p>Para evitar inconvenientes, le agradecemos realizar su pago lo antes posible.</p>
+      <p>Para evitar inconvenientes, realice su pago lo antes posible.</p>
       <p>Si ya ha realizado el pago, por favor ignore este mensaje.</p>
     </div>
     <div class="footer">
