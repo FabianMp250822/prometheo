@@ -8,12 +8,12 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Gavel, Loader2, Download, Search, Filter, Printer } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { formatCurrency, formatPeriodoToMonthYear, parsePaymentDetailName, formatFirebaseTimestamp } from '@/lib/helpers';
+import { formatCurrency, formatPeriodoToMonthYear, parsePaymentDetailName, parseEmployeeName } from '@/lib/helpers';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { Button } from '@/components/ui/button';
-import { collection, getDocs, query } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { DataTableSkeleton } from '@/components/dashboard/data-table-skeleton';
 import { format } from 'date-fns';
@@ -45,10 +45,37 @@ export default function PagoSentenciasPage() {
             try {
                 const q = query(collection(db, "procesoscancelados"));
                 const querySnapshot = await getDocs(q);
-                const data = querySnapshot.docs.map(doc => ({
+                let data = querySnapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
                 } as ProcesoCancelado));
+
+                if (data.length > 0) {
+                    const pensionerIds = [...new Set(data.map(p => p.pensionadoId))];
+                    const pensionersData: { [key: string]: { name: string, document: string } } = {};
+                    
+                    const chunks = [];
+                    for (let i = 0; i < pensionerIds.length; i += 30) {
+                        chunks.push(pensionerIds.slice(i, i + 30));
+                    }
+                    
+                    for (const chunk of chunks) {
+                        const pensionersQuery = query(collection(db, 'pensionados'), where('documento', 'in', chunk));
+                        const pensionersSnapshot = await getDocs(pensionersQuery);
+                        pensionersSnapshot.forEach(doc => {
+                            const pData = doc.data();
+                            pensionersData[pData.documento] = {
+                                name: pData.empleado,
+                                document: pData.documento
+                            };
+                        });
+                    }
+
+                    data = data.map(p => ({
+                        ...p,
+                        pensionerInfo: pensionersData[p.pensionadoId]
+                    }));
+                }
 
                 const sortedData = data.sort((a, b) => {
                     const dateA = a.creadoEn ? new Date((a.creadoEn as any).seconds * 1000) : new Date(0);
@@ -77,7 +104,8 @@ export default function PagoSentenciasPage() {
         return procesos.filter(p => {
             const searchTermLower = searchTerm.toLowerCase();
             const searchMatch = searchTermLower === '' ||
-                p.pensionadoId.toLowerCase().includes(searchTermLower);
+                p.pensionadoId.toLowerCase().includes(searchTermLower) ||
+                (p.pensionerInfo?.name && p.pensionerInfo.name.toLowerCase().includes(searchTermLower));
             
             const yearMatch = selectedYear === 'all' || p.año === selectedYear;
 
@@ -101,6 +129,7 @@ export default function PagoSentenciasPage() {
         const dataToExport = filteredProcesos.flatMap(p => 
             p.conceptos.map(c => ({
                 "ID Pensionado": p.pensionadoId,
+                "Nombre Pensionado": p.pensionerInfo ? parseEmployeeName(p.pensionerInfo.name) : 'N/A',
                 "Periodo de Pago": formatPeriodoToMonthYear(p.periodoPago),
                 "Concepto": parsePaymentDetailName(c.nombre),
                 "Ingresos": c.ingresos,
@@ -132,13 +161,13 @@ export default function PagoSentenciasPage() {
         const dateStr = `Generado el: ${format(new Date(), "d 'de' LLLL, yyyy", { locale: es })}`;
         doc.text(dateStr, 14, 30);
 
-        const tableColumn = ["ID Pensionado", "Periodo", "Concepto", "Ingresos", "Egresos", "Año Liquid."];
+        const tableColumn = ["Pensionado", "Periodo", "Concepto", "Ingresos", "Egresos", "Año Liquid."];
         const tableRows: any[][] = [];
 
         filteredProcesos.forEach(p => {
             p.conceptos.forEach(c => {
                  const row = [
-                    p.pensionadoId,
+                    p.pensionerInfo ? parseEmployeeName(p.pensionerInfo.name) : p.pensionadoId,
                     formatPeriodoToMonthYear(p.periodoPago),
                     parsePaymentDetailName(c.nombre),
                     formatCurrency(c.ingresos),
@@ -203,7 +232,7 @@ export default function PagoSentenciasPage() {
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
-                                placeholder="Buscar por ID de pensionado..."
+                                placeholder="Buscar por nombre o ID de pensionado..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-10"
@@ -238,7 +267,7 @@ export default function PagoSentenciasPage() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead>ID Pensionado</TableHead>
+                                        <TableHead>Pensionado</TableHead>
                                         <TableHead>Periodo de Pago</TableHead>
                                         <TableHead>Conceptos</TableHead>
                                         <TableHead className="text-right">Valores</TableHead>
@@ -250,7 +279,10 @@ export default function PagoSentenciasPage() {
                                         const totalProceso = p.conceptos.reduce((acc, c) => acc + c.ingresos, 0);
                                         return (
                                             <TableRow key={p.id}>
-                                                <TableCell className="align-top font-medium py-3">{p.pensionadoId}</TableCell>
+                                                <TableCell className="align-top font-medium py-3">
+                                                    <div>{p.pensionerInfo ? parseEmployeeName(p.pensionerInfo.name) : 'N/A'}</div>
+                                                    <div className="text-xs text-muted-foreground">{p.pensionadoId}</div>
+                                                </TableCell>
                                                 <TableCell className="align-top py-3">{formatPeriodoToMonthYear(p.periodoPago)}</TableCell>
                                                 <TableCell className="p-0 align-top">
                                                     <div className="divide-y divide-border">

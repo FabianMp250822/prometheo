@@ -90,7 +90,6 @@ export interface ProcesoCancelado {
     pensionerInfo?: {
         name: string;
         document: string;
-        department: string;
     };
 }
 
