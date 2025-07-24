@@ -79,7 +79,8 @@ export default function JuzgadosPage() {
     if (response.success && Array.isArray(response.data)) {
         setMunicipalities(response.data);
     } else {
-        setError(`No se pudieron cargar municipios.`);
+        setMunicipalities([]);
+        setError(`No se encontraron municipios para este departamento.`);
     }
     setLoading(prev => ({ ...prev, municipalities: false }));
   };
@@ -100,6 +101,7 @@ export default function JuzgadosPage() {
         if (corpData.length > 0) {
             setCorporations(corpData);
         } else {
+             setCorporations([]);
              setError(`No se encontraron corporaciones para este municipio.`);
         }
     } else {
