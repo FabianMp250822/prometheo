@@ -3,12 +3,24 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Percent, Loader2, UserX, BarChart3, MinusSquare } from 'lucide-react';
+import { Percent, Loader2, UserX, BarChart3, MinusSquare, Printer } from 'lucide-react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { collection, getDocs, query, doc, getDoc, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Payment, PagosHistoricoRecord, CausanteRecord } from '@/lib/data';
 import { formatCurrency, parsePeriodoPago, formatFirebaseTimestamp } from '@/lib/helpers';
+import { Button } from '@/components/ui/button';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import { useToast } from '@/hooks/use-toast';
+
+// Extend the jsPDF type to include the autoTable method
+declare module 'jspdf' {
+    interface jsPDF {
+      autoTable: (options: any) => jsPDF;
+    }
+}
+
 
 const smlmvData: { [year: number]: number } = {
     1998: 203826, 1999: 236460, 2000: 260100, 2001: 286000, 2002: 309000, 2003: 332000, 
@@ -32,6 +44,7 @@ export default function AdquisitivoPage() {
     const [historicalPayments, setHistoricalPayments] = useState<PagosHistoricoRecord[]>([]);
     const [causanteRecords, setCausanteRecords] = useState<CausanteRecord[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const { toast } = useToast();
 
     useEffect(() => {
         if (!selectedPensioner) {
@@ -233,19 +246,110 @@ export default function AdquisitivoPage() {
         return (firstValue - lastValue).toFixed(2);
     }, [tableData]);
 
+    const handlePrint = () => {
+        if (!selectedPensioner) {
+            toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: 'Debe seleccionar un pensionado para generar el reporte.'
+            });
+            return;
+        }
+
+        const doc = new jsPDF({ orientation: 'landscape' });
+        const pageHeight = doc.internal.pageSize.height;
+        let finalY = 0;
+
+        // Title and Pensioner Info
+        doc.setFontSize(18);
+        doc.text('Reporte de Poder Adquisitivo', 14, 22);
+        doc.setFontSize(11);
+        doc.text(`Pensionado: ${selectedPensioner.empleado}`, 14, 30);
+        doc.text(`Documento: ${selectedPensioner.documento}`, 14, 36);
+
+        // Main Data Table
+        const head = [['Año', 'SMLMV', 'Pagado por Empresa', 'Pensión de Vejez', 'Unidad Pensional', '#SMLMV']];
+        const body = tableData.map(row => [
+            row.year,
+            formatCurrency(row.smlmv),
+            formatCurrency(row.paidByCompany),
+            `${formatCurrency(row.pensionDeVejez)}${row.isProjected ? '*' : ''}`,
+            formatCurrency(row.unidadPensional),
+            row.numSmlmv.toFixed(2)
+        ]);
+
+        doc.autoTable({
+            head: head,
+            body: body,
+            startY: 42,
+            theme: 'grid',
+            headStyles: { fillColor: [27, 77, 62] },
+        });
+        
+        finalY = (doc as any).lastAutoTable.finalY + 10;
+        
+        if (smlmvLoss) {
+           doc.setFontSize(10);
+           doc.setFont('helvetica', 'bold');
+           doc.text(`PÉRDIDA DE SALARIOS MÍNIMOS EN EL PERIODO: ${smlmvLoss}`, 14, finalY);
+           finalY += 8;
+        }
+        
+        if (sharingData) {
+            doc.autoTable({
+                body: [
+                    [{ content: 'FECHA DE COMPARTICIÓN DE LA PENSIÓN CONVENCIONAL CON LA PENSIÓN DEL ISS - COLPENSIONES', styles: { fontStyle: 'bold', fillColor: '#F1F5F9' } }, { content: sharingData.sharingDate, styles: { halign: 'center' } }],
+                    [{ content: 'MESADA PLENA DE LA PENSIÓN CONVENCIONAL ANTES DE LA COMPARTICIÓN', styles: { fontStyle: 'bold', fillColor: '#F1F5F9' } }, { content: formatCurrency(sharingData.mesadaAntes), styles: { halign: 'center', fontStyle: 'bold' } }]
+                ],
+                startY: finalY,
+                theme: 'grid',
+                styles: { fontSize: 9 }
+            });
+            finalY = (doc as any).lastAutoTable.finalY + 4;
+            
+            doc.autoTable({
+                head: [[
+                    { content: 'PORCENTAJE Y VALORES DE CUOTAS PARTES EN QUE SE DISTRIBUYE EL MONTO DE LA MESADA PENSIONAL A PARTIR DE LA COMPARTICIÓN', styles: { fillColor: '#F1F5F9', textColor: '#000', fontStyle: 'bold' } },
+                    { content: 'PORCENTAJE', styles: { halign: 'center', fillColor: '#F1F5F9', textColor: '#000', fontStyle: 'bold' } },
+                    { content: 'VALOR', styles: { halign: 'center', fillColor: '#F1F5F9', textColor: '#000', fontStyle: 'bold' } }
+                ]],
+                body: [
+                    [{ content: 'A CARGO DE COLPENSIONES', styles: { fontStyle: 'bold' } }, { content: `${sharingData.porcentajeColpensiones.toFixed(2)}%`, styles: { halign: 'center' } }, { content: formatCurrency(sharingData.aCargoColpensiones), styles: { halign: 'center', fontStyle: 'bold' } }],
+                    [{ content: 'MAYOR VALOR A CARGO DE LA EMPRESA', styles: { fontStyle: 'bold' } }, { content: `${sharingData.porcentajeEmpresa.toFixed(2)}%`, styles: { halign: 'center' } }, { content: formatCurrency(sharingData.aCargoEmpresa), styles: { halign: 'center', fontStyle: 'bold' } }]
+                ],
+                startY: finalY,
+                theme: 'grid',
+                styles: { fontSize: 9 }
+            });
+             finalY = (doc as any).lastAutoTable.finalY + 10;
+        }
+
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.text('* Valores proyectados calculados con base en el IPC del año anterior.', 14, finalY);
+
+        doc.save(`Reporte_Poder_Adquisitivo_${selectedPensioner.documento}.pdf`);
+    };
+
 
     return (
         <div className="p-4 md:p-8 space-y-6">
             <Card>
-                <CardHeader>
-                    <CardTitle className="text-2xl font-headline flex items-center gap-2">
-                        <Percent className="h-6 w-6" />
-                        Poder Adquisitivo
-                    </CardTitle>
-                    <CardDescription>
-                       Cálculo del poder adquisitivo de la pensión a lo largo del tiempo.
-                       {selectedPensioner && <span className="block mt-1 font-semibold text-primary">Pensionado: {selectedPensioner.empleado}</span>}
-                    </CardDescription>
+                <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <CardTitle className="text-2xl font-headline flex items-center gap-2">
+                            <Percent className="h-6 w-6" />
+                            Poder Adquisitivo
+                        </CardTitle>
+                        <CardDescription>
+                        Cálculo del poder adquisitivo de la pensión a lo largo del tiempo.
+                        {selectedPensioner && <span className="block mt-1 font-semibold text-primary">Pensionado: {selectedPensioner.empleado}</span>}
+                        </CardDescription>
+                    </div>
+                    <Button onClick={handlePrint} disabled={isLoading || !selectedPensioner}>
+                        <Printer className="mr-2 h-4 w-4" />
+                        Exportar a PDF
+                    </Button>
                 </CardHeader>
             </Card>
 
@@ -308,7 +412,7 @@ export default function AdquisitivoPage() {
                 </CardContent>
             </Card>
 
-            {selectedPensioner && sharingData && (
+            {selectedPensioner && !isLoading && sharingData && (
                 <Card>
                     <CardHeader>
                          <CardTitle className="text-xl font-headline flex items-center gap-2">
