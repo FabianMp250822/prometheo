@@ -55,8 +55,7 @@ async function makeApiRequest(endpoint: string, method: string, params?: object)
 
 async function syncCollection(
     collectionName: string, 
-    fetchFunction: () => Promise<{ success: boolean; data: any; message: string | undefined; }>,
-    progressCallback?: (progress: { current: number, total: number }) => void
+    fetchFunction: () => Promise<{ success: boolean; data: any; message: string | undefined; }>
 ): Promise<{ success: boolean; count: number; message?: string; }> {
     const { success, data, message } = await fetchFunction();
     if (!success || !Array.isArray(data)) {
@@ -64,8 +63,7 @@ async function syncCollection(
     }
 
     const BATCH_SIZE = 400; // Firestore batch writes are limited to 500 operations.
-    const totalBatches = Math.ceil(data.length / BATCH_SIZE);
-
+    
     for (let i = 0; i < data.length; i += BATCH_SIZE) {
         const batch = writeBatch(db);
         const chunk = data.slice(i, i + BATCH_SIZE);
@@ -73,11 +71,11 @@ async function syncCollection(
         for (const item of chunk) {
             let docId: string;
             // Use the most specific ID available first to ensure uniqueness.
-            if (item.IdDes) docId = String(item.IdDes);
+            if (item.notificacion) docId = String(item.notificacion); // For notifications, use the notification ID
+            else if (item.IdDes) docId = String(item.IdDes);
             else if (item.IdCorp) docId = String(item.IdCorp);
             else if (item.IdMun) docId = String(item.IdMun);
             else if (item.IdDep) docId = String(item.IdDep);
-            else if (item.notificacion) docId = String(item.notificacion); // For notifications
             else docId = doc(collection(db, collectionName)).id; // Fallback for safety
 
             const docRef = doc(db, collectionName, docId);
@@ -90,9 +88,6 @@ async function syncCollection(
         }
 
         await batch.commit();
-        if (progressCallback) {
-            progressCallback({ current: Math.floor(i / BATCH_SIZE) + 1, total: totalBatches });
-        }
         await new Promise(resolve => setTimeout(resolve, 50)); // Pause to avoid overwhelming Firestore
     }
     
@@ -102,14 +97,11 @@ async function syncCollection(
 
 // --- Main Service Functions ---
 
-export async function syncProviredNotifications(
-    progressCallback: (progress: { current: number, total: number }) => void
-): Promise<{ success: boolean; count: number; message?: string }> {
+export async function syncProviredNotifications(): Promise<{ success: boolean; count: number; message?: string }> {
     try {
         return await syncCollection(
             'provired_notifications',
-            () => makeApiRequest('report', 'getData'),
-            progressCallback
+            () => makeApiRequest('report', 'getData')
         );
     } catch (error: any) {
         console.error("Firebase notifications sync error:", error);

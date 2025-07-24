@@ -58,7 +58,6 @@ export default function NotificacionesPage() {
 
     // Sync state
     const [isSyncing, startSyncTransition] = useTransition();
-    const [syncProgress, setSyncProgress] = useState(0);
     const [syncMessage, setSyncMessage] = useState('');
 
 
@@ -168,14 +167,10 @@ export default function NotificacionesPage() {
 
     const handleSync = () => {
         startSyncTransition(async () => {
-            setSyncProgress(0);
-            setSyncMessage('Iniciando conexión con el servicio externo...');
+            setSyncMessage('Iniciando sincronización, por favor espere...');
             toast({ title: 'Sincronización Iniciada', description: 'Obteniendo todas las notificaciones. Este proceso puede tardar varios minutos.' });
 
-            const result = await syncProviredNotifications((progress) => {
-                setSyncProgress((progress.current / progress.total) * 100);
-                setSyncMessage(`Procesando lote ${progress.current} de ${progress.total}...`);
-            });
+            const result = await syncProviredNotifications();
 
             if (result.success) {
                 toast({ title: 'Sincronización Completa', description: `${result.count} notificaciones fueron procesadas.` });
@@ -186,7 +181,6 @@ export default function NotificacionesPage() {
             }
              setTimeout(() => {
                 setSyncMessage('');
-                setSyncProgress(0);
             }, 5000);
         });
     };
@@ -213,10 +207,8 @@ export default function NotificacionesPage() {
                      {isSyncing && (
                         <CardContent>
                             <div className="flex items-center gap-4">
-                                <div className="flex-1 space-y-1">
-                                    <p className="text-sm font-medium leading-none text-muted-foreground">{syncMessage}</p>
-                                    <Progress value={syncProgress} />
-                                </div>
+                               <Loader2 className="h-4 w-4 animate-spin" />
+                               <p className="text-sm text-muted-foreground">{syncMessage}</p>
                             </div>
                         </CardContent>
                     )}
