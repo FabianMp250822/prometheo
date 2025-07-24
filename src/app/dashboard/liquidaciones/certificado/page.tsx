@@ -113,7 +113,8 @@ export default function CertificadoPage() {
             }
         }
 
-        return data;
+        // Filter out years with no payment data
+        return data.filter(row => row.mesadaPrimerPago > 0 || row.mesadaUltimoPago > 0);
     }, [payments, historicalPayments, selectedPensioner]);
     
     const { recognitionDate, sharingDate } = useMemo(() => {

@@ -192,7 +192,7 @@ export default function AdquisitivoPage() {
         }
 
         // Step 3: Calculate derived values
-        return initialData.map(data => {
+        const calculatedData = initialData.map(data => {
             const unidadPensional = data.paidByCompany + data.pensionDeVejez;
             const numSmlmv = data.smlmv > 0 ? unidadPensional / data.smlmv : 0;
             return {
@@ -201,6 +201,9 @@ export default function AdquisitivoPage() {
                 numSmlmv: parseFloat(numSmlmv.toFixed(2))
             }
         });
+
+        // Step 4: Filter out years with no relevant financial data
+        return calculatedData.filter(data => data.unidadPensional > 0 || data.pensionDeVejez > 0);
 
     }, [payments, historicalPayments, causanteRecords]);
 
