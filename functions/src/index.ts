@@ -78,9 +78,9 @@ export const onNewPaymentCreate = onDocumentCreated(
 
     const newProcessDocRef = db.collection("procesoscancelados").doc();
 
-    const fechaLiquidacionDate = paymentData.fechaProcesado?.toDate
-      ? paymentData.fechaProcesado.toDate()
-      : new Date();
+    const fechaLiquidacionDate = paymentData.fechaProcesado?.toDate ?
+      paymentData.fechaProcesado.toDate() :
+      new Date();
 
     const newProcessData = {
       año: paymentData.año,
