@@ -122,6 +122,14 @@
         { "fieldPath": "pensionadoId", "order": "ASCENDING" },
         { "fieldPath": "creadoEn", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "provired_notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "demandante_lower", "order": "ASCENDING" },
+        { "fieldPath": "fechaPublicacion", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
