@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useTransition } from 'react';
@@ -63,7 +62,7 @@ export default function JuzgadosPage() {
 
   // Sync state
   const [isSyncing, startSyncTransition] = useTransition();
-  const [syncProgress, setSyncProgress] = useState({ value: 0, text: '' });
+  const [syncProgress, setSyncProgress] = useState(0);
   const { toast } = useToast();
 
   // State for notifications
@@ -208,12 +207,20 @@ export default function JuzgadosPage() {
 
   const handleSyncData = () => {
     startSyncTransition(async () => {
-        setSyncProgress({ value: 0, text: '' });
+        setSyncProgress(0);
         
         toast({ title: "Iniciando sincronización...", description: "Este proceso puede tardar varios minutos."});
 
+        // Simulate progress for user feedback as the actual process is on the server
+        const progressInterval = setInterval(() => {
+            setSyncProgress(prev => (prev < 90 ? prev + 5 : 90));
+        }, 1000);
+
         const result = await syncAllProviredDataToFirebase();
         
+        clearInterval(progressInterval);
+        setSyncProgress(100);
+
         if (result.success) {
             toast({ title: 'Sincronización Completa', description: 'Los datos de Provired han sido guardados en Firebase.' });
             await fetchInitialDataFromFirebase();
@@ -221,6 +228,7 @@ export default function JuzgadosPage() {
             toast({ variant: 'destructive', title: 'Error de Sincronización', description: result.message });
             setError(result.message || 'Ocurrió un error desconocido durante la sincronización.');
         }
+        setTimeout(() => setSyncProgress(0), 2000); // Reset progress bar
     });
   };
 
@@ -254,7 +262,7 @@ export default function JuzgadosPage() {
                 <div className="flex items-center gap-4">
                     <div className="flex-1 space-y-1">
                         <p className="text-sm font-medium leading-none">Sincronizando... por favor espere.</p>
-                        <Progress value={syncProgress.value} />
+                        <Progress value={syncProgress} />
                     </div>
                 </div>
             </CardContent>
@@ -298,68 +306,68 @@ export default function JuzgadosPage() {
               {loading.municipalities ? (
                   <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Cargando municipios...</div>
               ) : municipalities.length > 0 ? (
-                  <Accordion type="single" collapsible className="w-full">
-                      <Table>
-                          <TableHeader>
-                              <TableRow>
-                                  <TableHead className="w-1/3">Municipio</TableHead>
-                                  <TableHead>Corporaciones y Despachos</TableHead>
+                  <Table>
+                      <TableHeader>
+                          <TableRow>
+                              <TableHead className="w-1/3">Municipio</TableHead>
+                              <TableHead>Corporaciones y Despachos</TableHead>
+                          </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                          {municipalities.map((mun) => (
+                              <TableRow key={mun.IdMun}>
+                                  <TableCell className="font-medium align-top pt-4">{mun.municipio}</TableCell>
+                                  <TableCell>
+                                    <Accordion type="single" collapsible className="w-full" onValueChange={() => fetchCorporationsForMunicipality(mun.IdMun)}>
+                                        <AccordionItem value={mun.IdMun} className="border-b-0">
+                                            <AccordionTrigger>Ver Corporaciones</AccordionTrigger>
+                                            <AccordionContent>
+                                                {corporations[mun.IdMun]?.isLoading ? (
+                                                      <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Cargando...</div>
+                                                ) : corporations[mun.IdMun]?.data?.length > 0 ? (
+                                                    <Accordion type="single" collapsible className="w-full space-y-2">
+                                                        {corporations[mun.IdMun].data.map((corp) => (
+                                                            <AccordionItem value={corp.IdCorp} key={corp.IdCorp} className="border bg-card rounded-md">
+                                                                <AccordionTrigger className="p-3 hover:no-underline text-sm" onClick={() => fetchOfficesForCorporation(mun.IdMun, corp.IdCorp)}>
+                                                                    <div className="flex items-center gap-2"><University className="h-4 w-4"/> {corp.corporacion}</div>
+                                                                </AccordionTrigger>
+                                                                <AccordionContent className="p-3 pt-0">
+                                                                      {corp.isLoadingOffices ? (
+                                                                        <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Cargando...</div>
+                                                                    ) : corp.offices && corp.offices.length > 0 ? (
+                                                                        <div className="space-y-2 pl-4 border-l">
+                                                                            {corp.offices.map((office) => (
+                                                                                <div key={office.IdDes} className="flex items-center justify-between gap-2 text-xs py-1">
+                                                                                    <div className="flex items-center gap-2">
+                                                                                      <Building className="h-3 w-3 text-primary"/>
+                                                                                      {office.despacho}
+                                                                                    </div>
+                                                                                    {office.hasNotifications && (
+                                                                                        <Button variant="ghost" size="sm" onClick={() => handleOpenNotifications(office)}>
+                                                                                            <Bell className="h-3 w-3 mr-1 text-accent" /> Notificaciones
+                                                                                        </Button>
+                                                                                    )}
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    ) : (
+                                                                          <p className="text-xs text-muted-foreground pl-4">No se encontraron despachos para esta corporación.</p>
+                                                                    )}
+                                                                </AccordionContent>
+                                                            </AccordionItem>
+                                                        ))}
+                                                    </Accordion>
+                                                ) : (
+                                                      <p className="text-sm text-muted-foreground">No se encontraron corporaciones para este municipio.</p>
+                                                )}
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    </Accordion>
+                                  </TableCell>
                               </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                              {municipalities.map((mun) => (
-                                  <TableRow key={mun.IdMun}>
-                                      <TableCell className="font-medium align-top pt-4">{mun.municipio}</TableCell>
-                                      <TableCell>
-                                          <AccordionItem value={mun.IdMun} className="border-b-0">
-                                              <AccordionTrigger onClick={() => fetchCorporationsForMunicipality(mun.IdMun)}>Ver Corporaciones</AccordionTrigger>
-                                              <AccordionContent>
-                                                  {corporations[mun.IdMun]?.isLoading ? (
-                                                       <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Cargando...</div>
-                                                  ) : corporations[mun.IdMun]?.data?.length > 0 ? (
-                                                      <Accordion type="single" collapsible className="w-full space-y-2">
-                                                          {corporations[mun.IdMun].data.map((corp) => (
-                                                              <AccordionItem value={corp.IdCorp} key={corp.IdCorp} className="border bg-card rounded-md">
-                                                                  <AccordionTrigger className="p-3 hover:no-underline text-sm" onClick={() => fetchOfficesForCorporation(mun.IdMun, corp.IdCorp)}>
-                                                                      <div className="flex items-center gap-2"><University className="h-4 w-4"/> {corp.corporacion}</div>
-                                                                  </AccordionTrigger>
-                                                                  <AccordionContent className="p-3 pt-0">
-                                                                       {corp.isLoadingOffices ? (
-                                                                          <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Cargando...</div>
-                                                                      ) : corp.offices && corp.offices.length > 0 ? (
-                                                                          <div className="space-y-2 pl-4 border-l">
-                                                                              {corp.offices.map((office) => (
-                                                                                  <div key={office.IdDes} className="flex items-center justify-between gap-2 text-xs py-1">
-                                                                                      <div className="flex items-center gap-2">
-                                                                                        <Building className="h-3 w-3 text-primary"/>
-                                                                                        {office.despacho}
-                                                                                      </div>
-                                                                                      {office.hasNotifications && (
-                                                                                          <Button variant="ghost" size="sm" onClick={() => handleOpenNotifications(office)}>
-                                                                                              <Bell className="h-3 w-3 mr-1 text-accent" /> Notificaciones
-                                                                                          </Button>
-                                                                                      )}
-                                                                                  </div>
-                                                                              ))}
-                                                                          </div>
-                                                                      ) : (
-                                                                           <p className="text-xs text-muted-foreground pl-4">No se encontraron despachos para esta corporación.</p>
-                                                                      )}
-                                                                  </AccordionContent>
-                                                              </AccordionItem>
-                                                          ))}
-                                                      </Accordion>
-                                                  ) : (
-                                                       <p className="text-sm text-muted-foreground">No se encontraron corporaciones para este municipio.</p>
-                                                  )}
-                                              </AccordionContent>
-                                          </AccordionItem>
-                                      </TableCell>
-                                  </TableRow>
-                              ))}
-                          </TableBody>
-                      </Table>
-                  </Accordion>
+                          ))}
+                      </TableBody>
+                  </Table>
               ) : selectedDepartment ? (
                   <p className="text-muted-foreground">No se encontraron municipios para este departamento.</p>
               ) : (
