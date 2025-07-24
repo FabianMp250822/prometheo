@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-provider';
 import { auth } from '@/lib/firebase';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarSeparator, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '@/components/ui/sidebar';
-import { Scale, LayoutGrid, TrendingUp, Banknote, BarChart2, Settings, LogOut, User as UserIcon, Gavel, Database, FileUp, FileClock, BookUser, UserSquare, CalendarClock, ListTodo, CalendarPlus, CalendarSearch, Percent, Calculator, Ribbon, Wallet } from 'lucide-react';
+import { Scale, LayoutGrid, TrendingUp, Banknote, BarChart2, Settings, LogOut, User as UserIcon, Gavel, Database, FileUp, FileClock, BookUser, UserSquare, CalendarClock, ListTodo, CalendarPlus, CalendarSearch, Percent, Calculator, Ribbon, Wallet, Receipt, History, PlusCircle, UserCog, BarChartHorizontal, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -215,6 +215,71 @@ export default function DashboardLayout({
                               <Link href="/dashboard/pagos/sentencias">
                                 <Gavel />
                                 <span>Pago de Sentencias</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                       </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </Collapsible>
+              </SidebarMenuItem>
+               <SidebarMenuItem>
+                  <Collapsible>
+                    <CollapsibleTrigger asChild>
+                       <SidebarMenuButton tooltip="Contabilidad" className="w-full justify-between">
+                         <div className="flex items-center gap-2">
+                          <Receipt />
+                          <span className="group-data-[collapsible=icon]:hidden">Contabilidad</span>
+                        </div>
+                        <ChevronDown className="h-4 w-4 group-data-[collapsible=icon]:hidden group-data-[state=open]:rotate-180 transition-transform" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                       <SidebarMenuSub>
+                          <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/contabilidad/ver-pagos-cliente">
+                                <Wallet />
+                                <span>Ver Pagos de Cliente</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                          <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/contabilidad/historial-pagos">
+                                <History />
+                                <span>Ver Historial de Pagos</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                           <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/contabilidad/agregar-pago">
+                                <PlusCircle />
+                                <span>Agregar Pago</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                           <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/contabilidad/editar-usuario">
+                                <UserCog />
+                                <span>Editar Usuario</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                           <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/contabilidad/resumen-financiero">
+                                <BarChartHorizontal />
+                                <span>Resumen Financiero</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                          <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/contabilidad/documentos-soporte">
+                                <FileText />
+                                <span>Documentos Soporte</span>
                               </Link>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
