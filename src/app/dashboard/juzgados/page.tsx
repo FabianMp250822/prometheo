@@ -19,6 +19,7 @@ interface Department {
 interface Municipality {
     IdMun: string; 
     municipio: string;
+    depto_IdDep: string;
     corporations?: Corporation[];
     isLoadingCorporations?: boolean;
 }
@@ -77,6 +78,7 @@ export default function JuzgadosPage() {
     const response = await getMunicipalitiesByDepartment(depIdStr);
     
     if (response.success && Array.isArray(response.data)) {
+        console.log('--- Municipios Recibidos de la API ---', response.data);
         const stringifiedData = response.data.map(m => ({ ...m, IdMun: String(m.IdMun) }));
         setMunicipalities(stringifiedData);
     } else {
@@ -115,6 +117,8 @@ export default function JuzgadosPage() {
     }));
 
     const response = await getOfficesByCorporation(corporationId);
+    
+    console.log(`--- Despachos Recibidos para Corporación ${corporationId} ---`, response.data);
 
     setMunicipalities(prev => prev.map(mun => {
         if (mun.IdMun !== municipalityId || !mun.corporations) return mun;
@@ -123,7 +127,6 @@ export default function JuzgadosPage() {
             corporations: mun.corporations.map(corp => {
                 if (corp.id !== corporationId) return corp;
                 if (response.success && Array.isArray(response.data)) {
-                    console.log(`--- Despachos Recibidos para Corporación ${corporationId} ---`, response.data);
                     return { ...corp, offices: response.data.map(o => ({...o, id: String(o.id)})), isLoadingOffices: false };
                 }
                 return { ...corp, offices: [], isLoadingOffices: false };
@@ -203,8 +206,8 @@ export default function JuzgadosPage() {
                                                      <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Cargando...</div>
                                                 ) : mun.corporations && mun.corporations.length > 0 ? (
                                                     <Accordion type="single" collapsible className="w-full space-y-2">
-                                                        {mun.corporations.map((corp, corpIndex) => (
-                                                            <AccordionItem value={`corp-${corp.id}`} key={corp.id || corpIndex} className="border bg-card rounded-md">
+                                                        {mun.corporations.map((corp) => (
+                                                            <AccordionItem value={`corp-${corp.id}`} key={corp.id} className="border bg-card rounded-md">
                                                                 <AccordionTrigger className="p-3 hover:no-underline text-sm" onClick={() => fetchOfficesForCorporation(mun.IdMun, corp.id)}>
                                                                     <div className="flex items-center gap-2"><University className="h-4 w-4"/> {corp.corporacion}</div>
                                                                 </AccordionTrigger>
@@ -213,8 +216,8 @@ export default function JuzgadosPage() {
                                                                         <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Cargando...</div>
                                                                     ) : corp.offices && corp.offices.length > 0 ? (
                                                                         <div className="space-y-2 pl-4 border-l">
-                                                                            {corp.offices.map((office, officeIndex) => (
-                                                                                <div key={office.id || officeIndex} className="flex items-center gap-2 text-xs">
+                                                                            {corp.offices.map((office, index) => (
+                                                                                <div key={office.id || index} className="flex items-center gap-2 text-xs">
                                                                                     <Building className="h-3 w-3 text-primary"/>
                                                                                     {office.despacho}
                                                                                 </div>
