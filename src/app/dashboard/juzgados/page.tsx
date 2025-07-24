@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+
 
 interface Department {
   IdDep: string;
@@ -93,9 +95,8 @@ export default function JuzgadosPage() {
 
     const response = await getCorporationsByMunicipality(municipalityId);
     
-    if (response.success && response.data) {
-        const corpData = Array.isArray(response.data) ? response.data : [response.data];
-        const stringifiedData = corpData.map(c => ({ ...c, IdCorp: String(c.IdCorp) }));
+    if (response.success && Array.isArray(response.data)) {
+        const stringifiedData = response.data.map(c => ({ ...c, IdCorp: String(c.IdCorp) }));
         setCorporations(prev => ({ ...prev, [municipalityId]: stringifiedData }));
     } else {
         setCorporations(prev => ({ ...prev, [municipalityId]: [] }));
@@ -155,14 +156,14 @@ export default function JuzgadosPage() {
         <CardHeader>
             <CardTitle className="text-xl">Selección de Ubicación</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <CardContent>
             <div>
                 <Label htmlFor="department-select">Departamento</Label>
                  {loading.departments ? (
-                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full md:w-1/3" />
                  ) : (
                     <Select onValueChange={handleDepartmentChange} disabled={loading.departments}>
-                        <SelectTrigger id="department-select"><SelectValue placeholder="Seleccione un departamento..." /></SelectTrigger>
+                        <SelectTrigger id="department-select" className="w-full md:w-1/3"><SelectValue placeholder="Seleccione un departamento..." /></SelectTrigger>
                         <SelectContent>
                             {departments.map((dep) => <SelectItem key={dep.IdDep} value={dep.IdDep}>{dep.departamento}</SelectItem>)}
                         </SelectContent>
