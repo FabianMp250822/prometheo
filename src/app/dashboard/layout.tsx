@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-provider';
 import { auth } from '@/lib/firebase';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarSeparator, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '@/components/ui/sidebar';
-import { Scale, LayoutGrid, TrendingUp, Banknote, BarChart2, Settings, LogOut, User as UserIcon, Gavel, Database, FileUp, FileClock, BookUser, UserSquare, CalendarClock, ListTodo, CalendarPlus, CalendarSearch, Percent, Calculator, Ribbon, Wallet, Receipt, History, PlusCircle, UserCog, BarChartHorizontal, FileText, UserPlus, UserMinus, Landmark, BellRing } from 'lucide-react';
+import { Scale, LayoutGrid, TrendingUp, Banknote, BarChart2, Settings, LogOut, User as UserIcon, Gavel, Database, FileUp, FileClock, BookUser, UserSquare, CalendarClock, ListTodo, CalendarPlus, CalendarSearch, Percent, Calculator, Ribbon, Wallet, Receipt, History, PlusCircle, UserCog, BarChartHorizontal, FileText, UserPlus, UserMinus, Landmark, BellRing, Network } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -303,27 +303,44 @@ export default function DashboardLayout({
                     </CollapsibleContent>
                   </Collapsible>
               </SidebarMenuItem>
+               <SidebarMenuItem>
+                <Collapsible>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton tooltip="Procesos en Línea" className="w-full justify-between">
+                      <div className="flex items-center gap-2">
+                        <Network />
+                        <span className="group-data-[collapsible=icon]:hidden">Procesos en Línea</span>
+                      </div>
+                      <ChevronDown className="h-4 w-4 group-data-[collapsible=icon]:hidden group-data-[state=open]:rotate-180 transition-transform" />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild>
+                          <Link href="/dashboard/juzgados">
+                            <Landmark />
+                            <span>Juzgados</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild>
+                          <Link href="/dashboard/notificaciones">
+                            <BellRing />
+                            <span>Notificaciones</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </Collapsible>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild tooltip="Reportes">
                   <Link href="/dashboard/reportes">
                     <BarChart2 />
                     <span className="group-data-[collapsible=icon]:hidden">Reportes</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Juzgados">
-                  <Link href="/dashboard/juzgados">
-                    <Landmark />
-                    <span className="group-data-[collapsible=icon]:hidden">Juzgados</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-               <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Notificaciones">
-                  <Link href="/dashboard/notificaciones">
-                    <BellRing />
-                    <span className="group-data-[collapsible=icon]:hidden">Notificaciones</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
