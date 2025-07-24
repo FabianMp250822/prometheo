@@ -5,11 +5,11 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight, Briefcase, FileDown, TrendingDown } from 'lucide-react';
+import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight, Briefcase, FileDown, TrendingDown, BellRing } from 'lucide-react';
 import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parsePaymentDetailName, formatFirebaseTimestamp, parsePeriodoPago, parseDepartmentName } from '@/lib/helpers';
-import type { Payment, Parris1, LegalProcess, Causante, PagosHistoricoRecord, PensionerProfileData, DajusticiaClient, DajusticiaPayment } from '@/lib/data';
+import type { Payment, Parris1, LegalProcess, Causante, PagosHistoricoRecord, PensionerProfileData, DajusticiaClient, DajusticiaPayment, ProviredNotification } from '@/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { collection, doc, getDoc, getDocs, query, where, limit } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, limit, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 
@@ -46,7 +46,7 @@ export default function PensionadoPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const fetchAllData = useCallback(async (pensionerId: string, document: string) => {
+    const fetchAllData = useCallback(async (pensionerId: string, document: string, name: string) => {
         setIsLoading(true);
         setError(null);
         setProfileData(null);
@@ -107,6 +107,19 @@ export default function PensionadoPage() {
                 const clientPaymentsSnapshot = await getDocs(clientPaymentsQuery);
                 dajusticiaPayments = clientPaymentsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as DajusticiaPayment));
             }
+            
+             // 8. Fetch Last Notification from Provired
+            const nameToSearch = parseEmployeeName(name).toUpperCase();
+            const notificationsQuery = query(
+                collection(db, 'provired_notifications'),
+                where('demandante_lower', '==', nameToSearch.toLowerCase()),
+                orderBy('fechaPublicacion', 'desc'),
+                limit(1)
+            );
+            const notificationsSnapshot = await getDocs(notificationsQuery);
+            const lastNotification = !notificationsSnapshot.empty
+                ? { id: notificationsSnapshot.docs[0].id, ...notificationsSnapshot.docs[0].data() } as ProviredNotification
+                : null;
 
 
             setProfileData({
@@ -116,7 +129,8 @@ export default function PensionadoPage() {
                 causanteData,
                 historicalPayment,
                 dajusticiaClientData,
-                dajusticiaPayments
+                dajusticiaPayments,
+                lastNotification,
             });
 
         } catch (e) {
@@ -129,7 +143,7 @@ export default function PensionadoPage() {
 
     useEffect(() => {
         if (selectedPensioner?.id) {
-            fetchAllData(selectedPensioner.id, selectedPensioner.documento);
+            fetchAllData(selectedPensioner.id, selectedPensioner.documento, selectedPensioner.empleado);
         } else {
             setProfileData(null);
             setIsLoading(false);
@@ -195,7 +209,7 @@ export default function PensionadoPage() {
         );
     }
 
-    const { parris1Data, causanteData, legalProcesses, payments, historicalPayment, dajusticiaClientData } = profileData || {};
+    const { parris1Data, causanteData, legalProcesses, payments, historicalPayment, dajusticiaClientData, lastNotification } = profileData || {};
 
     return (
         <div className="p-4 md:p-8 space-y-6">
@@ -224,6 +238,22 @@ export default function PensionadoPage() {
 
             {!isLoading && !error && (
                 <>
+                    {lastNotification && (
+                        <Card>
+                             <CardHeader>
+                                <CardTitle className="text-xl flex items-center gap-2">
+                                    <BellRing className="h-5 w-5" /> Última Actuación
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                                <InfoField icon={<FileText />} label="Descripción" value={lastNotification.descripcion} />
+                                <InfoField icon={<Calendar />} label="Fecha Publicación" value={formatFirebaseTimestamp(lastNotification.fechaPublicacion)} />
+                                <InfoField icon={<Gavel />} label="Proceso" value={lastNotification.proceso} />
+                                <InfoField icon={<Hash />} label="Radicación" value={lastNotification.radicacion} />
+                            </CardContent>
+                        </Card>
+                    )}
+
                     {dajusticiaClientData && (
                         <Card className="border-accent">
                             <CardHeader>

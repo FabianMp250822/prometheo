@@ -122,6 +122,16 @@ export interface Tarea {
     resumen?: string;
 }
 
+// Types for Provired Notifications
+export interface ProviredNotification {
+  id: string;
+  descripcion: string;
+  fechaPublicacion: string;
+  proceso: string;
+  radicacion: string;
+  demandante: string;
+}
+
 
 // Types for Pensioner Profile Page
 export interface Parris1 {
@@ -213,4 +223,5 @@ export interface PensionerProfileData {
     historicalPayment: PagosHistoricoRecord | null;
     dajusticiaClientData: DajusticiaClient | null;
     dajusticiaPayments: DajusticiaPayment[];
+    lastNotification: ProviredNotification | null;
 }
