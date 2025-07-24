@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -7,11 +8,9 @@ import { FileText, User, Hash, Loader2, UserX } from 'lucide-react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { parseEmployeeName, formatCurrency } from '@/lib/helpers';
 import type { Payment, PagosHistoricoRecord } from '@/lib/data';
-import { collection, doc, getDocs, query, getDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-
-// --- Static Data ---
 const datosConsolidados: { [year: number]: { smlmv: number; ipc: number; reajusteSMLMV: number; } } = {
     1999: { smlmv: 236460, ipc: 16.70, reajusteSMLMV: 16.01 },
     2000: { smlmv: 260100, ipc: 9.23, reajusteSMLMV: 10.00 },
@@ -36,8 +35,6 @@ const datosIPC: { [year: number]: number } = {
     2006: 4.48,
 };
 
-
-// --- Component ---
 export default function AnexoLey4Page() {
     const { selectedPensioner } = usePensioner();
     const [isLoading, setIsLoading] = useState(false);
@@ -96,14 +93,24 @@ export default function AnexoLey4Page() {
             return 0;
         };
 
-        const countMesadasInYear = (year: number): number => {
+       const countMesadasInYear = (year: number): number => {
             const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
             let count = 0;
             paymentsInYear.forEach(p => {
-                const hasMesad = p.detalles.some(d => d.codigo === 'MESAD' && d.ingresos > 0);
-                const hasMesad14 = p.detalles.some(d => d.codigo === 'MESAD14' && d.ingresos > 0);
-                if (hasMesad) count++;
-                if (hasMesad14) count++;
+                p.detalles.forEach(detail => {
+                    const code = detail.codigo || '';
+                    const name = detail.nombre || '';
+                    
+                    const isMesada = code === 'MESAD' || name.includes('Mesada Pensional');
+                    const isAdicional = code === 'MESAD14' || code === '285' || name.includes('Mesada Adicional 14_Junio');
+
+                    if(isMesada && detail.ingresos > 0) {
+                        count++;
+                    }
+                    if(isAdicional && detail.ingresos > 0) {
+                        count++;
+                    }
+                });
             });
             return count;
         };
@@ -138,6 +145,7 @@ export default function AnexoLey4Page() {
             const numSmlmvProyectado = smlmv > 0 ? proyeccionMesada / smlmv : 0;
             const numSmlmvPagado = smlmv > 0 ? mesadaPagada / smlmv : 0;
             const diferencia = proyeccionMesada - mesadaPagada;
+            const totalRetroactivas = diferencia > 0 ? diferencia * numMesadas : 0;
 
             return {
                 año: year,
@@ -150,11 +158,15 @@ export default function AnexoLey4Page() {
                 numSmlmvPagado,
                 diferencia,
                 numMesadas,
-                totalRetroactivas: 0,
+                totalRetroactivas,
             };
         });
 
     }, [selectedPensioner, payments, historicalPayments]);
+    
+    const totalGeneralRetroactivas = useMemo(() => {
+        return tabla1Data.reduce((acc, row) => acc + row.totalRetroactivas, 0);
+    }, [tabla1Data]);
 
     return (
         <div className="p-4 md:p-8 space-y-6">
@@ -227,7 +239,7 @@ export default function AnexoLey4Page() {
                                         <TableHead># de SMLMV (En el Reajuste x IPC)</TableHead>
                                         <TableHead>Diferencias de Mesadas</TableHead>
                                         <TableHead># de Mesadas</TableHead>
-                                        <TableHead>Total Retroactivas</TableHead>
+                                        <TableHead>Total Diferencias Retroactivas</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -236,16 +248,22 @@ export default function AnexoLey4Page() {
                                            <TableCell>{row.año}</TableCell>
                                            <TableCell>{formatCurrency(row.smlmv)}</TableCell>
                                            <TableCell>{row.reajusteSMLMV.toFixed(2)}%</TableCell>
-                                           <TableCell>{formatCurrency(Math.round(row.proyeccionMesada))}</TableCell>
+                                           <TableCell>{formatCurrency(row.proyeccionMesada)}</TableCell>
                                            <TableCell>{row.numSmlmvProyectado.toFixed(2)}</TableCell>
                                            <TableCell>{row.reajusteIPC.toFixed(2)}%</TableCell>
                                            <TableCell>{formatCurrency(row.mesadaPagada)}</TableCell>
                                            <TableCell>{row.numSmlmvPagado.toFixed(2)}</TableCell>
-                                           <TableCell>{formatCurrency(Math.round(row.diferencia))}</TableCell>
+                                           <TableCell>{formatCurrency(row.diferencia)}</TableCell>
                                            <TableCell>{row.numMesadas}</TableCell>
                                            <TableCell>{formatCurrency(row.totalRetroactivas)}</TableCell>
                                        </TableRow>
                                    ))}
+                                </TableBody>
+                                <TableBody>
+                                    <TableRow className="font-bold bg-muted">
+                                        <TableCell colSpan={10} className="text-right">TOTAL GENERAL RETROACTIVAS</TableCell>
+                                        <TableCell>{formatCurrency(totalGeneralRetroactivas)}</TableCell>
+                                    </TableRow>
                                 </TableBody>
                             </Table>
                             </div>
