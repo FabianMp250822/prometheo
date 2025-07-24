@@ -57,7 +57,6 @@ export default function JuzgadosPage() {
       setError(null);
       const response = await getDepartments();
       if (response.success && Array.isArray(response.data)) {
-        // Ensure all IDs are strings for consistency
         const stringifiedData = response.data.map(d => ({ ...d, IdDep: String(d.IdDep) }));
         setDepartments(stringifiedData);
       } else {
@@ -77,9 +76,8 @@ export default function JuzgadosPage() {
 
     setLoading(prev => ({ ...prev, municipalities: true }));
     setError(null);
-    const response = await getMunicipalitiesByDepartment(departmentId);
+    const response = await getMunicipalitiesByDepartment(String(departmentId)); // Ensure it's a string
     if (response.success && Array.isArray(response.data)) {
-        // Ensure all IDs are strings
         const stringifiedData = response.data.map(m => ({ ...m, id: String(m.id) }));
         setMunicipalities(stringifiedData);
     } else {
@@ -90,17 +88,16 @@ export default function JuzgadosPage() {
   };
   
   const handleMunicipalityChange = async (municipalityId: string) => {
-    setSelectedMunicipality(municipalityId);
+    setSelectedMunicipality(String(municipalityId)); // Ensure it's a string
     setCorporations([]);
     setOffices({});
 
     setLoading(prev => ({ ...prev, corporations: true }));
     setError(null);
     
-    const response = await getCorporationsByMunicipality(municipalityId);
+    const response = await getCorporationsByMunicipality(String(municipalityId));
     
     if (response.success && response.data) {
-        // Handle both single object and array responses
         const corpData = Array.isArray(response.data) ? response.data : [response.data];
         if (corpData.length > 0) {
             setCorporations(corpData.map(c => ({...c, id: String(c.id)})));
@@ -116,15 +113,13 @@ export default function JuzgadosPage() {
   }
 
   const handleFetchOffices = async (corporationId: string) => {
-    // Prevent re-fetching if data already exists
     if (offices[corporationId]) return;
 
     setLoading(prev => ({ ...prev, offices: corporationId }));
-    const response = await getOfficesByCorporation(corporationId);
+    const response = await getOfficesByCorporation(String(corporationId));
     if (response.success && Array.isArray(response.data)) {
         setOffices(prev => ({...prev, [corporationId]: response.data.map(o => ({...o, id: String(o.id)})) }));
     } else {
-        // Store an empty array to indicate we've tried and failed, to prevent retries
         setOffices(prev => ({...prev, [corporationId]: []}));
     }
      setLoading(prev => ({ ...prev, offices: null }));
@@ -211,8 +206,8 @@ export default function JuzgadosPage() {
                             <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Cargando despachos...</div>
                         ) : offices[corp.id] && offices[corp.id].length > 0 ? (
                              <div className="space-y-2 pl-6 border-l">
-                                {offices[corp.id].map(office => (
-                                    <div key={office.id} className="flex items-center gap-2 text-sm">
+                                {offices[corp.id].map((office, index) => (
+                                    <div key={office.id || index} className="flex items-center gap-2 text-sm">
                                         <Library className="h-4 w-4 text-primary" />
                                         <span>{office.despacho}</span>
                                     </div>
