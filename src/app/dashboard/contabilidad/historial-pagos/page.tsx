@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { collection, getDocs, query, collectionGroup } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { DajusticiaClient, DajusticiaPayment } from '@/lib/data';
@@ -33,44 +33,42 @@ export default function HistorialPagosPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchAllData = async () => {
-      setIsLoading(true);
-      try {
+  const fetchAllData = useCallback(async () => {
+    setIsLoading(true);
+    try {
         // Step 1: Fetch all clients
         const clientsSnapshot = await getDocs(collection(db, "nuevosclientes"));
-        const clientsData = clientsSnapshot.docs.reduce((acc, doc) => {
-          acc[doc.id] = { id: doc.id, ...doc.data() } as DajusticiaClient;
-          return acc;
-        }, {} as { [key: string]: DajusticiaClient });
+        const clientsData = clientsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DajusticiaClient));
 
-        // Step 2: Fetch all payments using a collectionGroup query
-        const paymentsQuery = query(collectionGroup(db, 'pagos'));
-        const paymentsSnapshot = await getDocs(paymentsQuery);
+        // Step 2: For each client, fetch their payments
+        const allPayments: CombinedPayment[] = [];
+        for (const client of clientsData) {
+            const paymentsCollectionRef = collection(db, "nuevosclientes", client.id, "pagos");
+            const paymentsSnapshot = await getDocs(paymentsCollectionRef);
+            
+            paymentsSnapshot.forEach(doc => {
+                allPayments.push({
+                    ...(doc.data() as DajusticiaPayment),
+                    id: doc.id,
+                    clientInfo: client
+                });
+            });
+        }
         
-        const combinedData = paymentsSnapshot.docs.map(doc => {
-          const paymentData = { id: doc.id, ...doc.data() } as DajusticiaPayment;
-          const clientDocId = doc.ref.parent.parent?.id;
-          const clientInfo = clientDocId ? clientsData[clientDocId] : null;
-
-          if (!clientInfo) return null;
-
-          return { ...paymentData, clientInfo };
-        }).filter(Boolean) as CombinedPayment[];
-
         // Sort by date descending
-        combinedData.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
-
-        setPayments(combinedData);
-      } catch (error) {
+        allPayments.sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+        setPayments(allPayments);
+    } catch (error) {
         console.error("Error fetching payment history:", error);
         toast({ variant: 'destructive', title: 'Error', description: 'No se pudo cargar el historial de pagos.' });
-      } finally {
+    } finally {
         setIsLoading(false);
-      }
-    };
+    }
+}, [toast]);
+
+  useEffect(() => {
     fetchAllData();
-  }, [toast]);
+  }, [fetchAllData]);
 
   const filteredPayments = useMemo(() => {
     setCurrentPage(1);
