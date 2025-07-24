@@ -46,13 +46,16 @@ export default function EditarUsuarioPage() {
     const fetchClients = useCallback(async () => {
         setIsLoading(true);
         try {
-            // Query only for active clients
-            const q = query(collection(db, 'nuevosclientes'), where('estado', '!=', 'inactivo'));
+            const q = query(collection(db, 'nuevosclientes'));
             const clientsSnapshot = await getDocs(q);
             const clientsData = clientsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DajusticiaClient));
-            clientsData.sort((a,b) => a.nombres.localeCompare(b.nombres));
-            setClients(clientsData);
-            setFilteredClients(clientsData);
+            
+            // Filter out inactive clients on the client-side
+            const activeClients = clientsData.filter(c => c.estado !== 'inactivo');
+            
+            activeClients.sort((a,b) => a.nombres.localeCompare(b.nombres));
+            setClients(activeClients);
+            setFilteredClients(activeClients);
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: 'No se pudieron cargar los clientes.' });
         } finally {
