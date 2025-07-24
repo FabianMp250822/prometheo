@@ -43,24 +43,22 @@ export function GlobalHeader() {
             const searchPromises = [];
 
             if (isNumeric) {
-                // Search by document number in both collections
-                const pensionadosDocQuery = query(collection(db, "pensionados"), where("documento", ">=", searchVal), where("documento", "<=", searchVal + '\uf8ff'), limit(10));
-                const procesosDocQuery = query(collection(db, "procesos"), where("identidad_clientes", ">=", searchVal), where("identidad_clientes", "<=", searchVal + '\uf8ff'), limit(10));
+                // Search by document number
+                const pensionadosDocQuery = query(collection(db, "pensionados"), where("documento", ">=", searchVal), where("documento", "<=", searchVal + '\uf8ff'), limit(5));
+                const procesosDocQuery = query(collection(db, "procesos"), where("identidad_clientes", ">=", searchVal), where("identidad_clientes", "<=", searchVal + '\uf8ff'), limit(5));
                 searchPromises.push(getDocs(pensionadosDocQuery), getDocs(procesosDocQuery));
             } else {
-                // Search by name in both collections
+                // Search by name (case-insensitive by using uppercase)
                 const upperSearchVal = searchVal.toUpperCase();
-                const pensionadosNameQuery = query(collection(db, "pensionados"), where("empleado", ">=", upperSearchVal), where("empleado", "<=", upperSearchVal + '\uf8ff'), limit(10));
-                const procesosNameQuery = query(collection(db, "procesos"), where("nombres_demandante", ">=", upperSearchVal), where("nombres_demandante", "<=", upperSearchVal + '\uf8ff'), limit(10));
+                const pensionadosNameQuery = query(collection(db, "pensionados"), where("empleado", ">=", upperSearchVal), where("empleado", "<=", upperSearchVal + '\uf8ff'), limit(5));
+                const procesosNameQuery = query(collection(db, "procesos"), where("nombres_demandante", ">=", upperSearchVal), where("nombres_demandante", "<=", upperSearchVal + '\uf8ff'), limit(5));
                 searchPromises.push(getDocs(pensionadosNameQuery), getDocs(procesosNameQuery));
             }
 
             const [pensionadosSnapshot, procesosSnapshot] = await Promise.all(searchPromises);
 
-            // Adapt data from 'pensionados'
             const fromPensionados = pensionadosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
 
-            // Adapt data from 'procesos'
             const fromProcesos = procesosSnapshot.docs.map(doc => {
                  const data = doc.data();
                  return {
@@ -72,7 +70,6 @@ export function GlobalHeader() {
                  } as Pensioner
             });
             
-            // Combine and remove duplicates
             const combinedResults = [...fromPensionados, ...fromProcesos];
             const uniqueResults = Array.from(new Map(combinedResults.map(p => [p.documento, p])).values());
 
@@ -85,6 +82,7 @@ export function GlobalHeader() {
             setIsSearching(false);
         }
     }, []);
+
 
     useEffect(() => {
         searchGlobal(debouncedSearchTerm);
