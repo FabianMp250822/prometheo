@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { History, Search, Download, Calendar as CalendarIcon, Loader2, FileDown } from 'lucide-react';
+import { History, Search, Download, Calendar as CalendarIcon, Loader2, FileDown, RefreshCw } from 'lucide-react';
 import { DataTableSkeleton } from '@/components/dashboard/data-table-skeleton';
 import { formatCurrency, formatFirebaseTimestamp } from '@/lib/helpers';
 import { DateRange } from 'react-day-picker';
@@ -29,14 +29,11 @@ type GroupedClientPayments = {
     payments: DajusticiaPayment[];
 }
 
-// Session-level cache to store data
-let sessionCache: GroupedClientPayments[] | null = null;
-
 const ITEMS_PER_PAGE = 10;
 
 export default function HistorialPagosPage() {
-  const [groupedPayments, setGroupedPayments] = useState<GroupedClientPayments[]>(sessionCache || []);
-  const [isLoading, setIsLoading] = useState(!sessionCache);
+  const [groupedPayments, setGroupedPayments] = useState<GroupedClientPayments[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
@@ -81,7 +78,6 @@ export default function HistorialPagosPage() {
 
         const finalData = Object.values(groupedData);
         setGroupedPayments(finalData);
-        sessionCache = finalData; // Store in cache
 
     } catch (error) {
         console.error("Error fetching payment history:", error);
@@ -92,10 +88,7 @@ export default function HistorialPagosPage() {
 }, [toast]);
 
   useEffect(() => {
-    // Only fetch data if the cache is empty
-    if (!sessionCache) {
-      fetchAllData();
-    }
+    fetchAllData();
   }, [fetchAllData]);
 
   const filteredData = useMemo(() => {
@@ -174,10 +167,16 @@ export default function HistorialPagosPage() {
                       Consulte todos los pagos realizados por los clientes de DAJUSTICIA.
                   </CardDescription>
                 </div>
-                <Button onClick={exportToExcel} disabled={isLoading || filteredData.length === 0}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Exportar a Excel
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button onClick={fetchAllData} variant="outline" disabled={isLoading}>
+                      {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Refrescar
+                    </Button>
+                    <Button onClick={exportToExcel} disabled={isLoading || filteredData.length === 0}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Exportar a Excel
+                    </Button>
+                </div>
             </div>
           </CardHeader>
         </Card>
