@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { DajusticiaClient, DajusticiaPayment } from '@/lib/data';
+import type { DajusticiaClient, DajusticiaPayment, Pensioner } from '@/lib/data';
+import { useRouter } from 'next/navigation';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,6 +15,7 @@ import { formatCurrency } from '@/lib/helpers';
 import { DataTableSkeleton } from '@/components/dashboard/data-table-skeleton';
 import { parseEmployeeName } from '@/lib/helpers';
 import { Badge } from '@/components/ui/badge';
+import { usePensioner } from '@/context/pensioner-provider';
 
 interface ClientWithPayments extends DajusticiaClient {
   pagos: DajusticiaPayment[];
@@ -30,6 +32,8 @@ const years = Array.from({ length: 5 }, (_, i) => (currentYear -2 + i).toString(
 export default function ResumenFinancieroPage() {
   const [clients, setClients] = useState<ClientWithPayments[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+  const { setSelectedPensioner } = usePensioner();
   
   const [selectedMonth, setSelectedMonth] = useState<string>((new Date().getMonth() + 1).toString());
   const [selectedYear, setSelectedYear] = useState<string>(currentYear.toString());
@@ -94,10 +98,8 @@ export default function ResumenFinancieroPage() {
         }
       });
   
-      // Calculate monthly projection only if there's a remaining balance
       if (selectedMonth && selectedYear && salary > clientTotalPaid) {
           const remainingBalance = salary - clientTotalPaid;
-          // The projection is the monthly payment, but not more than the remaining balance
           monthlyProjection += Math.min(cuotaMensual, remainingBalance);
       }
     });
@@ -159,6 +161,18 @@ export default function ResumenFinancieroPage() {
     });
     return totals;
   }, [paymentStatusByClient]);
+  
+  const handleViewClientHistory = (client: DajusticiaClient) => {
+    const pensionerForContext: Pensioner = {
+      id: client.id,
+      documento: client.cedula,
+      empleado: `${client.nombres} ${client.apellidos}`,
+      dependencia1: client.grupo,
+      centroCosto: 'N/A'
+    };
+    setSelectedPensioner(pensionerForContext);
+    router.push(`/dashboard/contabilidad/pagos-cliente/${client.id}`);
+  };
   
 
   if (isLoading) {
@@ -278,7 +292,12 @@ export default function ResumenFinancieroPage() {
                     <TableBody>
                         {paymentStatusByClient.map(({ client, monthlyPayments, totalPaidInYear }) => (
                             <TableRow key={client.id} className="hover:bg-muted/50">
-                                <TableCell className="font-medium sticky left-0 bg-card z-10">{parseEmployeeName(client.nombres)}</TableCell>
+                                <TableCell 
+                                    className="font-medium sticky left-0 bg-card z-10 cursor-pointer hover:underline"
+                                    onClick={() => handleViewClientHistory(client)}
+                                >
+                                    {parseEmployeeName(client.nombres)}
+                                </TableCell>
                                 {monthlyPayments.map((status, index) => (
                                     <TableCell key={index} className="text-center text-xs p-2">
                                         {status === 'Completado' ? (
@@ -310,7 +329,7 @@ export default function ResumenFinancieroPage() {
              {/* Mobile Cards */}
              <div className="md:hidden grid grid-cols-1 gap-4">
                 {paymentStatusByClient.map(({ client, monthlyPayments, totalPaidInYear }) => (
-                    <Card key={client.id}>
+                    <Card key={client.id} onClick={() => handleViewClientHistory(client)}>
                         <CardHeader>
                             <CardTitle>{parseEmployeeName(client.nombres)}</CardTitle>
                             <CardDescription>Total Año: <span className="font-bold text-primary">{formatCurrency(totalPaidInYear)}</span></CardDescription>
@@ -339,3 +358,4 @@ export default function ResumenFinancieroPage() {
     </div>
   );
 }
+
