@@ -239,56 +239,6 @@ export default function AdquisitivoPage() {
                 </CardHeader>
             </Card>
 
-            {selectedPensioner && sharingData && (
-                <Card>
-                    <CardHeader>
-                         <CardTitle className="text-xl font-headline flex items-center gap-2">
-                             <BarChart3 className="h-5 w-5" />
-                             Resumen de Compartición Pensional
-                         </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="border rounded-lg overflow-hidden">
-                            <Table>
-                                <TableBody>
-                                    <TableRow>
-                                        <TableCell className="font-semibold bg-muted/50">FECHA DE COMPARTICIÓN DE LA PENSIÓN CONVENCIONAL CON LA PENSIÓN DEL ISS - COLPENSIONES</TableCell>
-                                        <TableCell className='text-center'>{sharingData.sharingDate}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableCell className="font-semibold bg-muted/50">MESADA PLENA DE LA PENSIÓN CONVENCIONAL ANTES DE LA COMPARTICIÓN</TableCell>
-                                        <TableCell className='text-center font-medium'>{formatCurrency(sharingData.mesadaAntes)}</TableCell>
-                                    </TableRow>
-                                </TableBody>
-                            </Table>
-                        </div>
-                        <div className="border rounded-lg overflow-hidden mt-4">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className='bg-muted'>PORCENTAJE Y VALORES DE CUOTAS PARTES EN QUE SE DISTRIBUYE EL MONTO DE LA MESADA PENSIONAL A PARTIR DE LA COMPARTICIÓN</TableHead>
-                                        <TableHead className='text-center bg-muted'>PORCENTAJE</TableHead>
-                                        <TableHead className='text-center bg-muted'>VALOR</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    <TableRow>
-                                        <TableCell className="font-semibold">A CARGO DE COLPENSIONES</TableCell>
-                                        <TableCell className='text-center'>{sharingData.porcentajeColpensiones.toFixed(2)}%</TableCell>
-                                        <TableCell className='text-center font-medium'>{formatCurrency(sharingData.aCargoColpensiones)}</TableCell>
-                                    </TableRow>
-                                    <TableRow>
-                                        <TableCell className="font-semibold">MAYOR VALOR A CARGO DE LA EMPRESA</TableCell>
-                                        <TableCell className='text-center'>{sharingData.porcentajeEmpresa.toFixed(2)}%</TableCell>
-                                        <TableCell className='text-center font-medium'>{formatCurrency(sharingData.aCargoEmpresa)}</TableCell>
-                                    </TableRow>
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
             <Card>
                 <CardContent className="pt-6">
                     {isLoading ? (
@@ -339,6 +289,56 @@ export default function AdquisitivoPage() {
                     )}
                 </CardContent>
             </Card>
+
+            {selectedPensioner && sharingData && (
+                <Card>
+                    <CardHeader>
+                         <CardTitle className="text-xl font-headline flex items-center gap-2">
+                             <BarChart3 className="h-5 w-5" />
+                             Resumen de Compartición Pensional
+                         </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="border rounded-lg overflow-hidden">
+                            <Table>
+                                <TableBody>
+                                    <TableRow>
+                                        <TableCell className="font-semibold bg-muted/50">FECHA DE COMPARTICIÓN DE LA PENSIÓN CONVENCIONAL CON LA PENSIÓN DEL ISS - COLPENSIONES</TableCell>
+                                        <TableCell className='text-center'>{sharingData.sharingDate}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableCell className="font-semibold bg-muted/50">MESADA PLENA DE LA PENSIÓN CONVENCIONAL ANTES DE LA COMPARTICIÓN</TableCell>
+                                        <TableCell className='text-center font-medium'>{formatCurrency(sharingData.mesadaAntes)}</TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
+                        </div>
+                        <div className="border rounded-lg overflow-hidden mt-4">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className='bg-muted'>PORCENTAJE Y VALORES DE CUOTAS PARTES EN QUE SE DISTRIBUYE EL MONTO DE LA MESADA PENSIONAL A PARTIR DE LA COMPARTICIÓN</TableHead>
+                                        <TableHead className='text-center bg-muted'>PORCENTAJE</TableHead>
+                                        <TableHead className='text-center bg-muted'>VALOR</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    <TableRow>
+                                        <TableCell className="font-semibold">A CARGO DE COLPENSIONES</TableCell>
+                                        <TableCell className='text-center'>{sharingData.porcentajeColpensiones.toFixed(2)}%</TableCell>
+                                        <TableCell className='text-center font-medium'>{formatCurrency(sharingData.aCargoColpensiones)}</TableCell>
+                                    </TableRow>
+                                    <TableRow>
+                                        <TableCell className="font-semibold">MAYOR VALOR A CARGO DE LA EMPRESA</TableCell>
+                                        <TableCell className='text-center'>{sharingData.porcentajeEmpresa.toFixed(2)}%</TableCell>
+                                        <TableCell className='text-center font-medium'>{formatCurrency(sharingData.aCargoEmpresa)}</TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 }
