@@ -84,15 +84,11 @@ export default function CertificadoPage() {
             let mesadaUltimoPago = 0;
 
             if (paymentsInYear.length > 0) {
-                 // Sum all mesadas from the first month with payments
-                const firstMonth = parsePeriodoPago(paymentsInYear[0].periodoPago)?.startDate?.getMonth();
-                const paymentsInFirstMonth = paymentsInYear.filter(p => parsePeriodoPago(p.periodoPago)?.startDate?.getMonth() === firstMonth);
-                mesadaPrimerPago = paymentsInFirstMonth.reduce((acc, p) => acc + (p.detalles.find(d => (d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD') && d.ingresos > 0)?.ingresos || 0), 0);
-
-                // Sum all mesadas from the last month with payments
-                const lastMonth = parsePeriodoPago(paymentsInYear[paymentsInYear.length - 1].periodoPago)?.startDate?.getMonth();
-                const paymentsInLastMonth = paymentsInYear.filter(p => parsePeriodoPago(p.periodoPago)?.startDate?.getMonth() === lastMonth);
-                mesadaUltimoPago = paymentsInLastMonth.reduce((acc, p) => acc + (p.detalles.find(d => (d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD') && d.ingresos > 0)?.ingresos || 0), 0);
+                const firstPaymentWithMesada = paymentsInYear.find(p => p.detalles.some(d => (d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD') && d.ingresos > 0));
+                mesadaPrimerPago = firstPaymentWithMesada?.detalles.find(d => (d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD') && d.ingresos > 0)?.ingresos || 0;
+                
+                const lastPaymentWithMesada = [...paymentsInYear].reverse().find(p => p.detalles.some(d => (d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD') && d.ingresos > 0));
+                mesadaUltimoPago = lastPaymentWithMesada?.detalles.find(d => (d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD') && d.ingresos > 0)?.ingresos || 0;
             }
             
             // Fallback to historical data if no recent payments for the year
@@ -215,6 +211,11 @@ export default function CertificadoPage() {
                         <p className="mt-4">
                             Este certificado se expide a solicitud de la parte interesada para los fines legales y administrativos a los que haya lugar.
                         </p>
+
+                         <div className="pt-24">
+                            <hr className="border-t border-gray-400 w-1/3" />
+                            <p className="text-sm">Firma Autorizada</p>
+                        </div>
                     </div>
                 </CardContent>
             </Card>
