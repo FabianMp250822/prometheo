@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Percent, Loader2, UserX, BarChart3 } from 'lucide-react';
+import { Percent, Loader2, UserX, BarChart3, MinusSquare } from 'lucide-react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { collection, getDocs, query, doc, getDoc, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -222,6 +222,16 @@ export default function AdquisitivoPage() {
         };
 
     }, [tableData, causanteRecords]);
+    
+    const smlmvLoss = useMemo(() => {
+        const validSmlmvValues = tableData.map(d => d.numSmlmv).filter(v => v > 0);
+        if (validSmlmvValues.length < 2) return null;
+
+        const firstValue = validSmlmvValues[0];
+        const lastValue = validSmlmvValues[validSmlmvValues.length - 1];
+        
+        return (firstValue - lastValue).toFixed(2);
+    }, [tableData]);
 
 
     return (
@@ -282,8 +292,16 @@ export default function AdquisitivoPage() {
                                     </TableBody>
                                 </Table>
                             </div>
-                             <div className="text-xs text-muted-foreground pt-4">
-                                * Valores proyectados calculados con base en el IPC del año anterior.
+                            <div className="text-sm pt-4 flex flex-col items-end gap-2">
+                                {smlmvLoss !== null && (
+                                    <div className="flex items-center gap-2 font-bold uppercase text-foreground">
+                                        <MinusSquare className="h-4 w-4" />
+                                        PÉRDIDA DE SALARIOS MÍNIMOS EN EL PERIODO: {smlmvLoss}
+                                    </div>
+                                )}
+                                <p className="text-muted-foreground">
+                                    * Valores proyectados calculados con base en el IPC del año anterior.
+                                </p>
                             </div>
                         </>
                     )}
