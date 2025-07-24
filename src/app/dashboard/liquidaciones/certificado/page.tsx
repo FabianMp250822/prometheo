@@ -14,8 +14,8 @@ import { useReactToPrint } from 'react-to-print';
 
 interface CertificateData {
     year: number;
-    mesadaEnero: number;
-    mesadaDiciembre: number;
+    mesadaPrimerPago: number;
+    mesadaUltimoPago: number;
     variacionCOP: number;
     variacionPorcentaje: number;
 }
@@ -65,21 +65,6 @@ export default function CertificadoPage() {
 
         fetchAllData();
     }, [selectedPensioner]);
-
-    const calculateMesadaForMonth = (year: number, month: number): number => {
-        const paymentsInMonth = payments.filter(p => {
-            const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
-            return paymentDate?.getFullYear() === year && paymentDate?.getMonth() === month;
-        });
-
-        if (paymentsInMonth.length > 0) {
-            return paymentsInMonth.reduce((acc, p) => {
-                const mesadaDetail = p.detalles.find(d => (d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD') && d.ingresos > 0);
-                return acc + (mesadaDetail?.ingresos || 0);
-            }, 0);
-        }
-        return 0;
-    };
     
     const tableData = useMemo((): CertificateData[] => {
         if (!selectedPensioner) return [];
@@ -90,33 +75,45 @@ export default function CertificadoPage() {
         const data: CertificateData[] = [];
 
         years.forEach(year => {
-            let mesadaEnero = calculateMesadaForMonth(year, 0); // January
-            if (mesadaEnero === 0) {
-                 const historicalRecord = historicalPayments.find(rec => rec.ANO_RET === year && rec.VALOR_ACT);
-                 if (historicalRecord) {
-                    const valorAct = parseFloat(historicalRecord.VALOR_ACT!.replace(',', '.'));
-                    mesadaEnero = !isNaN(valorAct) ? valorAct : 0;
-                 }
-            }
+            const paymentsInYear = payments.filter(p => {
+                const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
+                return paymentDate?.getFullYear() === year;
+            }).sort((a,b) => (parsePeriodoPago(a.periodoPago)?.startDate?.getTime() || 0) - (parsePeriodoPago(b.periodoPago)?.startDate?.getTime() || 0));
 
-            let mesadaDiciembre = calculateMesadaForMonth(year, 11); // December
-            if (mesadaDiciembre === 0) {
-                 const historicalRecord = historicalPayments.find(rec => rec.ANO_RET === year && rec.VALOR_ACT);
+            let mesadaPrimerPago = 0;
+            let mesadaUltimoPago = 0;
+
+            if (paymentsInYear.length > 0) {
+                 // Sum all mesadas from the first month with payments
+                const firstMonth = parsePeriodoPago(paymentsInYear[0].periodoPago)?.startDate?.getMonth();
+                const paymentsInFirstMonth = paymentsInYear.filter(p => parsePeriodoPago(p.periodoPago)?.startDate?.getMonth() === firstMonth);
+                mesadaPrimerPago = paymentsInFirstMonth.reduce((acc, p) => acc + (p.detalles.find(d => (d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD') && d.ingresos > 0)?.ingresos || 0), 0);
+
+                // Sum all mesadas from the last month with payments
+                const lastMonth = parsePeriodoPago(paymentsInYear[paymentsInYear.length - 1].periodoPago)?.startDate?.getMonth();
+                const paymentsInLastMonth = paymentsInYear.filter(p => parsePeriodoPago(p.periodoPago)?.startDate?.getMonth() === lastMonth);
+                mesadaUltimoPago = paymentsInLastMonth.reduce((acc, p) => acc + (p.detalles.find(d => (d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD') && d.ingresos > 0)?.ingresos || 0), 0);
+            }
+            
+            // Fallback to historical data if no recent payments for the year
+            if (mesadaPrimerPago === 0 || mesadaUltimoPago === 0) {
+                const historicalRecord = historicalPayments.find(rec => rec.ANO_RET === year && rec.VALOR_ACT);
                  if (historicalRecord) {
                     const valorAct = parseFloat(historicalRecord.VALOR_ACT!.replace(',', '.'));
-                    mesadaDiciembre = !isNaN(valorAct) ? valorAct : 0;
+                    if (mesadaPrimerPago === 0) mesadaPrimerPago = !isNaN(valorAct) ? valorAct : 0;
+                    if (mesadaUltimoPago === 0) mesadaUltimoPago = !isNaN(valorAct) ? valorAct : 0;
                  }
             }
             
-            data.push({ year, mesadaEnero, mesadaDiciembre, variacionCOP: 0, variacionPorcentaje: 0 });
+            data.push({ year, mesadaPrimerPago, mesadaUltimoPago, variacionCOP: 0, variacionPorcentaje: 0 });
         });
 
-        // Calculate variations
+        // Calculate variations based on the last payment of the year
         for (let i = 1; i < data.length; i++) {
-            const prevMesadaDiciembre = data[i - 1].mesadaDiciembre;
-            if (prevMesadaDiciembre > 0) {
-                data[i].variacionCOP = data[i].mesadaDiciembre - prevMesadaDiciembre;
-                data[i].variacionPorcentaje = (data[i].variacionCOP / prevMesadaDiciembre) * 100;
+            const prevMesadaUltimoPago = data[i - 1].mesadaUltimoPago;
+            if (prevMesadaUltimoPago > 0) {
+                data[i].variacionCOP = data[i].mesadaUltimoPago - prevMesadaUltimoPago;
+                data[i].variacionPorcentaje = (data[i].variacionCOP / prevMesadaUltimoPago) * 100;
             }
         }
 
@@ -192,8 +189,8 @@ export default function CertificadoPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Año</TableHead>
-                                    <TableHead>Mesada en Enero (Primer pago)</TableHead>
-                                    <TableHead>Mesada en Diciembre (Último pago)</TableHead>
+                                    <TableHead>Mesada (Primer pago del año)</TableHead>
+                                    <TableHead>Mesada (Último pago del año)</TableHead>
                                     <TableHead>Variación vs Año Anterior (COP)</TableHead>
                                     <TableHead>Variación vs Año Anterior (%)</TableHead>
                                 </TableRow>
@@ -202,8 +199,8 @@ export default function CertificadoPage() {
                                 {tableData.map((row) => (
                                     <TableRow key={row.year}>
                                         <TableCell className="font-medium">{row.year}</TableCell>
-                                        <TableCell>{formatCurrency(row.mesadaEnero)}</TableCell>
-                                        <TableCell>{formatCurrency(row.mesadaDiciembre)}</TableCell>
+                                        <TableCell>{formatCurrency(row.mesadaPrimerPago)}</TableCell>
+                                        <TableCell>{formatCurrency(row.mesadaUltimoPago)}</TableCell>
                                         <TableCell>{formatCurrency(row.variacionCOP)}</TableCell>
                                         <TableCell>{row.variacionPorcentaje > 0 ? `${row.variacionPorcentaje.toFixed(2)}%` : '-'}</TableCell>
                                     </TableRow>
