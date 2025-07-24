@@ -76,6 +76,9 @@ export default function JuzgadosPage() {
     setError(null);
     const response = await getMunicipalitiesByDepartment(depIdStr);
     
+    // Log the raw response from the API to the console for debugging
+    console.log("Respuesta de la API para municipios:", response.data);
+
     if (response.success && Array.isArray(response.data)) {
         const stringifiedData = response.data.map(m => ({ ...m, id: String(m.id) }));
         setMunicipalities(stringifiedData);
