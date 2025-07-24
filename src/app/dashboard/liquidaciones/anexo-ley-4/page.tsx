@@ -110,6 +110,7 @@ export default function AnexoLey4Page() {
             const smlmv = datosConsolidados[year as keyof typeof datosConsolidados]?.smlmv || 0;
             const reajusteSMLMV = datosConsolidados[year as keyof typeof datosConsolidados]?.reajusteSMLMV || 0;
             const reajusteIPC = datosIPC[year - 1 as keyof typeof datosIPC] || 0;
+            
             const mesadaPagada = getFirstPensionInYear(year);
             
             let proyeccionMesada = 0;
@@ -123,9 +124,7 @@ export default function AnexoLey4Page() {
 
             const numSmlmvProyectado = smlmv > 0 ? proyeccionMesada / smlmv : 0;
             const numSmlmvPagado = smlmv > 0 ? mesadaPagada / smlmv : 0;
-            const diferencia = 0;
-            const numMesadas = 0;
-            const totalRetroactivas = 0;
+            const diferencia = proyeccionMesada - mesadaPagada;
 
             return {
                 año: year,
@@ -137,8 +136,8 @@ export default function AnexoLey4Page() {
                 mesadaPagada,
                 numSmlmvPagado,
                 diferencia,
-                numMesadas,
-                totalRetroactivas,
+                numMesadas: 0,
+                totalRetroactivas: 0,
             };
         });
 
@@ -211,9 +210,9 @@ export default function AnexoLey4Page() {
                                         <TableHead>Proyección de Mesada Fiduprevisora con % SMLMV</TableHead>
                                         <TableHead># de SMLMV (En el Reajuste x SMLMV)</TableHead>
                                         <TableHead>Reajuste en % IPC</TableHead>
-                                        <TableHead>Mesada Pagada Fiduprevisora reajuste con IPC</TableHead>
+                                        <TableHead>Mesada Pagada Fiduprevisora reajuste con IPCs</TableHead>
                                         <TableHead># de SMLMV (En el Reajuste x IPC)</TableHead>
-                                        <TableHead>Diferencias</TableHead>
+                                        <TableHead>Diferencias de Mesadas</TableHead>
                                         <TableHead># de Mesadas</TableHead>
                                         <TableHead>Total Retroactivas</TableHead>
                                     </TableRow>
@@ -229,7 +228,7 @@ export default function AnexoLey4Page() {
                                            <TableCell>{row.reajusteIPC.toFixed(2)}%</TableCell>
                                            <TableCell>{formatCurrency(row.mesadaPagada)}</TableCell>
                                            <TableCell>{row.numSmlmvPagado.toFixed(2)}</TableCell>
-                                           <TableCell>{row.diferencia}</TableCell>
+                                           <TableCell>{formatCurrency(row.diferencia)}</TableCell>
                                            <TableCell>{row.numMesadas}</TableCell>
                                            <TableCell>{row.totalRetroactivas}</TableCell>
                                        </TableRow>
