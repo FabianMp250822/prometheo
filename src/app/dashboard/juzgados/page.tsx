@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -176,7 +177,7 @@ export default function JuzgadosPage() {
                             <SelectValue placeholder={!selectedDepartment ? "Seleccione un departamento primero" : "Seleccione un municipio..."} />
                         </SelectTrigger>
                         <SelectContent>
-                            {municipalities.map(mun => <SelectItem key={mun.id} value={mun.id}>{mun.municipio}</SelectItem>)}
+                            {municipalities.map((mun, index) => <SelectItem key={mun.id || index} value={mun.id}>{mun.municipio}</SelectItem>)}
                         </SelectContent>
                     </Select>
                 )}
