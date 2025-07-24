@@ -97,8 +97,7 @@ export const onNewPaymentCreate = onDocumentCreated(
     const newProcessDocRef = db.collection("procesoscancelados").doc();
 
     const fechaLiquidacionDate = paymentData.fechaProcesado?.toDate ?
-      paymentData.fechaProcesado.toDate() :
-      new Date();
+      paymentData.fechaProcesado.toDate() : new Date();
 
     const newProcessData = {
       año: paymentData.año,
@@ -285,6 +284,15 @@ interface ApiResponse {
   data?: Record<string, unknown>[];
 }
 
+interface NotificationItem {
+  fechaPublicacion?: string;
+  radicacion?: string;
+  demandante?: string;
+  demandado?: string;
+  [key: string]: unknown;
+}
+
+
 /**
  * Retrieves a JWT token, fetching a new one if expired.
  * @return {Promise<string>} The JWT token.
@@ -350,27 +358,56 @@ export const syncDailyNotifications = onSchedule(
   async () => {
     logger.info("Starting daily notification sync...");
     try {
-      const notifications = await makeApiRequest("report", "getData");
-      if (!Array.isArray(notifications) || notifications.length === 0) {
-        logger.info("No new notifications to sync.");
+      // 1. Fetch existing notification identifiers from Firestore
+      const existingNotifsSnapshot =
+        await db.collection("provired_notifications").get();
+      const existingNotifIds = new Set(
+        existingNotifsSnapshot.docs.map((doc) => doc.data().uniqueId),
+      );
+      logger.info(`Found ${existingNotifIds.size} existing notifs in DB.`);
+
+      // 2. Fetch all notifications from the external API
+      const newNotifications =
+        (await makeApiRequest("report", "getData")) as NotificationItem[];
+      if (!Array.isArray(newNotifications) || newNotifications.length === 0) {
+        logger.info("No new notifications to sync from API.");
         return;
       }
+      logger.info(`Fetched ${newNotifications.length} notifs from API.`);
 
-      logger.info(`Fetched ${notifications.length} notifications from API.`);
+      // 3. Filter out notifications that already exist in the database
+      const notificationsToSave = newNotifications.filter((item) => {
+        const uniqueId =
+          `${item.fechaPublicacion}-${item.radicacion}`.replace(/\s+/g, "");
+        return !existingNotifIds.has(uniqueId);
+      });
 
+      if (notificationsToSave.length === 0) {
+        logger.info("No new notifications to save after filtering.");
+        return;
+      }
+      logger.info(`Found ${notificationsToSave.length} new notifications.`);
+
+      // 4. Save the new notifications in batches
       const BATCH_SIZE = 400;
-      for (let i = 0; i < notifications.length; i += BATCH_SIZE) {
+      for (let i = 0; i < notificationsToSave.length; i += BATCH_SIZE) {
         const batch: WriteBatch = db.batch();
-        const chunk = notifications.slice(i, i + BATCH_SIZE);
+        const chunk = notificationsToSave.slice(i, i + BATCH_SIZE);
 
         chunk.forEach((item) => {
+          const uniqueId =
+            `${item.fechaPublicacion}-${item.radicacion}`.replace(/\s+/g, "");
           const docId = db.collection("provired_notifications").doc().id;
           const docRef = db.collection("provired_notifications").doc(docId);
-          item.demandante_lower =
-          (item.demandante as string)?.toLowerCase() || "";
-          item.demandado_lower =
-          (item.demandado as string)?.toLowerCase() || "";
-          batch.set(docRef, item);
+
+          const dataToSet = {
+            ...item,
+            uniqueId: uniqueId,
+            demandante_lower: (item.demandante || "").toLowerCase(),
+            demandado_lower: (item.demandado || "").toLowerCase(),
+            syncedAt: Timestamp.now(),
+          };
+          batch.set(docRef, dataToSet);
         });
 
         await batch.commit();
