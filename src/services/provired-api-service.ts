@@ -70,13 +70,23 @@ async function syncCollection(
 
         for (const item of chunk) {
             let docId: string;
-            // Use the most specific ID available first to ensure uniqueness.
-            if (item.notificacion) docId = String(item.notificacion); // For notifications, use the notification ID
-            else if (item.IdDes) docId = String(item.IdDes);
-            else if (item.IdCorp) docId = String(item.IdCorp);
-            else if (item.IdMun) docId = String(item.IdMun);
-            else if (item.IdDep) docId = String(item.IdDep);
-            else docId = doc(collection(db, collectionName)).id; // Fallback for safety
+            
+            // For notifications, we must generate a unique ID because 'notificacion' is not unique globally.
+            // For other collections, we use their specific IDs.
+            if (collectionName === 'provired_notifications') {
+                 docId = doc(collection(db, collectionName)).id;
+            } else if (item.IdDes) {
+                 docId = String(item.IdDes);
+            } else if (item.IdCorp) {
+                docId = String(item.IdCorp);
+            } else if (item.IdMun) {
+                docId = String(item.IdMun);
+            } else if (item.IdDep) {
+                docId = String(item.IdDep);
+            } else {
+                // Fallback to auto-generated ID if no other ID is present.
+                docId = doc(collection(db, collectionName)).id;
+            }
 
             const docRef = doc(db, collectionName, docId);
 
