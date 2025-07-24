@@ -83,14 +83,6 @@ export default function DashboardLayout({
               </SidebarMenuItem>
             )}
              <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Análisis de Sentencias" >
-                  <Link href="/dashboard/sentencias">
-                    <Gavel />
-                    <span className="group-data-[collapsible=icon]:hidden">Análisis de Sentencias</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-               <SidebarMenuItem>
                   <Collapsible>
                     <CollapsibleTrigger asChild>
                        <SidebarMenuButton tooltip="Agenda" className="w-full justify-between">

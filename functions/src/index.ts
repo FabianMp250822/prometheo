@@ -6,8 +6,7 @@ import {getFirestore, Timestamp} from "firebase-admin/firestore";
 import {onRequest} from "firebase-functions/v2/https";
 import * as nodemailer from "nodemailer";
 
-
-// Initialize admin SDK if not already initialized
+// Inicializar Firebase Admin si no se ha hecho aún
 if (getApps().length === 0) {
   initializeApp();
 }
@@ -30,11 +29,9 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-
-// Define the prefixes for the legal concepts we're interested in.
+// Prefijos de conceptos jurídicos relevantes
 const SENTENCE_CONCEPT_PREFIXES = ["470-", "785-", "475-"];
 
-// Define a type for payment details to avoid using 'any'.
 interface PaymentDetail {
   nombre?: string;
   codigo?: string | null;
@@ -42,12 +39,7 @@ interface PaymentDetail {
   egresos?: number;
 }
 
-/**
- * A Cloud Function that triggers when a new payment is created.
- * It checks for specific legal concepts within the payment details and,
- * if found, creates a corresponding document in the 'procesoscancelados'
- * collection.
- */
+// Trigger para documentos nuevos en pagos
 export const onNewPaymentCreate = onDocumentCreated(
   "pensionados/{pensionadoId}/pagos/{pagoId}",
   async (event) => {
@@ -67,7 +59,6 @@ export const onNewPaymentCreate = onDocumentCreated(
       return;
     }
 
-    // Filter for details that match our sentence concepts.
     const sentenceConcepts = paymentData.detalles.filter(
       (detail: PaymentDetail) =>
         SENTENCE_CONCEPT_PREFIXES.some((prefix) =>
@@ -75,7 +66,6 @@ export const onNewPaymentCreate = onDocumentCreated(
         )
     );
 
-    // If no sentence-related concepts are found, do nothing.
     if (sentenceConcepts.length === 0) {
       logger.info(`No sentence concepts in pmt ${pagoId}. Skipping.`);
       return;
@@ -87,9 +77,10 @@ export const onNewPaymentCreate = onDocumentCreated(
 
     const newProcessDocRef = db.collection("procesoscancelados").doc();
 
-    const fechaLiquidacionDate = paymentData.fechaProcesado?.toDate ?
-      paymentData.fechaProcesado.toDate() :
-      new Date();
+    const fechaLiquidacionDate =
+      paymentData.fechaProcesado?.toDate != null
+        ? paymentData.fechaProcesado.toDate()
+        : new Date();
 
     const newProcessData = {
       año: paymentData.año,
@@ -102,7 +93,7 @@ export const onNewPaymentCreate = onDocumentCreated(
       creadoEn: Timestamp.now(),
       fechaLiquidacion: fechaLiquidacionDate.toISOString(),
       pagoId: paymentData.pagoId || pagoId,
-      pensionadoId: pensionadoId,
+      pensionadoId,
       periodoPago: paymentData.periodoPago,
     };
 
@@ -113,12 +104,10 @@ export const onNewPaymentCreate = onDocumentCreated(
       );
     } catch (error) {
       logger.error(`Error creating proc doc for pmt ${pagoId}:`, error);
-      // Let the function fail to indicate an error, which can trigger retries.
       throw error;
     }
   }
 );
-
 
 // ===================================
 // Función HTTP: sendPaymentReminder
@@ -130,6 +119,7 @@ export const sendPaymentReminder = onRequest(async (req, res) => {
     res.set("Access-Control-Allow-Headers", "Content-Type");
     return res.status(204).send("");
   }
+
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Headers", "Content-Type");
 
@@ -143,7 +133,8 @@ export const sendPaymentReminder = onRequest(async (req, res) => {
   if (!emailUsuario || !nombreUsuario || !deudaActual || !cuotaSugerida) {
     logger.error("Faltan parámetros en la solicitud", req.body);
     return res.status(400).json({
-      message: "Faltan parámetros requeridos: emailUsuario, nombreUsuario, deudaActual, cuotaSugerida.",
+      message:
+        "Faltan parámetros requeridos: emailUsuario, nombreUsuario, deudaActual, cuotaSugerida.",
     });
   }
 
@@ -160,22 +151,64 @@ export const sendPaymentReminder = onRequest(async (req, res) => {
   <meta charset="UTF-8" />
   <title>${subject}</title>
   <style>
-    body { font-family: Arial, sans-serif; color: #333; background-color: #f5f5f5; margin: 0; padding: 20px; }
-    .container { max-width: 600px; margin: 0 auto; background: #fff; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-    .header { background: #ffffff; text-align: center; padding: 20px; }
-    .header img { max-width: 150px; }
-    .content { padding: 20px; text-align: center; }
-    .content h1 { color: #d32f2f; }
-    .details { background: #f9f9f9; padding: 15px; border-radius: 4px; margin: 20px 0; }
-    .details p { margin: 5px 0; font-size: 16px; }
-    .details strong { color: #1976d2; }
-    .footer { background: #1976d2; color: #ffffff; text-align: center; padding: 15px; font-size: 12px; }
+    body {
+      font-family: Arial, sans-serif;
+      color: #333;
+      background-color: #f5f5f5;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    .header {
+      background: #ffffff;
+      text-align: center;
+      padding: 20px;
+    }
+    .header img {
+      max-width: 150px;
+    }
+    .content {
+      padding: 20px;
+      text-align: center;
+    }
+    .content h1 {
+      color: #d32f2f;
+    }
+    .details {
+      background: #f9f9f9;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 20px 0;
+    }
+    .details p {
+      margin: 5px 0;
+      font-size: 16px;
+    }
+    .details strong {
+      color: #1976d2;
+    }
+    .footer {
+      background: #1976d2;
+      color: #ffffff;
+      text-align: center;
+      padding: 15px;
+      font-size: 12px;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <img src="https://dajusticia.com/web/wp-content/uploads/2024/01/logo-dajusticia-8.png" alt="Dajusticia" />
+      <img src="https://dajusticia.com/web/wp-content/uploads/2024/01/logo-dajusticia-8.png"
+        alt="Dajusticia" />
     </div>
     <div class="content">
       <h1>Recordatorio de Pago Pendiente</h1>
@@ -194,8 +227,7 @@ export const sendPaymentReminder = onRequest(async (req, res) => {
     </div>
   </div>
 </body>
-</html>
-    `,
+</html>`,
   };
 
   try {
@@ -213,4 +245,3 @@ export const sendPaymentReminder = onRequest(async (req, res) => {
     });
   }
 });
-

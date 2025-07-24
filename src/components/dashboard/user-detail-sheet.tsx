@@ -1,145 +1,374 @@
-"use client";
+'use client';
 
-import { UserPayment, LegalConcept } from '@/lib/data';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
-import { PaymentSuggestions } from './payment-suggestions';
-import { formatCurrency } from '@/lib/helpers';
-import { Button } from '../ui/button';
-import { Check } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/auth-provider';
+import { auth } from '@/lib/firebase';
+import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarSeparator, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '@/components/ui/sidebar';
+import { Scale, LayoutGrid, TrendingUp, Banknote, BarChart2, Settings, LogOut, User as UserIcon, Gavel, Database, FileUp, FileClock, BookUser, UserSquare, CalendarClock, ListTodo, CalendarPlus, CalendarSearch, Percent, Calculator, Ribbon, Wallet, Receipt, History, PlusCircle, UserCog, BarChartHorizontal, FileText, UserPlus, UserMinus } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { GlobalHeader } from '@/components/dashboard/global-header';
+import { usePensioner } from '@/context/pensioner-provider';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown } from 'lucide-react';
 
-interface UserDetailSheetProps {
-  user: UserPayment | null;
-  onOpenChange: (open: boolean) => void;
-  onMarkAsAnalyzed: (userId: string) => void;
-}
-  
-const getConceptColor = (concept: LegalConcept) => {
-    switch (concept) {
-      case 'Costas Procesales': return 'bg-rose-100 text-rose-800';
-      case 'Retro Mesada Adicional': return 'bg-sky-100 text-sky-800';
-      case 'Procesos y Sentencia Judiciales': return 'bg-teal-100 text-teal-800';
-      default: return 'bg-gray-100 text-gray-800';
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const { user, loading } = useAuth();
+  const { selectedPensioner } = usePensioner();
+  const router = useRouter();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login');
     }
-};
+  }, [user, loading, router]);
 
-export function UserDetailSheet({ user, onOpenChange, onMarkAsAnalyzed }: UserDetailSheetProps) {
-  if (!user) return null;
+  const handleLogout = async () => {
+    try {
+      await auth.signOut();
+      toast({ title: 'Sesión cerrada', description: 'Has cerrado sesión exitosamente.' });
+      router.push('/login');
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'No se pudo cerrar la sesión.',
+      });
+    }
+  };
 
-  const handleMarkAsAnalyzed = () => {
-    onMarkAsAnalyzed(user.id);
-    onOpenChange(false);
+  if (loading || !user) {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-background">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
+    );
   }
 
   return (
-    <Sheet open={!!user} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-3xl overflow-y-auto">
-        <SheetHeader>
-          <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16">
-              <AvatarImage src={user.user.avatarUrl} alt={user.user.name} data-ai-hint="person portrait" />
-              <AvatarFallback>{user.user.name.charAt(0)}</AvatarFallback>
-            </Avatar>
-            <div>
-              <SheetTitle className="text-3xl font-headline">{user.user.name}</SheetTitle>
-              <SheetDescription>
-                Documento: {user.user.document} | Dependencia: {user.department}
-              </SheetDescription>
-            </div>
+    <SidebarProvider>
+      <Sidebar>
+        <SidebarHeader>
+          <div className="flex items-center gap-2 p-2">
+            <Scale className="text-accent h-8 w-8" />
+            <h1 className="text-2xl font-headline text-white">Prometeo</h1>
           </div>
-        </SheetHeader>
-        <div className="py-6 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-headline text-xl">Resumen de Pago</CardTitle>
-            </CardHeader>
-            <CardContent className="grid md:grid-cols-3 gap-4">
-              {Object.entries(user.concepts).map(([key, value]) => (
-                <div key={key} className={cn('p-3 rounded-lg', getConceptColor(key as LegalConcept))}>
-                  <p className="text-sm font-medium">{key}</p>
-                  <p className="text-2xl font-bold">{formatCurrency(value || 0)}</p>
-                </div>
-              ))}
-               <div className="p-3 rounded-lg bg-gray-800 text-white">
-                  <p className="text-sm font-medium">Monto Total</p>
-                  <p className="text-2xl font-bold">{formatCurrency(user.totalAmount)}</p>
-                </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-headline text-xl">Detalle de Sentencias</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Fecha</TableHead>
-                    <TableHead>Descripción</TableHead>
-                    <TableHead className="text-right">Monto</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {user.sentences.map(sentence => (
-                    <TableRow key={sentence.id}>
-                      <TableCell>{sentence.date}</TableCell>
-                      <TableCell>{sentence.description}</TableCell>
-                      <TableCell className="text-right font-medium">{formatCurrency(sentence.amount)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          <PaymentSuggestions user={user} />
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-headline text-xl">Historial de Pagos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Periodo</TableHead>
-                    <TableHead>Documento Ref.</TableHead>
-                    <TableHead className="text-right">Monto</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {user.paymentHistory.length > 0 ? (
-                    user.paymentHistory.map(payment => (
-                        <TableRow key={payment.id}>
-                        <TableCell>{payment.period}</TableCell>
-                        <TableCell>{payment.documentRef}</TableCell>
-                        <TableCell className="text-right font-medium">{formatCurrency(payment.amount)}</TableCell>
-                        </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                        <TableCell colSpan={3} className="text-center text-muted-foreground">No hay historial de pagos.</TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
-         <SheetFooter className="pr-6">
-            {!user.analyzedAt && (
-              <Button onClick={handleMarkAsAnalyzed}>
-                <Check className="mr-2 h-4 w-4" />
-                Marcar como Analizado
-              </Button>
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild tooltip="Dashboard">
+                <Link href="/dashboard">
+                  <LayoutGrid />
+                  <span className="group-data-[collapsible=icon]:hidden">Dashboard</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            {selectedPensioner && (
+               <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Hoja de Vida">
+                  <Link href="/dashboard/pensionado">
+                    <UserSquare />
+                    <span className="group-data-[collapsible=icon]:hidden">Hoja de Vida</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             )}
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
-  );
+             <SidebarMenuItem>
+                  <Collapsible>
+                    <CollapsibleTrigger asChild>
+                       <SidebarMenuButton tooltip="Agenda" className="w-full justify-between">
+                         <div className="flex items-center gap-2">
+                          <CalendarClock />
+                          <span className="group-data-[collapsible=icon]:hidden">Agenda</span>
+                        </div>
+                        <ChevronDown className="h-4 w-4 group-data-[collapsible=icon]:hidden group-data-[state=open]:rotate-180 transition-transform" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                       <SidebarMenuSub>
+                          <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/agenda/por-fecha">
+                                <CalendarSearch />
+                                <span>Por Fecha</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                           <SidebarMenuSubItem>
+                             <Collapsible>
+                                <CollapsibleTrigger asChild>
+                                   <SidebarMenuSubButton className="w-full justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <ListTodo />
+                                        <span>Tareas</span>
+                                      </div>
+                                      <ChevronDown className="h-4 w-4 group-data-[state=open]:rotate-180 transition-transform" />
+                                    </SidebarMenuSubButton>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="pl-4">
+                                   <SidebarMenuSub>
+                                      <SidebarMenuSubItem>
+                                        <SidebarMenuSubButton asChild size="sm">
+                                          <Link href="/dashboard/agenda/agregar-tareas">
+                                            <CalendarPlus />
+                                            <span>Agregar Tareas</span>
+                                          </Link>
+                                        </SidebarMenuSubButton>
+                                      </SidebarMenuSubItem>
+                                      <SidebarMenuSubItem>
+                                        <SidebarMenuSubButton asChild size="sm">
+                                          <Link href="/dashboard/agenda/ver-tareas">
+                                            <CalendarSearch />
+                                            <span>Ver Tareas</span>
+                                          </Link>
+                                        </SidebarMenuSubButton>
+                                      </SidebarMenuSubItem>
+                                    </SidebarMenuSub>
+                                </CollapsibleContent>
+                              </Collapsible>
+                          </SidebarMenuSubItem>
+                       </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </Collapsible>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <Collapsible>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton tooltip="Liquidaciones" className="w-full justify-between">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp />
+                        <span className="group-data-[collapsible=icon]:hidden">Liquidaciones</span>
+                      </div>
+                      <ChevronDown className="h-4 w-4 group-data-[collapsible=icon]:hidden group-data-[state=open]:rotate-180 transition-transform" />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild>
+                          <Link href="/dashboard/liquidaciones/adquisitivo">
+                            <Percent />
+                            <span>Poder Adquisitivo</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild>
+                          <Link href="/dashboard/liquidaciones/liquidador">
+                            <Calculator />
+                            <span>Liquidador</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild>
+                          <Link href="/dashboard/liquidaciones/certificado">
+                            <Ribbon />
+                            <span>Certificado</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </Collapsible>
+              </SidebarMenuItem>
+               <SidebarMenuItem>
+                  <Collapsible>
+                    <CollapsibleTrigger asChild>
+                       <SidebarMenuButton tooltip="Pagos y Sentencias" className="w-full justify-between">
+                         <div className="flex items-center gap-2">
+                          <Banknote />
+                          <span className="group-data-[collapsible=icon]:hidden">Pagos y Sentencias</span>
+                        </div>
+                        <ChevronDown className="h-4 w-4 group-data-[collapsible=icon]:hidden group-data-[state=open]:rotate-180 transition-transform" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                       <SidebarMenuSub>
+                          <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/pagos/consulta">
+                                <Wallet />
+                                <span>Consulta de Pagos</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                          <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/pagos/sentencias">
+                                <Gavel />
+                                <span>Pago de Sentencias</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                       </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </Collapsible>
+              </SidebarMenuItem>
+               <SidebarMenuItem>
+                  <Collapsible>
+                    <CollapsibleTrigger asChild>
+                       <SidebarMenuButton tooltip="Contabilidad" className="w-full justify-between">
+                         <div className="flex items-center gap-2">
+                          <Receipt />
+                          <span className="group-data-[collapsible=icon]:hidden">Contabilidad</span>
+                        </div>
+                        <ChevronDown className="h-4 w-4 group-data-[collapsible=icon]:hidden group-data-[state=open]:rotate-180 transition-transform" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                       <SidebarMenuSub>
+                          <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/contabilidad/historial-pagos">
+                                <History />
+                                <span>Historial de Clientes</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                           <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/contabilidad/agregar-pago">
+                                <PlusCircle />
+                                <span>Agregar Pago</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                           <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/contabilidad/agregar-cliente">
+                                <UserPlus />
+                                <span>Agregar Cliente</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                           <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/contabilidad/editar-usuario">
+                                <UserCog />
+                                <span>Editar Cliente</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                           <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/contabilidad/morosos">
+                                <UserMinus />
+                                <span>Gestión de Morosos</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                           <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/contabilidad/resumen-financiero">
+                                <BarChartHorizontal />
+                                <span>Resumen Financiero</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                          <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/contabilidad/estadisticas">
+                                <BarChart2 />
+                                <span>Estadísticas</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                          <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/contabilidad/documentos-soporte">
+                                <FileText />
+                                <span>Documentos Soporte</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                       </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </Collapsible>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Reportes">
+                  <Link href="/dashboard/reportes">
+                    <BarChart2 />
+                    <span className="group-data-[collapsible=icon]:hidden">Reportes</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Maestros">
+                  <Link href="/dashboard/maestros">
+                    <Database />
+                    <span className="group-data-[collapsible=icon]:hidden">Maestros</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Historial de Cargas">
+                  <Link href="/dashboard/historial-cargas">
+                    <FileUp />
+                    <span className="group-data-[collapsible=icon]:hidden">Historial de Cargas</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Gestión de Demandas">
+                  <Link href="/dashboard/gestion-demandas">
+                    <FileClock />
+                    <span className="group-data-[collapsible=icon]:hidden">Gestión de Demandas</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild tooltip="Usuarios">
+                  <Link href="/dashboard/usuarios">
+                    <BookUser />
+                    <span className="group-data-[collapsible=icon]:hidden">Usuarios</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarContent>
+        <SidebarFooter>
+            <SidebarSeparator />
+            <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Mi Perfil">
+                    <Link href="/dashboard/mi-perfil">
+                      <UserIcon />
+                      <span className="group-data-[collapsible=icon]:hidden">Mi Perfil</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild tooltip="Configuración">
+                    <Link href="/dashboard/configuracion">
+                      <Settings />
+                      <span className="group-data-[collapsible=icon]:hidden">Configuración</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton onClick={handleLogout} tooltip="Cerrar Sesión">
+                      <LogOut />
+                      <span className="group-data-[collapsible=icon]:hidden">Cerrar Sesión</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+            </SidebarMenu>
+        </SidebarFooter>
+      </Sidebar>
+      <SidebarInset>
+        <GlobalHeader />
+        {children}
+      </SidebarInset>
+    </SidebarProvider>
+  )
 }

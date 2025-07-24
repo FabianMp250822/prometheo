@@ -23,14 +23,14 @@ export default async function DashboardPage() {
                 <Gavel className="h-6 w-6 text-accent" />
               </div>
               <div>
-                <CardTitle className="text-xl font-headline">Análisis de Sentencias</CardTitle>
-                <CardDescription>Visualice, filtre y gestione todas las sentencias.</CardDescription>
+                <CardTitle className="text-xl font-headline">Pago de Sentencias</CardTitle>
+                <CardDescription>Visualice, filtre y gestione todas los pagos de sentencias.</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="flex-grow flex items-end">
             <Button asChild className="w-full">
-              <Link href="/dashboard/sentencias">Ir a Sentencias</Link>
+              <Link href="/dashboard/pagos/sentencias">Ir a Pagos de Sentencias</Link>
             </Button>
           </CardContent>
         </Card>
