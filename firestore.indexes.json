@@ -20,6 +20,14 @@
       "collectionGroup": "pensionados",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "empleado", "order": "ASCENDING" },
+        { "fieldPath": "documento", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "pensionados",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "dependencia1", "order": "ASCENDING" },
         { "fieldPath": "documento", "order": "ASCENDING" }
       ]

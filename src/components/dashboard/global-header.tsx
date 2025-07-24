@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, query, where, limit } from 'firebase/firestore';
+import { collection, getDocs, query, where, limit, or } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { usePensioner } from '@/context/pensioner-provider';
 import { Pensioner } from '@/lib/data';
@@ -33,50 +33,23 @@ export function GlobalHeader() {
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
     const searchGlobal = useCallback(async (searchVal: string) => {
-        if (searchVal.length < 3) {
-            setSearchResults([]);
-            return;
-        }
-        
         setIsSearching(true);
         try {
             const pensionadosRef = collection(db, "pensionados");
-            const searchPromises = [];
-
-            // Query by name (empleado)
-            const upperSearchVal = searchVal.toUpperCase();
-            const nameQuery = query(pensionadosRef, 
-                where("empleado", ">=", upperSearchVal), 
-                where("empleado", "<=", upperSearchVal + '\uf8ff'), 
-                limit(10)
-            );
-            searchPromises.push(getDocs(nameQuery));
-
-            // Query by document
-            const docQuery = query(pensionadosRef, 
-                where("documento", ">=", searchVal), 
-                where("documento", "<=", searchVal + '\uf8ff'), 
-                limit(10)
-            );
-            searchPromises.push(getDocs(docQuery));
-
-            const [nameSnapshot, docSnapshot] = await Promise.all(searchPromises);
-
-            const resultsMap = new Map<string, Pensioner>();
             
-            const processSnapshot = (snapshot: any) => {
-                snapshot.docs.forEach((doc: any) => {
-                    const data = { id: doc.id, ...doc.data() } as Pensioner;
-                    if (!resultsMap.has(data.documento)) {
-                        resultsMap.set(data.documento, data);
-                    }
-                });
-            };
+            const q = query(pensionadosRef, 
+                or(
+                    where("empleado", ">=", searchVal.toUpperCase()),
+                    where("empleado", "<=", searchVal.toUpperCase() + '\uf8ff'),
+                    where("documento", ">=", searchVal),
+                    where("documento", "<=", searchVal + '\uf8ff')
+                ),
+                limit(15)
+            );
 
-            processSnapshot(nameSnapshot);
-            processSnapshot(docSnapshot);
-
-            setSearchResults(Array.from(resultsMap.values()));
+            const querySnapshot = await getDocs(q);
+            const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
+            setSearchResults(results);
 
         } catch (error) {
             console.error("Error searching pensionados:", error);
@@ -87,7 +60,7 @@ export function GlobalHeader() {
     }, []);
 
     useEffect(() => {
-        if (debouncedSearchTerm) {
+        if (debouncedSearchTerm.length >= 3) {
             searchGlobal(debouncedSearchTerm);
         } else {
             setSearchResults([]);
