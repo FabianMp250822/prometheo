@@ -108,7 +108,17 @@ export default function JuzgadosPage() {
     setLoading(prev => ({ ...prev, offices: false }));
   }, []);
 
-  const renderColumn = (title: string, icon: React.ReactNode, items: any[], selectedItem: any, onSelect: (item: any) => void, loading: boolean, keyField: string, valueField: string) => (
+  const renderColumn = (
+        title: string,
+        icon: React.ReactNode,
+        items: any[],
+        selectedItem: any,
+        onSelect: (item: any) => void,
+        loading: boolean,
+        keyField: string,
+        valueField: string,
+        noDataMessage: string
+    ) => (
     <div className="flex-1 min-w-[200px] border-r">
         <div className="p-3 border-b flex items-center gap-2">
             {icon}
@@ -118,7 +128,7 @@ export default function JuzgadosPage() {
             {loading ? (
                 <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin" /></div>
             ) : items.length === 0 ? (
-                 <div className="text-center text-xs text-muted-foreground p-4">No hay datos</div>
+                 <div className="text-center text-xs text-muted-foreground p-4">{noDataMessage}</div>
             ) : (
                 items.map(item => (
                     <button
@@ -167,10 +177,13 @@ export default function JuzgadosPage() {
         <Card>
             <CardContent className="pt-6">
                 <div className="flex flex-col md:flex-row border rounded-lg overflow-hidden">
-                    {renderColumn("Departamentos", <Map className="h-4 w-4"/>, departments, selectedDepartment, handleSelectDepartment, false, 'IdDep', 'departamento')}
-                    {selectedDepartment && renderColumn("Municipios", <Building className="h-4 w-4"/>, municipalities, selectedMunicipality, handleSelectMunicipality, loading.municipalities, 'id', 'municipio')}
-                    {selectedMunicipality && renderColumn("Corporaciones", <University className="h-4 w-4"/>, corporations, selectedCorporation, handleSelectCorporation, loading.corporations, 'id', 'corporacion')}
-                    {selectedCorporation && renderColumn("Despachos", <Library className="h-4 w-4"/>, offices, null, ()=>{}, loading.offices, 'id', 'despacho')}
+                    {renderColumn("Departamentos", <Map className="h-4 w-4"/>, departments, selectedDepartment, handleSelectDepartment, false, 'IdDep', 'departamento', 'No hay departamentos.')}
+                    
+                    {selectedDepartment && renderColumn("Municipios", <Building className="h-4 w-4"/>, municipalities, selectedMunicipality, handleSelectMunicipality, loading.municipalities, 'id', 'municipio', 'No se encontraron municipios.')}
+
+                    {selectedMunicipality && renderColumn("Corporaciones", <University className="h-4 w-4"/>, corporations, selectedCorporation, handleSelectCorporation, loading.corporations, 'id', 'corporacion', 'No se encontraron corporaciones.')}
+                    
+                    {selectedCorporation && renderColumn("Despachos", <Library className="h-4 w-4"/>, offices, null, ()=>{}, loading.offices, 'id', 'despacho', 'No se encontraron despachos.')}
                 </div>
             </CardContent>
         </Card>
