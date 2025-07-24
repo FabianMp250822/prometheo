@@ -1,17 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { collection, getDocs, query, where, limit } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { usePensioner } from '@/context/pensioner-provider';
-import { Pensioner } from '@/lib/data';
+import type { Pensioner } from '@/lib/data';
 import { parseEmployeeName } from '@/lib/helpers';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { ChevronsUpDown, User, Search, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-
+import { searchPensioner } from '@/app/actions/search-pensioner';
 
 function useDebounce<T>(value: T, delay: number): T {
     const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -33,42 +31,16 @@ export function GlobalHeader() {
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
     const searchGlobal = useCallback(async (searchVal: string) => {
+        if (searchVal.length < 3) {
+            setSearchResults([]);
+            return;
+        }
         setIsSearching(true);
         try {
-            const pensionadosRef = collection(db, "pensionados");
-            
-            // Query for document
-            const docQuery = query(pensionadosRef, 
-                where("documento", ">=", searchVal), 
-                where("documento", "<=", searchVal + '\uf8ff'), 
-                limit(15)
-            );
-
-            // Query for name (empleado)
-            const nameQuery = query(pensionadosRef, 
-                where("empleado", ">=", searchVal.toUpperCase()), 
-                where("empleado", "<=", searchVal.toUpperCase() + '\uf8ff'), 
-                limit(15)
-            );
-
-            const [docSnapshot, nameSnapshot] = await Promise.all([
-                getDocs(docQuery),
-                getDocs(nameQuery)
-            ]);
-
-            const combinedResults: Map<string, Pensioner> = new Map();
-
-            docSnapshot.forEach(doc => {
-                combinedResults.set(doc.id, { id: doc.id, ...doc.data() } as Pensioner);
-            });
-            nameSnapshot.forEach(doc => {
-                combinedResults.set(doc.id, { id: doc.id, ...doc.data() } as Pensioner);
-            });
-
-            setSearchResults(Array.from(combinedResults.values()));
-
+            const results = await searchPensioner(searchVal);
+            setSearchResults(results);
         } catch (error) {
-            console.error("Error searching pensionados:", error);
+            console.error("Error searching pensioners:", error);
             setSearchResults([]);
         } finally {
             setIsSearching(false);
@@ -76,11 +48,7 @@ export function GlobalHeader() {
     }, []);
 
     useEffect(() => {
-        if (debouncedSearchTerm.length >= 3) {
-            searchGlobal(debouncedSearchTerm);
-        } else {
-            setSearchResults([]);
-        }
+        searchGlobal(debouncedSearchTerm);
     }, [debouncedSearchTerm, searchGlobal]);
 
     const handleSelect = (pensioner: Pensioner) => {
@@ -145,7 +113,6 @@ export function GlobalHeader() {
                 )}
             </div>
             <div className="flex-1" />
-            {/* Could add more header elements here */}
         </header>
     );
 }
