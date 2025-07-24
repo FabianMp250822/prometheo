@@ -123,18 +123,20 @@ export default function PagosClientePage() {
                     <Briefcase className="h-5 w-5" /> Resumen del Acuerdo
                 </CardTitle>
             </CardHeader>
-            <CardContent className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 text-sm">
-                <div><p className="text-sm text-muted-foreground">Monto Total Acuerdo</p><p className="font-bold text-lg">{formatCurrency(client?.salario || 0)}</p></div>
-                <div><p className="text-sm text-muted-foreground">Plazo</p><p className="font-bold text-lg">{client?.plazoMeses} meses</p></div>
-                <div><p className="text-sm text-muted-foreground">Cuota Mensual</p><p className="font-bold text-lg">{formatCurrency(parseFloat(client?.cuotaMensual || '0'))}</p></div>
-                 <div className="grid grid-cols-2 gap-4 col-span-full lg:col-span-1">
-                    <div className="p-3 rounded-md bg-green-100 dark:bg-green-900/50">
-                        <p className="text-xs text-green-800 dark:text-green-300">Total Pagado</p>
-                        <p className="font-bold text-green-700 dark:text-green-200">{formatCurrency(summary.totalPagado)}</p>
+            <CardContent className="space-y-6">
+                 <div className="grid md:grid-cols-3 gap-6 text-sm">
+                    <div><p className="text-sm text-muted-foreground">Monto Total Acuerdo</p><p className="font-bold text-lg">{formatCurrency(client?.salario || 0)}</p></div>
+                    <div><p className="text-sm text-muted-foreground">Plazo</p><p className="font-bold text-lg">{client?.plazoMeses} meses</p></div>
+                    <div><p className="text-sm text-muted-foreground">Cuota Mensual</p><p className="font-bold text-lg">{formatCurrency(parseFloat(client?.cuotaMensual || '0'))}</p></div>
+                </div>
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="p-4 rounded-lg bg-green-100 dark:bg-green-900/50">
+                        <p className="text-sm text-green-800 dark:text-green-300">Total Pagado</p>
+                        <p className="font-bold text-xl text-green-700 dark:text-green-200">{formatCurrency(summary.totalPagado)}</p>
                     </div>
-                    <div className="p-3 rounded-md bg-red-100 dark:bg-red-900/50">
-                        <p className="text-xs text-red-800 dark:text-red-300">Saldo Pendiente</p>
-                        <p className="font-bold text-red-700 dark:text-red-200">{formatCurrency(summary.saldoPendiente)}</p>
+                    <div className="p-4 rounded-lg bg-red-100 dark:bg-red-900/50">
+                        <p className="text-sm text-red-800 dark:text-red-300">Saldo Pendiente</p>
+                        <p className="font-bold text-xl text-red-700 dark:text-red-200">{formatCurrency(summary.saldoPendiente)}</p>
                     </div>
                  </div>
             </CardContent>
