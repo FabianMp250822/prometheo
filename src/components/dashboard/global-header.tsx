@@ -39,38 +39,50 @@ export function GlobalHeader() {
         }
         setIsSearching(true);
         try {
-            const isNumeric = /^\d+$/.test(searchVal);
             const searchPromises = [];
+            const upperSearchVal = searchVal.toUpperCase();
 
-            if (isNumeric) {
-                // Search by document number
-                const pensionadosDocQuery = query(collection(db, "pensionados"), where("documento", ">=", searchVal), where("documento", "<=", searchVal + '\uf8ff'), limit(5));
-                const procesosDocQuery = query(collection(db, "procesos"), where("identidad_clientes", ">=", searchVal), where("identidad_clientes", "<=", searchVal + '\uf8ff'), limit(5));
-                searchPromises.push(getDocs(pensionadosDocQuery), getDocs(procesosDocQuery));
-            } else {
-                // Search by name (case-insensitive by using uppercase)
-                const upperSearchVal = searchVal.toUpperCase();
-                const pensionadosNameQuery = query(collection(db, "pensionados"), where("empleado", ">=", upperSearchVal), where("empleado", "<=", upperSearchVal + '\uf8ff'), limit(5));
-                const procesosNameQuery = query(collection(db, "procesos"), where("nombres_demandante", ">=", upperSearchVal), where("nombres_demandante", "<=", upperSearchVal + '\uf8ff'), limit(5));
-                searchPromises.push(getDocs(pensionadosNameQuery), getDocs(procesosNameQuery));
-            }
+            // Queries for text fields (names)
+            const pensionadosNameQuery = query(collection(db, "pensionados"), where("empleado", ">=", upperSearchVal), where("empleado", "<=", upperSearchVal + '\uf8ff'), limit(5));
+            const procesosNameQuery = query(collection(db, "procesos"), where("nombres_demandante", ">=", upperSearchVal), where("nombres_demandante", "<=", upperSearchVal + '\uf8ff'), limit(5));
+            
+            // Queries for numeric fields (documents)
+            const pensionadosDocQuery = query(collection(db, "pensionados"), where("documento", ">=", searchVal), where("documento", "<=", searchVal + '\uf8ff'), limit(5));
+            const procesosDocQuery = query(collection(db, "procesos"), where("identidad_clientes", ">=", searchVal), where("identidad_clientes", "<=", searchVal + '\uf8ff'), limit(5));
 
-            const [pensionadosSnapshot, procesosSnapshot] = await Promise.all(searchPromises);
+            searchPromises.push(
+                getDocs(pensionadosNameQuery), 
+                getDocs(procesosNameQuery),
+                getDocs(pensionadosDocQuery),
+                getDocs(procesosDocQuery)
+            );
 
-            const fromPensionados = pensionadosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
+            const [
+                pensionadosNameSnapshot, 
+                procesosNameSnapshot,
+                pensionadosDocSnapshot,
+                procesosDocSnapshot
+            ] = await Promise.all(searchPromises);
 
-            const fromProcesos = procesosSnapshot.docs.map(doc => {
-                 const data = doc.data();
-                 return {
+            const fromPensionados = new Map<string, Pensioner>();
+            pensionadosNameSnapshot.docs.forEach(doc => fromPensionados.set(doc.id, { id: doc.id, ...doc.data() } as Pensioner));
+            pensionadosDocSnapshot.docs.forEach(doc => fromPensionados.set(doc.id, { id: doc.id, ...doc.data() } as Pensioner));
+
+            const fromProcesos = new Map<string, Pensioner>();
+            const processToPensionerAdapter = (doc: any): Pensioner => {
+                const data = doc.data();
+                return {
                     id: data.identidad_clientes || doc.id,
                     documento: data.identidad_clientes,
                     empleado: data.nombres_demandante,
                     dependencia1: data.jurisdiccion || 'N/A',
                     centroCosto: 'N/A',
-                 } as Pensioner
-            });
+                }
+            };
+            procesosNameSnapshot.docs.forEach(doc => fromProcesos.set(doc.id, processToPensionerAdapter(doc)));
+            procesosDocSnapshot.docs.forEach(doc => fromProcesos.set(doc.id, processToPensionerAdapter(doc)));
             
-            const combinedResults = [...fromPensionados, ...fromProcesos];
+            const combinedResults = [...Array.from(fromPensionados.values()), ...Array.from(fromProcesos.values())];
             const uniqueResults = Array.from(new Map(combinedResults.map(p => [p.documento, p])).values());
 
             setSearchResults(uniqueResults);
