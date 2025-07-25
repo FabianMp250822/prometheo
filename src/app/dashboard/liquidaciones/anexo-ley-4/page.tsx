@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FileText, User, Hash, Loader2, UserX, BarChart3 } from 'lucide-react';
 import { usePensioner } from '@/context/pensioner-provider';
-import { parseEmployeeName, formatCurrency, parsePeriodoPago } from '@/lib/helpers';
+import { parseEmployeeName, formatCurrency, parsePeriodoPago, formatFirebaseTimestamp } from '@/lib/helpers';
 import type { Payment, PagosHistoricoRecord, CausanteRecord } from '@/lib/data';
 import { collection, doc, getDocs, query, where, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -111,10 +111,9 @@ export default function AnexoLey4Page() {
                     const name = detail.nombre || '';
                     
                     const isMesada = code === 'MESAD' || name.includes('Mesada Pensional');
-                    const isAdicionalJunio = code === 'MESAD14' || name.includes('Mesada Adicional 14_Junio');
-                    const isAdicionalDiciembre = code === '285' || name.includes('285-Mesada Adicional');
-
-                    if ((isMesada || isAdicionalJunio || isAdicionalDiciembre) && detail.ingresos > 0) {
+                    const isAdicionalJunio = code === 'MESAD14' || name.includes('Mesada Adicional 14_Junio') || name.includes('285-Mesada Adicional');
+                    
+                    if ((isMesada || isAdicionalJunio) && detail.ingresos > 0) {
                         count++;
                     }
                 });
@@ -194,7 +193,6 @@ export default function AnexoLey4Page() {
      const sharingData = useMemo(() => {
         if (!causanteRecords || causanteRecords.length === 0) return null;
         
-        // Find the record with the oldest fecha_desde
         const sortedRecords = [...causanteRecords].sort((a,b) => {
             const dateA = a.fecha_desde ? new Date((a.fecha_desde as any).seconds * 1000) : new Date(9999, 0, 1);
             const dateB = b.fecha_desde ? new Date((b.fecha_desde as any).seconds * 1000) : new Date(9999, 0, 1);
@@ -212,12 +210,17 @@ export default function AnexoLey4Page() {
         const porcentajeColpensiones = mesadaPlena > 0 ? (mesadaColpensiones / mesadaPlena) * 100 : 0;
         const porcentajeEmpresa = mesadaPlena > 0 ? (mayorValorEmpresa / mesadaPlena) * 100 : 0;
 
+        const sharingDate = initialSharingRecord.fecha_desde
+            ? formatFirebaseTimestamp(initialSharingRecord.fecha_desde, 'dd/MM/yyyy')
+            : 'N/A';
+
         return {
             mesadaPlena,
             mesadaColpensiones,
             mayorValorEmpresa,
             porcentajeColpensiones,
             porcentajeEmpresa,
+            sharingDate,
         };
     }, [causanteRecords]);
 
@@ -359,6 +362,9 @@ export default function AnexoLey4Page() {
                                     </TableRow>
                                 </TableBody>
                             </Table>
+                             <div className="mt-4 text-center text-sm text-muted-foreground">
+                                <p><span className="font-semibold">Fecha de Compartición de la Pensión:</span> {sharingData.sharingDate}</p>
+                            </div>
                         </CardContent>
                     </Card>
                 )}
