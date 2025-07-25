@@ -238,6 +238,7 @@ export default function AnexoLey4Page() {
                 diferencia,
                 numMesadas,
                 totalRetroactivas,
+                numSmlmvMesadaPlena: numSmlmvProyectado
             };
         });
 
@@ -398,15 +399,16 @@ export default function AnexoLey4Page() {
                                     <TableRow>
                                         <TableHead>Año</TableHead>
                                         <TableHead>SMLMV</TableHead>
-                                        <TableHead>Reajuste en % SMLMV</TableHead>
+                                        <TableHead>% Reajuste SMLMV</TableHead>
                                         <TableHead>Proyección de Mesada Fiduprevisora con % SMLMV</TableHead>
                                         <TableHead># de SMLMV (En el Reajuste x SMLMV)</TableHead>
-                                        <TableHead>Reajuste en % IPCs</TableHead>
+                                        <TableHead>% Reajuste IPC</TableHead>
                                         <TableHead>Mesada Pagada Fiduprevisora reajuste con IPCs</TableHead>
                                         <TableHead># de SMLMV (En el Reajuste x IPC)</TableHead>
                                         <TableHead>Diferencias de Mesadas</TableHead>
                                         <TableHead># de Mesadas</TableHead>
                                         <TableHead>Total Diferencias Retroactivas</TableHead>
+                                        <TableHead># de SMLMV (Mesada Plena)</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -423,6 +425,7 @@ export default function AnexoLey4Page() {
                                            <TableCell>{formatCurrency(row.diferencia)}</TableCell>
                                            <TableCell>{row.numMesadas}</TableCell>
                                            <TableCell>{formatCurrency(row.totalRetroactivas)}</TableCell>
+                                           <TableCell>{row.numSmlmvMesadaPlena.toFixed(2)}</TableCell>
                                        </TableRow>
                                    ))}
                                 </TableBody>
@@ -430,6 +433,7 @@ export default function AnexoLey4Page() {
                                     <TableRow className="font-bold bg-muted">
                                         <TableCell colSpan={10} className="text-right">TOTAL GENERAL RETROACTIVAS</TableCell>
                                         <TableCell>{formatCurrency(totalGeneralRetroactivas)}</TableCell>
+                                        <TableCell></TableCell>
                                     </TableRow>
                                 </TableBody>
                             </Table>
@@ -495,10 +499,10 @@ export default function AnexoLey4Page() {
                                         <TableRow>
                                             <TableHead>Año</TableHead>
                                             <TableHead>SMLMV</TableHead>
-                                            <TableHead>Reajuste en % SMLMV</TableHead>
+                                            <TableHead>% Reajuste SMLMV</TableHead>
                                             <TableHead>Proyección de Mesada Fiduprevisora con % SMLMV</TableHead>
                                             <TableHead># de SMLMV (En el Reajuste x SMLMV)</TableHead>
-                                            <TableHead>Reajuste en % IPCs</TableHead>
+                                            <TableHead>% Reajuste IPC</TableHead>
                                             <TableHead>Mesada Pagada Fiduprevisora reajuste con IPCs</TableHead>
                                             <TableHead># de SMLMV (En el Reajuste x IPC)</TableHead>
                                             <TableHead>Diferencias de Mesadas</TableHead>
