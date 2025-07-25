@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FileText, User, Hash, Loader2, UserX } from 'lucide-react';
 import { usePensioner } from '@/context/pensioner-provider';
-import { parseEmployeeName, formatCurrency } from '@/lib/helpers';
+import { parseEmployeeName, formatCurrency, parsePeriodoPago } from '@/lib/helpers';
 import type { Payment, PagosHistoricoRecord } from '@/lib/data';
 import { collection, doc, getDocs, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -80,21 +80,13 @@ export default function AnexoLey4Page() {
 
     const tabla1Data = useMemo(() => {
         if (!selectedPensioner) return [];
-
-        const getFirstPensionInYear = (year: number): number => {
+        
+        const countMesadasInYear = (year: number): number => {
             const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
-            if (paymentsInYear.length > 0) {
-                const firstPayment = paymentsInYear.sort((a,b) => a.periodoPago.localeCompare(b.periodoPago))[0];
-                const mesada = firstPayment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
-                if (mesada && mesada.ingresos > 0) return mesada.ingresos;
+            if (!paymentsInYear.length) {
+                const historicalRecordsForYear = historicalPayments.filter(rec => rec.ANO_RET === year);
+                return historicalRecordsForYear.length > 0 ? 14 : 0;
             }
-            const historicalRecord = historicalPayments.find(p => p.ANO_RET === year && p.VALOR_ACT);
-            if (historicalRecord) return parseFloat(historicalRecord.VALOR_ACT!.replace(',', '.'));
-            return 0;
-        };
-
-       const countMesadasInYear = (year: number): number => {
-            const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
             let count = 0;
             paymentsInYear.forEach(p => {
                 p.detalles.forEach(detail => {
@@ -102,7 +94,7 @@ export default function AnexoLey4Page() {
                     const name = detail.nombre || '';
                     
                     const isMesada = code === 'MESAD' || name.includes('Mesada Pensional');
-                    const isAdicional = code === 'MESAD14' || code === '285' || name.includes('Mesada Adicional 14_Junio');
+                    const isAdicional = code === 'MESAD14' || name.includes('Mesada Adicional 14_Junio') || name.includes('285-Mesada Adicional');
 
                     if(isMesada && detail.ingresos > 0) {
                         count++;
@@ -113,6 +105,22 @@ export default function AnexoLey4Page() {
                 });
             });
             return count;
+        };
+        
+        const getFirstPensionInYear = (year: number): number => {
+            const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
+            if (paymentsInYear.length > 0) {
+                const firstPayment = paymentsInYear.sort((a,b) => {
+                    const dateA = parsePeriodoPago(a.periodoPago)?.startDate ?? new Date(9999,1,1);
+                    const dateB = parsePeriodoPago(b.periodoPago)?.startDate ?? new Date(9999,1,1);
+                    return dateA.getTime() - dateB.getTime();
+                })[0];
+                const mesada = firstPayment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
+                if (mesada && mesada.ingresos > 0) return mesada.ingresos;
+            }
+            const historicalRecord = historicalPayments.find(p => p.ANO_RET === year && p.VALOR_ACT);
+            if (historicalRecord) return parseFloat(historicalRecord.VALOR_ACT!.replace(',', '.'));
+            return 0;
         };
 
         const firstPensionYear = Object.keys(datosConsolidados).map(Number).find(year => getFirstPensionInYear(year) > 0);
@@ -131,8 +139,7 @@ export default function AnexoLey4Page() {
             const reajusteIPC = datosIPC[year - 1 as keyof typeof datosIPC] || 0;
             
             const mesadaPagada = getFirstPensionInYear(year);
-            const numMesadas = countMesadasInYear(year);
-
+            
             let proyeccionMesada = 0;
             if (index === 0) {
                  proyeccionMesada = mesadaPagada > 0 ? mesadaPagada : 0;
@@ -145,6 +152,7 @@ export default function AnexoLey4Page() {
             const numSmlmvProyectado = smlmv > 0 ? proyeccionMesada / smlmv : 0;
             const numSmlmvPagado = smlmv > 0 ? mesadaPagada / smlmv : 0;
             const diferencia = proyeccionMesada - mesadaPagada;
+            const numMesadas = countMesadasInYear(year);
             const totalRetroactivas = diferencia > 0 ? diferencia * numMesadas : 0;
 
             return {
