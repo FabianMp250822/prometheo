@@ -189,7 +189,7 @@ export default function AnexoLey4Page() {
         
                     const isMesada = code === 'MESAD' || name.includes('Mesada Pensional');
                     const isAdicionalJun = code === 'MESAD14' || name.includes('Mesada Adicional 14_Junio');
-                    const isAdicionalDic = name.includes('285-Mesada Adicional');
+                    const isAdicionalDic = name === '285-Mesada Adicional';
         
                     if ((isMesada || isAdicionalJun || isAdicionalDic) && detail.ingresos > 0) {
                         count++;
@@ -266,7 +266,7 @@ export default function AnexoLey4Page() {
         const mesadaColpensiones = initialSharingRecord.valor_iss || 0;
         const mayorValorEmpresa = initialSharingRecord.valor_empresa || 0;
         
-        const mesadaPlena = tabla1Data.find(d => d.año === sharingDateInfo.year)?.proyeccionMesada || 0;
+        const mesadaPlena = mesadaColpensiones + mayorValorEmpresa;
 
         const porcentajeColpensiones = mesadaPlena > 0 ? (mesadaColpensiones / mesadaPlena) * 100 : 0;
         const porcentajeEmpresa = mesadaPlena > 0 ? (mayorValorEmpresa / mesadaPlena) * 100 : 0;
@@ -407,7 +407,7 @@ export default function AnexoLey4Page() {
                         <CardContent>
                              <Table>
                                 <TableBody>
-                                     <TableRow>
+                                     <TableRow className="hidden">
                                         <TableCell className="font-semibold bg-muted/30">MESADA PLENA DE LA PENSION CONVENCIONAL ANTES DE LA COMPARTICION</TableCell>
                                         <TableCell className="text-right font-bold">{formatCurrency(sharingData.mesadaAntes)}</TableCell>
                                         <TableCell className="text-right font-bold"></TableCell>
