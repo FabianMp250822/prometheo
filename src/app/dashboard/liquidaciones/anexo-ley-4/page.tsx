@@ -165,43 +165,44 @@ export default function AnexoLey4Page() {
         };
         
         const countMesadasInYear = (year: number): number => {
-            let count = 0;
-            const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
-            if (!paymentsInYear.length) {
+            let paymentsToCount = payments.filter(p => parseInt(p.año, 10) === year);
+        
+            if (paymentsToCount.length === 0) {
                 const historicalRecordsForYear = historicalPayments.filter(rec => rec.ANO_RET === year);
                 if (historicalRecordsForYear.length > 0) return 14; 
                 return 0;
             }
-
-            let monthLimit = 12;
+        
+            // If it's the sharing year, filter payments up to the sharing month
             if (sharingDateInfo && year === sharingDateInfo.year) {
-                monthLimit = sharingDateInfo.month;
+                paymentsToCount = paymentsToCount.filter(p => {
+                    const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
+                    return paymentDate && (paymentDate.getMonth() + 1) <= sharingDateInfo.month;
+                });
             }
-
-            paymentsInYear.forEach(p => {
-                 const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
-                 if (paymentDate && paymentDate.getMonth() + 1 > monthLimit) {
-                    return; // Skip payments after the sharing month in the final year
-                 }
+        
+            let count = 0;
+            paymentsToCount.forEach(p => {
                 p.detalles.forEach(detail => {
                     const code = detail.codigo || '';
                     const name = detail.nombre || '';
-                    
+        
                     const isMesada = code === 'MESAD' || name.includes('Mesada Pensional');
-                    const isAdicional = code === 'MESAD14' || name.includes('Mesada Adicional 14_Junio') || name.includes('285-Mesada Adicional');
-                    
-                    if ((isMesada || isAdicional) && detail.ingresos > 0) {
+                    const isAdicionalJun = code === 'MESAD14' || name.includes('Mesada Adicional 14_Junio');
+                    const isAdicionalDic = name.includes('285-Mesada Adicional');
+        
+                    if ((isMesada || isAdicionalJun || isAdicionalDic) && detail.ingresos > 0) {
                         count++;
                     }
                 });
             });
             return count;
         };
-
+        
         const firstPensionYear = Object.keys(datosConsolidados).map(Number).find(year => getFirstPensionInYear(year) > 0);
         if (!firstPensionYear) return [];
 
-        const endYear = sharingDateInfo ? sharingDateInfo.year : 2007;
+        const endYear = sharingDateInfo ? sharingDateInfo.year : new Date().getFullYear();
 
         const relevantYears = Object.keys(datosConsolidados)
             .map(Number)
@@ -247,27 +248,26 @@ export default function AnexoLey4Page() {
             };
         });
 
-    }, [selectedPensioner, payments, historicalPayments, sharingDateInfo]);
+    }, [selectedPensioner, payments, historicalPayments, causanteRecords, sharingDateInfo]);
 
     const totalGeneralRetroactivas = useMemo(() => {
         return tabla1Data.reduce((acc, row) => acc + row.totalRetroactivas, 0);
     }, [tabla1Data]);
     
      const sharingData = useMemo(() => {
-        if (!causanteRecords || causanteRecords.length === 0) return null;
+        if (!causanteRecords || causanteRecords.length === 0 || !sharingDateInfo) return null;
         
-        const sortedRecords = [...causanteRecords]
+        const initialSharingRecord = [...causanteRecords]
             .filter(r => r.fecha_desde)
-            .sort((a,b) => formatFirebaseTimestamp(a.fecha_desde!, 't') - formatFirebaseTimestamp(b.fecha_desde!, 't'));
-
-        const initialSharingRecord = sortedRecords[0];
+            .sort((a,b) => formatFirebaseTimestamp(a.fecha_desde!, 't') - formatFirebaseTimestamp(b.fecha_desde!, 't'))[0];
 
         if (!initialSharingRecord) return null;
 
         const mesadaColpensiones = initialSharingRecord.valor_iss || 0;
         const mayorValorEmpresa = initialSharingRecord.valor_empresa || 0;
-        const mesadaPlena = mesadaColpensiones + mayorValorEmpresa;
         
+        const mesadaPlena = tabla1Data.find(d => d.año === sharingDateInfo.year)?.proyeccionMesada || 0;
+
         const porcentajeColpensiones = mesadaPlena > 0 ? (mesadaColpensiones / mesadaPlena) * 100 : 0;
         const porcentajeEmpresa = mesadaPlena > 0 ? (mayorValorEmpresa / mesadaPlena) * 100 : 0;
 
@@ -275,7 +275,7 @@ export default function AnexoLey4Page() {
             ? formatFirebaseTimestamp(initialSharingRecord.fecha_desde, 'dd/MM/yyyy')
             : 'N/A';
         
-        const mesadaAntesRecord = tabla1Data.find(d => d.año === (sharingDateInfo?.year || 0) -1 );
+        const mesadaAntesRecord = tabla1Data.find(d => d.año === sharingDateInfo.year - 1 );
         const mesadaAntes = mesadaAntesRecord ? mesadaAntesRecord.proyeccionMesada : 0;
 
         return {
@@ -356,10 +356,10 @@ export default function AnexoLey4Page() {
                                         <TableHead>SMLMV</TableHead>
                                         <TableHead>Reajuste en % SMLMV</TableHead>
                                         <TableHead>Proyección de Mesada Fiduprevisora con % SMLMV</TableHead>
-                                        <TableHead># de SMLMV (En el Reajuste x SMLMV)</TableHead>
+                                        <TableHead># de SMLMV (En el Reajuste   x SMLMV)</TableHead>
                                         <TableHead>Reajuste en % IPC</TableHead>
                                         <TableHead>Mesada Pagada Fiduprevisora reajuste con IPCs</TableHead>
-                                        <TableHead># de SMLMV (En el Reajuste x IPC)</TableHead>
+                                        <TableHead># de SMLMV (En el Reajuste   x IPC)</TableHead>
                                         <TableHead>Diferencias de Mesadas</TableHead>
                                         <TableHead># de Mesadas</TableHead>
                                         <TableHead>Total Diferencias Retroactivas</TableHead>
