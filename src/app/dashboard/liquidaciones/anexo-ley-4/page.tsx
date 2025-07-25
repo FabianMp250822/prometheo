@@ -203,6 +203,7 @@ export default function AnexoLey4Page() {
             .sort((a, b) => a - b);
         
         let proyeccionAnterior = 0;
+        let numSmlmvAnterior = 0;
 
         return relevantYears.map((year, index) => {
             const smlmv = datosConsolidados[year as keyof typeof datosConsolidados]?.smlmv || 0;
@@ -225,6 +226,15 @@ export default function AnexoLey4Page() {
             const diferencia = proyeccionMesada > 0 ? proyeccionMesada - mesadaPagada : 0;
             const numMesadas = countMesadasInYear(year);
             const totalRetroactivas = diferencia > 0 ? diferencia * numMesadas : 0;
+            
+            let numSmlmvMesadaPlena = 0;
+            if (index === 0) {
+                numSmlmvMesadaPlena = numSmlmvProyectado;
+            } else {
+                numSmlmvMesadaPlena = numSmlmvAnterior;
+            }
+            numSmlmvAnterior = numSmlmvProyectado;
+
 
             return {
                 año: year,
@@ -238,7 +248,7 @@ export default function AnexoLey4Page() {
                 diferencia,
                 numMesadas,
                 totalRetroactivas,
-                numSmlmvMesadaPlena: numSmlmvProyectado
+                numSmlmvMesadaPlena
             };
         });
 
