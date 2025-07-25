@@ -4,35 +4,35 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { FileText, User, Hash, Loader2, UserX } from 'lucide-react';
+import { FileText, User, Hash, Loader2, UserX, BarChart3 } from 'lucide-react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { parseEmployeeName, formatCurrency, parsePeriodoPago } from '@/lib/helpers';
-import type { Payment, PagosHistoricoRecord } from '@/lib/data';
+import type { Payment, PagosHistoricoRecord, CausanteRecord } from '@/lib/data';
 import { collection, doc, getDocs, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-const datosConsolidados: { [year: number]: { smlmv: number; ipc: number; reajusteSMLMV: number; } } = {
-    1999: { smlmv: 236460, ipc: 16.70, reajusteSMLMV: 16.01 },
-    2000: { smlmv: 260100, ipc: 9.23, reajusteSMLMV: 10.00 },
-    2001: { smlmv: 286000, ipc: 8.75, reajusteSMLMV: 9.96 },
-    2002: { smlmv: 309000, ipc: 7.65, reajusteSMLMV: 8.04 },
-    2003: { smlmv: 332000, ipc: 6.99, reajusteSMLMV: 7.44 },
-    2004: { smlmv: 358000, ipc: 6.49, reajusteSMLMV: 7.83 },
-    2005: { smlmv: 381500, ipc: 5.50, reajusteSMLMV: 6.56 },
-    2006: { smlmv: 408000, ipc: 4.85, reajusteSMLMV: 6.95 },
-    2007: { smlmv: 433700, ipc: 4.48, reajusteSMLMV: 6.30 },
+export const datosConsolidados: { [year: number]: { smlmv: number; ipc: number; reajusteSMLMV: number; } } = {
+  1999: { smlmv: 236460, ipc: 16.70, reajusteSMLMV: 16.01 },
+  2000: { smlmv: 260100, ipc: 9.23, reajusteSMLMV: 10.00 },
+  2001: { smlmv: 286000, ipc: 8.75, reajusteSMLMV: 9.96 },
+  2002: { smlmv: 309000, ipc: 7.65, reajusteSMLMV: 8.04 },
+  2003: { smlmv: 332000, ipc: 6.99, reajusteSMLMV: 7.44 },
+  2004: { smlmv: 358000, ipc: 6.49, reajusteSMLMV: 7.83 },
+  2005: { smlmv: 381500, ipc: 5.50, reajusteSMLMV: 6.56 },
+  2006: { smlmv: 408000, ipc: 4.85, reajusteSMLMV: 6.95 },
+  2007: { smlmv: 433700, ipc: 4.48, reajusteSMLMV: 6.30 },
 };
 
-const datosIPC: { [year: number]: number } = {
-    1998: 16.70,
-    1999: 9.23,
-    2000: 8.75,
-    2001: 7.65,
-    2002: 6.99,
-    2003: 6.49,
-    2004: 5.50,
-    2005: 4.85,
-    2006: 4.48,
+export const datosIPC: { [key: number]: number } = {
+  1998: 16.70,
+  1999: 9.23,
+  2000: 8.75,
+  2001: 7.65,
+  2002: 6.99,
+  2003: 6.49,
+  2004: 5.50,
+  2005: 4.85,
+  2006: 4.48,
 };
 
 export default function AnexoLey4Page() {
@@ -40,11 +40,13 @@ export default function AnexoLey4Page() {
     const [isLoading, setIsLoading] = useState(false);
     const [payments, setPayments] = useState<Payment[]>([]);
     const [historicalPayments, setHistoricalPayments] = useState<PagosHistoricoRecord[]>([]);
+    const [causanteRecords, setCausanteRecords] = useState<CausanteRecord[]>([]);
 
     useEffect(() => {
         if (!selectedPensioner) {
             setPayments([]);
             setHistoricalPayments([]);
+            setCausanteRecords([]);
             return;
         }
 
@@ -67,6 +69,15 @@ export default function AnexoLey4Page() {
                 } else {
                     setHistoricalPayments([]);
                 }
+                
+                const causanteDocRef = doc(db, 'causante', selectedPensioner.documento);
+                const causanteSnap = await getDoc(causanteDocRef);
+                if (causanteSnap.exists() && Array.isArray(causanteSnap.data().records)) {
+                    setCausanteRecords(causanteSnap.data().records as CausanteRecord[]);
+                } else {
+                    setCausanteRecords([]);
+                }
+
 
             } catch (error) {
                 console.error("Error fetching payment data:", error);
@@ -82,12 +93,14 @@ export default function AnexoLey4Page() {
         if (!selectedPensioner) return [];
         
         const countMesadasInYear = (year: number): number => {
-            const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
+            let count = 0;
+             const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
             if (!paymentsInYear.length) {
                 const historicalRecordsForYear = historicalPayments.filter(rec => rec.ANO_RET === year);
-                return historicalRecordsForYear.length > 0 ? 14 : 0;
+                if (historicalRecordsForYear.length > 0) return 14; // Assumption for historical data
+                return 0;
             }
-            let count = 0;
+
             paymentsInYear.forEach(p => {
                 p.detalles.forEach(detail => {
                     const code = detail.codigo || '';
@@ -96,10 +109,7 @@ export default function AnexoLey4Page() {
                     const isMesada = code === 'MESAD' || name.includes('Mesada Pensional');
                     const isAdicional = code === 'MESAD14' || name.includes('Mesada Adicional 14_Junio') || name.includes('285-Mesada Adicional');
 
-                    if(isMesada && detail.ingresos > 0) {
-                        count++;
-                    }
-                    if(isAdicional && detail.ingresos > 0) {
+                    if ((isMesada || isAdicional) && detail.ingresos > 0) {
                         count++;
                     }
                 });
@@ -119,7 +129,7 @@ export default function AnexoLey4Page() {
                 if (mesada && mesada.ingresos > 0) return mesada.ingresos;
             }
             const historicalRecord = historicalPayments.find(p => p.ANO_RET === year && p.VALOR_ACT);
-            if (historicalRecord) return parseFloat(historicalRecord.VALOR_ACT!.replace(',', '.'));
+            if (historicalRecord) return parseFloat(historicalRecord.VALOR_ACT!.replace(/,/g, ''));
             return 0;
         };
 
@@ -151,7 +161,7 @@ export default function AnexoLey4Page() {
 
             const numSmlmvProyectado = smlmv > 0 ? proyeccionMesada / smlmv : 0;
             const numSmlmvPagado = smlmv > 0 ? mesadaPagada / smlmv : 0;
-            const diferencia = proyeccionMesada - mesadaPagada;
+            const diferencia = proyeccionMesada > 0 ? proyeccionMesada - mesadaPagada : 0;
             const numMesadas = countMesadasInYear(year);
             const totalRetroactivas = diferencia > 0 ? diferencia * numMesadas : 0;
 
@@ -171,10 +181,39 @@ export default function AnexoLey4Page() {
         });
 
     }, [selectedPensioner, payments, historicalPayments]);
-    
+
     const totalGeneralRetroactivas = useMemo(() => {
         return tabla1Data.reduce((acc, row) => acc + row.totalRetroactivas, 0);
     }, [tabla1Data]);
+    
+     const sharingData = useMemo(() => {
+        const lastYearData = tabla1Data[tabla1Data.length - 1];
+        if (!lastYearData) return null;
+
+        const mesadaPlena = lastYearData.proyeccionMesada;
+        
+        const sharingYear = lastYearData.año;
+        const causanteRecordForYear = causanteRecords.find(rec => {
+            if (!rec.fecha_desde) return false;
+            const recordDate = new Date(rec.fecha_desde);
+            return recordDate.getFullYear() === sharingYear;
+        });
+
+        const mesadaColpensiones = causanteRecordForYear?.valor_iss || 0;
+        const mayorValorEmpresa = mesadaPlena - mesadaColpensiones;
+        
+        const porcentajeColpensiones = mesadaPlena > 0 ? (mesadaColpensiones / mesadaPlena) * 100 : 0;
+        const porcentajeEmpresa = mesadaPlena > 0 ? (mayorValorEmpresa / mesadaPlena) * 100 : 0;
+
+        return {
+            mesadaPlena,
+            mesadaColpensiones,
+            mayorValorEmpresa,
+            porcentajeColpensiones,
+            porcentajeEmpresa,
+        };
+    }, [tabla1Data, causanteRecords]);
+
 
     return (
         <div className="p-4 md:p-8 space-y-6">
@@ -225,6 +264,7 @@ export default function AnexoLey4Page() {
             )}
             
             {selectedPensioner && (
+                <>
                  <Card>
                     <CardHeader>
                         <CardTitle>1. Reajuste de Mesada a Cargo de la Empresa (Antes de Compartir)</CardTitle>
@@ -280,6 +320,42 @@ export default function AnexoLey4Page() {
                         )}
                     </CardContent>
                 </Card>
+
+                {sharingData && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-xl font-headline flex items-center gap-2">
+                                <BarChart3 className="h-5 w-5" />
+                                2. Compartición de la Mesada Reajustada
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                             <Table>
+                                <TableBody>
+                                    <TableRow className="bg-muted/30">
+                                        <TableCell className="font-semibold">MESADA PLENA DE LA PENSION CONVENCIONAL ANTES DE LA COMPARTICION</TableCell>
+                                        <TableCell className="text-right font-bold">{formatCurrency(sharingData.mesadaPlena)}</TableCell>
+                                        <TableCell className="text-right font-bold">100.00%</TableCell>
+                                    </TableRow>
+                                    <TableRow className="bg-green-500/10">
+                                        <TableCell colSpan={3} className="text-center font-semibold text-green-800">CUOTAS PARTES EN QUE SE DISTRIBUYE EL MONTO DE MESADA PENSIONAL A PARTIR DE LA COMPARTICION</TableCell>
+                                    </TableRow>
+                                     <TableRow>
+                                        <TableCell>MESADA RECONOCIDA POR COLPENSIONES</TableCell>
+                                        <TableCell className="text-right">{formatCurrency(sharingData.mesadaColpensiones)}</TableCell>
+                                        <TableCell className="text-right">{sharingData.porcentajeColpensiones.toFixed(2)}%</TableCell>
+                                    </TableRow>
+                                     <TableRow>
+                                        <TableCell>MAYOR VALOR A CARGO DE LA EMPRESA</TableCell>
+                                        <TableCell className="text-right">{formatCurrency(sharingData.mayorValorEmpresa)}</TableCell>
+                                        <TableCell className="text-right">{sharingData.porcentajeEmpresa.toFixed(2)}%</TableCell>
+                                    </TableRow>
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                )}
+                </>
             )}
         </div>
     );
