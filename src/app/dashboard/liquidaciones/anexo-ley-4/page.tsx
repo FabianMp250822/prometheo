@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -8,7 +7,7 @@ import { FileText, User, Hash, Loader2, UserX, BarChart3 } from 'lucide-react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { parseEmployeeName, formatCurrency, parsePeriodoPago } from '@/lib/helpers';
 import type { Payment, PagosHistoricoRecord, CausanteRecord } from '@/lib/data';
-import { collection, doc, getDocs, query } from 'firebase/firestore';
+import { collection, doc, getDocs, query, where, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export const datosConsolidados: { [year: number]: { smlmv: number; ipc: number; reajusteSMLMV: number; } } = {
@@ -50,9 +49,10 @@ export default function AnexoLey4Page() {
             return;
         }
 
-        const fetchPayments = async () => {
+        const fetchAllData = async () => {
             setIsLoading(true);
             try {
+                // Fetch recent payments
                 const paymentsQuery = query(collection(db, 'pensionados', selectedPensioner.id, 'pagos'));
                 const querySnapshot = await getDocs(paymentsQuery);
                 const paymentsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
@@ -62,6 +62,7 @@ export default function AnexoLey4Page() {
                 );
                 setPayments(uniquePayments);
 
+                // Fetch historical payments as a fallback
                 const historicalDocRef = doc(db, 'pagosHistorico', selectedPensioner.documento);
                 const historicalDocSnap = await getDoc(historicalDocRef);
                 if (historicalDocSnap.exists() && Array.isArray(historicalDocSnap.data().records)) {
@@ -70,14 +71,17 @@ export default function AnexoLey4Page() {
                     setHistoricalPayments([]);
                 }
                 
-                const causanteDocRef = doc(db, 'causante', selectedPensioner.documento);
-                const causanteSnap = await getDoc(causanteDocRef);
-                if (causanteSnap.exists() && Array.isArray(causanteSnap.data().records)) {
-                    setCausanteRecords(causanteSnap.data().records as CausanteRecord[]);
+                // Fetch causante records for Table 2
+                const causanteQuery = query(collection(db, 'causante'), where('cedula_causante', '==', selectedPensioner.documento));
+                const causanteSnapshot = await getDocs(causanteQuery);
+                if (!causanteSnapshot.empty) {
+                    const data = causanteSnapshot.docs[0].data();
+                    if (data && Array.isArray(data.records)) {
+                        setCausanteRecords(data.records as CausanteRecord[]);
+                    }
                 } else {
                     setCausanteRecords([]);
                 }
-
 
             } catch (error) {
                 console.error("Error fetching payment data:", error);
@@ -86,7 +90,7 @@ export default function AnexoLey4Page() {
             }
         };
 
-        fetchPayments();
+        fetchAllData();
     }, [selectedPensioner]);
 
     const tabla1Data = useMemo(() => {
@@ -94,10 +98,10 @@ export default function AnexoLey4Page() {
         
         const countMesadasInYear = (year: number): number => {
             let count = 0;
-             const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
+            const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
             if (!paymentsInYear.length) {
                 const historicalRecordsForYear = historicalPayments.filter(rec => rec.ANO_RET === year);
-                if (historicalRecordsForYear.length > 0) return 14; // Assumption for historical data
+                if (historicalRecordsForYear.length > 0) return 14; 
                 return 0;
             }
 
@@ -107,9 +111,10 @@ export default function AnexoLey4Page() {
                     const name = detail.nombre || '';
                     
                     const isMesada = code === 'MESAD' || name.includes('Mesada Pensional');
-                    const isAdicional = code === 'MESAD14' || name.includes('Mesada Adicional 14_Junio') || name.includes('285-Mesada Adicional');
+                    const isAdicionalJunio = code === 'MESAD14' || name.includes('Mesada Adicional 14_Junio');
+                    const isAdicionalDiciembre = code === '285' || name.includes('285-Mesada Adicional');
 
-                    if ((isMesada || isAdicional) && detail.ingresos > 0) {
+                    if ((isMesada || isAdicionalJunio || isAdicionalDiciembre) && detail.ingresos > 0) {
                         count++;
                     }
                 });
@@ -187,20 +192,22 @@ export default function AnexoLey4Page() {
     }, [tabla1Data]);
     
      const sharingData = useMemo(() => {
-        const lastYearData = tabla1Data[tabla1Data.length - 1];
-        if (!lastYearData) return null;
-
-        const mesadaPlena = lastYearData.proyeccionMesada;
+        if (!causanteRecords || causanteRecords.length === 0) return null;
         
-        const sharingYear = lastYearData.año;
-        const causanteRecordForYear = causanteRecords.find(rec => {
-            if (!rec.fecha_desde) return false;
-            const recordDate = new Date(rec.fecha_desde);
-            return recordDate.getFullYear() === sharingYear;
+        // Find the record with the oldest fecha_desde
+        const sortedRecords = [...causanteRecords].sort((a,b) => {
+            const dateA = a.fecha_desde ? new Date((a.fecha_desde as any).seconds * 1000) : new Date(9999, 0, 1);
+            const dateB = b.fecha_desde ? new Date((b.fecha_desde as any).seconds * 1000) : new Date(9999, 0, 1);
+            return dateA.getTime() - dateB.getTime();
         });
 
-        const mesadaColpensiones = causanteRecordForYear?.valor_iss || 0;
-        const mayorValorEmpresa = mesadaPlena - mesadaColpensiones;
+        const initialSharingRecord = sortedRecords[0];
+
+        if (!initialSharingRecord) return null;
+
+        const mesadaColpensiones = initialSharingRecord.valor_iss || 0;
+        const mayorValorEmpresa = initialSharingRecord.valor_empresa || 0;
+        const mesadaPlena = mesadaColpensiones + mayorValorEmpresa;
         
         const porcentajeColpensiones = mesadaPlena > 0 ? (mesadaColpensiones / mesadaPlena) * 100 : 0;
         const porcentajeEmpresa = mesadaPlena > 0 ? (mayorValorEmpresa / mesadaPlena) * 100 : 0;
@@ -212,7 +219,7 @@ export default function AnexoLey4Page() {
             porcentajeColpensiones,
             porcentajeEmpresa,
         };
-    }, [tabla1Data, causanteRecords]);
+    }, [causanteRecords]);
 
 
     return (
