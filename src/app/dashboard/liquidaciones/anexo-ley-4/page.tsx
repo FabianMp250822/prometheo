@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { FileText, User, Hash, Loader2, UserX, BarChart3 } from 'lucide-react';
@@ -77,58 +77,52 @@ export default function AnexoLey4Page() {
     const [historicalPayments, setHistoricalPayments] = useState<PagosHistoricoRecord[]>([]);
     const [causanteRecords, setCausanteRecords] = useState<CausanteRecord[]>([]);
 
-    useEffect(() => {
+    const fetchAllData = useCallback(async () => {
         if (!selectedPensioner) {
             setPayments([]);
             setHistoricalPayments([]);
             setCausanteRecords([]);
             return;
         }
+        setIsLoading(true);
+        try {
+            const paymentsQuery = query(collection(db, 'pensionados', selectedPensioner.id, 'pagos'));
+            const paymentsSnapshot = await getDocs(paymentsQuery);
+            const paymentsData = paymentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
+            const uniquePayments = paymentsData.filter((payment, index, self) =>
+                index === self.findIndex((p) => p.periodoPago === payment.periodoPago)
+            );
+            setPayments(uniquePayments);
 
-        const fetchAllData = async () => {
-            setIsLoading(true);
-            try {
-                // Fetch recent payments
-                const paymentsQuery = query(collection(db, 'pensionados', selectedPensioner.id, 'pagos'));
-                const querySnapshot = await getDocs(paymentsQuery);
-                const paymentsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
-                
-                const uniquePayments = paymentsData.filter((payment, index, self) =>
-                    index === self.findIndex((p) => p.periodoPago === payment.periodoPago)
-                );
-                setPayments(uniquePayments);
-
-                // Fetch historical payments as a fallback
-                const historicalDocRef = doc(db, 'pagosHistorico', selectedPensioner.documento);
-                const historicalDocSnap = await getDoc(historicalDocRef);
-                if (historicalDocSnap.exists() && Array.isArray(historicalDocSnap.data().records)) {
-                    setHistoricalPayments(historicalDocSnap.data().records as PagosHistoricoRecord[]);
-                } else {
-                    setHistoricalPayments([]);
-                }
-                
-                // Fetch causante records for Table 2
-                const causanteQuery = query(collection(db, 'causante'), where('cedula_causante', '==', selectedPensioner.documento));
-                const causanteSnapshot = await getDocs(causanteQuery);
-                if (!causanteSnapshot.empty) {
-                    const data = causanteSnapshot.docs[0].data();
-                    if (data && Array.isArray(data.records)) {
-                        setCausanteRecords(data.records as CausanteRecord[]);
-                    }
-                } else {
-                    setCausanteRecords([]);
-                }
-
-            } catch (error) {
-                console.error("Error fetching payment data:", error);
-            } finally {
-                setIsLoading(false);
+            const historicalDocRef = doc(db, 'pagosHistorico', selectedPensioner.documento);
+            const historicalDocSnap = await getDoc(historicalDocRef);
+            if (historicalDocSnap.exists() && Array.isArray(historicalDocSnap.data().records)) {
+                setHistoricalPayments(historicalDocSnap.data().records as PagosHistoricoRecord[]);
+            } else {
+                setHistoricalPayments([]);
             }
-        };
 
-        fetchAllData();
+            const causanteQuery = query(collection(db, 'causante'), where('cedula_causante', '==', selectedPensioner.documento));
+            const causanteSnapshot = await getDocs(causanteQuery);
+            if (!causanteSnapshot.empty) {
+                const data = causanteSnapshot.docs[0].data();
+                if (data && Array.isArray(data.records)) {
+                    setCausanteRecords(data.records as CausanteRecord[]);
+                }
+            } else {
+                setCausanteRecords([]);
+            }
+        } catch (error) {
+            console.error("Error fetching data:", error);
+        } finally {
+            setIsLoading(false);
+        }
     }, [selectedPensioner]);
 
+    useEffect(() => {
+        fetchAllData();
+    }, [fetchAllData]);
+    
     const sharingDateInfo = useMemo(() => {
         if (!causanteRecords || causanteRecords.length === 0) return null;
         const sortedRecords = [...causanteRecords]
@@ -186,7 +180,7 @@ export default function AnexoLey4Page() {
         
                     const isMesada = code === 'MESAD' || name.includes('Mesada Pensional');
                     const isAdicionalJun = code === 'MESAD14' || name.includes('Mesada Adicional 14_Junio');
-                    const isAdicionalDic = name === '285-Mesada Adicional';
+                    const isAdicionalDic = name.includes('285-Mesada Adicional');
         
                     if ((isMesada || isAdicionalJun || isAdicionalDic) && detail.ingresos > 0) {
                         count++;
@@ -222,7 +216,7 @@ export default function AnexoLey4Page() {
                  const reajusteMayor = Math.max(reajusteSMLMV, reajusteIPC);
                  proyeccionMesada = proyeccionAnterior * (1 + reajusteMayor / 100);
             }
-            proyeccionAnterior = proyeccionMesada;
+            proyeccionAnterior = proyeccionMesada > 0 ? proyeccionMesada : mesadaPagada;
 
             const numSmlmvProyectado = smlmv > 0 ? proyeccionMesada / smlmv : 0;
             const numSmlmvPagado = smlmv > 0 ? mesadaPagada / smlmv : 0;
@@ -245,13 +239,13 @@ export default function AnexoLey4Page() {
             };
         });
 
-    }, [selectedPensioner, payments, historicalPayments, causanteRecords, sharingDateInfo]);
+    }, [selectedPensioner, payments, historicalPayments, sharingDateInfo]);
 
     const totalGeneralRetroactivas = useMemo(() => {
         return tabla1Data.reduce((acc, row) => acc + row.totalRetroactivas, 0);
     }, [tabla1Data]);
     
-     const sharingData = useMemo(() => {
+    const sharingData = useMemo(() => {
         if (!causanteRecords || causanteRecords.length === 0 || !sharingDateInfo || tabla1Data.length === 0) return null;
         
         const initialSharingRecord = [...causanteRecords]
@@ -263,7 +257,8 @@ export default function AnexoLey4Page() {
         const mesadaColpensiones = initialSharingRecord.valor_iss || 0;
         const mayorValorEmpresa = initialSharingRecord.valor_empresa || 0;
         
-        const mesadaPlena = mesadaColpensiones + mayorValorEmpresa;
+        const ultimaProyeccionAnexo1 = tabla1Data.length > 0 ? tabla1Data[tabla1Data.length - 1].proyeccionMesada : 0;
+        const mesadaPlena = ultimaProyeccionAnexo1 > 0 ? ultimaProyeccionAnexo1 : (mesadaColpensiones + mayorValorEmpresa);
         
         const porcentajeColpensiones = mesadaPlena > 0 ? (mesadaColpensiones / mesadaPlena) * 100 : 0;
         const porcentajeEmpresa = mesadaPlena > 0 ? (mayorValorEmpresa / mesadaPlena) * 100 : 0;
@@ -271,8 +266,6 @@ export default function AnexoLey4Page() {
         const sharingDate = initialSharingRecord.fecha_desde
             ? formatFirebaseTimestamp(initialSharingRecord.fecha_desde, 'dd/MM/yyyy')
             : 'N/A';
-        
-        const ultimaProyeccionAnexo1 = tabla1Data.length > 0 ? tabla1Data[tabla1Data.length - 1].proyeccionMesada : 0;
 
         return {
             mesadaPlena,
