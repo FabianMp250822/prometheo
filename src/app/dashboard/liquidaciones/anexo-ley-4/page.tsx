@@ -146,27 +146,34 @@ export default function AnexoLey4Page() {
             const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
         
             if (sharingDateInfo && year === sharingDateInfo.year) {
+                // Filter payments to only include those up to the sharing month
                 const paymentsBeforeSharing = paymentsInYear.filter(p => {
                     const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
                     return paymentDate && (paymentDate.getMonth() + 1) <= sharingDateInfo.month;
                 });
                 
                  return paymentsBeforeSharing.reduce((count, p) => {
-                    return count + p.detalles.filter(detail =>
-                        (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional')) ||
+                    const hasMesada = p.detalles.some(detail =>
+                        (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional'))
+                    );
+                     const hasMesada14 = p.detalles.some(detail =>
                         (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) ||
                         (detail.nombre === '285-Mesada Adicional')
-                    ).length;
+                    );
+                    return count + (hasMesada ? 1 : 0) + (hasMesada14 ? 1 : 0);
                 }, 0);
             }
         
             if (paymentsInYear.length > 0) {
                  return paymentsInYear.reduce((count, p) => {
-                    return count + p.detalles.filter(detail =>
-                        (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional')) ||
+                     const hasMesada = p.detalles.some(detail =>
+                        (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional'))
+                    );
+                     const hasMesada14 = p.detalles.some(detail =>
                         (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) ||
                         (detail.nombre === '285-Mesada Adicional')
-                    ).length;
+                    );
+                    return count + (hasMesada ? 1 : 0) + (hasMesada14 ? 1 : 0);
                 }, 0);
             }
             
@@ -271,8 +278,9 @@ export default function AnexoLey4Page() {
         if (!initialSharingRecord) return null;
 
         const mesadaColpensiones = initialSharingRecord.valor_iss || 0;
-        const mayorValorEmpresa = lastRowTabla1.proyeccionMesada > 0 ? lastRowTabla1.proyeccionMesada - mesadaColpensiones : 0;
-        const mesadaPlena = mesadaColpensiones + mayorValorEmpresa;
+        const mayorValorEmpresa = initialSharingRecord.valor_empresa || 0;
+        
+        const mesadaPlena = lastRowTabla1.proyeccionMesada;
         
         const porcentajeColpensiones = mesadaPlena > 0 ? (mesadaColpensiones / mesadaPlena) * 100 : 0;
         const porcentajeEmpresa = mesadaPlena > 0 ? (mayorValorEmpresa / mesadaPlena) * 100 : 0;
@@ -280,6 +288,10 @@ export default function AnexoLey4Page() {
         const sharingDate = initialSharingRecord.fecha_desde
             ? formatFirebaseTimestamp(initialSharingRecord.fecha_desde, 'dd/MM/yyyy')
             : 'N/A';
+            
+        const totalSmlmvPlena = lastRowTabla1.numSmlmvMesadaPlena;
+        const smlmvEmpresa = totalSmlmvPlena * (porcentajeEmpresa / 100);
+        const smlmvColpensiones = totalSmlmvPlena * (porcentajeColpensiones / 100);
 
         return {
             mesadaPlena,
@@ -289,6 +301,8 @@ export default function AnexoLey4Page() {
             porcentajeEmpresa,
             sharingDate,
             mesadaAntes: lastRowTabla1.proyeccionMesada,
+            smlmvEmpresa,
+            smlmvColpensiones,
         };
     }, [causanteRecords, tabla1Data, sharingDateInfo]);
 
@@ -441,9 +455,8 @@ export default function AnexoLey4Page() {
                                 </TableBody>
                                 <TableBody>
                                     <TableRow className="font-bold bg-muted">
-                                        <TableCell colSpan={10} className="text-right">TOTAL GENERAL RETROACTIVAS</TableCell>
+                                        <TableCell colSpan={11} className="text-right">TOTAL GENERAL RETROACTIVAS</TableCell>
                                         <TableCell>{formatCurrency(totalGeneralRetroactivas)}</TableCell>
-                                        <TableCell></TableCell>
                                     </TableRow>
                                 </TableBody>
                             </Table>
@@ -490,8 +503,10 @@ export default function AnexoLey4Page() {
                                     </TableRow>
                                 </TableBody>
                             </Table>
-                             <div className="mt-4 text-center text-sm text-muted-foreground">
-                                <p><span className="font-semibold">Fecha de Compartición de la Pensión:</span> {sharingData.sharingDate}</p>
+                             <div className="mt-4 text-center text-sm text-muted-foreground space-y-1 md:space-y-0 md:flex md:justify-center md:gap-6">
+                                <p><span className="font-semibold">Fecha de Compartición:</span> {sharingData.sharingDate}</p>
+                                <p><span className="font-semibold"># SMLMV Empresa:</span> {sharingData.smlmvEmpresa.toFixed(4)}</p>
+                                <p><span className="font-semibold"># SMLMV Colpensiones:</span> {sharingData.smlmvColpensiones.toFixed(4)}</p>
                             </div>
                         </CardContent>
                     </Card>
