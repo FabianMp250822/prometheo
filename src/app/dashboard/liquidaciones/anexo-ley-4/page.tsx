@@ -15,11 +15,11 @@ export const datosConsolidados: { [year: number]: { smlmv: number; ipc: number; 
   2000: { smlmv: 260100, ipc: 9.23, reajusteSMLMV: 10.00 },
   2001: { smlmv: 286000, ipc: 8.75, reajusteSMLMV: 9.96 },
   2002: { smlmv: 309000, ipc: 7.65, reajusteSMLMV: 8.04 },
-  2003: { smlmv: 332000, ipc: 6.99, reajusteSMLMV: 7.44 },
-  2004: { smlmv: 358000, ipc: 6.49, reajusteSMLMV: 7.83 },
-  2005: { smlmv: 381500, ipc: 5.50, reajusteSMLMV: 6.56 },
-  2006: { smlmv: 408000, ipc: 4.85, reajusteSMLMV: 6.95 },
-  2007: { smlmv: 433700, ipc: 4.48, reajusteSMLMV: 6.30 },
+  2003: { smlmv: 332000, ipc: 6.49, reajusteSMLMV: 7.44 },
+  2004: { smlmv: 358000, ipc: 5.50, reajusteSMLMV: 7.83 },
+  2005: { smlmv: 381500, ipc: 4.85, reajusteSMLMV: 6.56 },
+  2006: { smlmv: 408000, ipc: 4.48, reajusteSMLMV: 6.95 },
+  2007: { smlmv: 433700, ipc: 5.69, reajusteSMLMV: 6.30 },
   2008: { smlmv: 461500, ipc: 5.69, reajusteSMLMV: 6.41 },
   2009: { smlmv: 496900, ipc: 7.67, reajusteSMLMV: 7.67 },
   2010: { smlmv: 515000, ipc: 2.00, reajusteSMLMV: 3.64 },
@@ -256,11 +256,9 @@ export default function AnexoLey4Page() {
      const sharingData = useMemo(() => {
         if (!causanteRecords || causanteRecords.length === 0) return null;
         
-        const sortedRecords = [...causanteRecords].sort((a,b) => {
-            const dateA = a.fecha_desde ? new Date((a.fecha_desde as any).seconds * 1000) : new Date(9999, 0, 1);
-            const dateB = b.fecha_desde ? new Date((b.fecha_desde as any).seconds * 1000) : new Date(9999, 0, 1);
-            return dateA.getTime() - dateB.getTime();
-        });
+        const sortedRecords = [...causanteRecords]
+            .filter(r => r.fecha_desde)
+            .sort((a,b) => formatFirebaseTimestamp(a.fecha_desde!, 't') - formatFirebaseTimestamp(b.fecha_desde!, 't'));
 
         const initialSharingRecord = sortedRecords[0];
 
