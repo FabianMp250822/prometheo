@@ -146,7 +146,6 @@ export default function AnexoLey4Page() {
             const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
         
             if (sharingDateInfo && year === sharingDateInfo.year) {
-                // Filter payments to only include those up to the sharing month
                 const paymentsBeforeSharing = paymentsInYear.filter(p => {
                     const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
                     return paymentDate && (paymentDate.getMonth() + 1) <= sharingDateInfo.month;
@@ -180,7 +179,7 @@ export default function AnexoLey4Page() {
             const historicalRecordsForYear = historicalPayments.filter(rec => rec.ANO_RET === year);
             if (historicalRecordsForYear.length > 0) return 14; 
             
-            return 0; // Return 0 if no data is found for the year
+            return 0;
         };
         
         const getFirstPensionInYear = (year: number): number => {
@@ -210,7 +209,7 @@ export default function AnexoLey4Page() {
             .sort((a, b) => a - b);
         
         let proyeccionAnterior = 0;
-        let numSmlmvAnterior = 0;
+        let numSmlmvProyectadoAnterior = 0;
 
         return relevantYears.map((year, index) => {
             const smlmv = datosConsolidados[year as keyof typeof datosConsolidados]?.smlmv || 0;
@@ -238,10 +237,9 @@ export default function AnexoLey4Page() {
             if (index === 0) {
                 numSmlmvMesadaPlena = numSmlmvProyectado;
             } else {
-                numSmlmvMesadaPlena = numSmlmvAnterior;
+                numSmlmvMesadaPlena = numSmlmvProyectadoAnterior;
             }
-            numSmlmvAnterior = numSmlmvProyectado;
-
+            numSmlmvProyectadoAnterior = numSmlmvProyectado;
 
             return {
                 año: year,
@@ -455,8 +453,9 @@ export default function AnexoLey4Page() {
                                 </TableBody>
                                 <TableBody>
                                     <TableRow className="font-bold bg-muted">
-                                        <TableCell colSpan={11} className="text-right">TOTAL GENERAL RETROACTIVAS</TableCell>
-                                        <TableCell>{formatCurrency(totalGeneralRetroactivas)}</TableCell>
+                                        <TableCell colSpan={10}>TOTAL GENERAL RETROACTIVAS</TableCell>
+                                        <TableCell className="text-right">{formatCurrency(totalGeneralRetroactivas)}</TableCell>
+                                        <TableCell></TableCell>
                                     </TableRow>
                                 </TableBody>
                             </Table>
@@ -505,8 +504,8 @@ export default function AnexoLey4Page() {
                             </Table>
                              <div className="mt-4 text-center text-sm text-muted-foreground space-y-1 md:space-y-0 md:flex md:justify-center md:gap-6">
                                 <p><span className="font-semibold">Fecha de Compartición:</span> {sharingData.sharingDate}</p>
-                                <p><span className="font-semibold"># SMLMV Empresa:</span> {sharingData.smlmvEmpresa.toFixed(4)}</p>
-                                <p><span className="font-semibold"># SMLMV Colpensiones:</span> {sharingData.smlmvColpensiones.toFixed(4)}</p>
+                                <p><span className="font-semibold"># de SMLMV empresa:</span> {sharingData.smlmvEmpresa.toFixed(4)}</p>
+                                <p><span className="font-semibold"># de SMLMV colpensiones:</span> {sharingData.smlmvColpensiones.toFixed(4)}</p>
                             </div>
                         </CardContent>
                     </Card>
@@ -555,7 +554,7 @@ export default function AnexoLey4Page() {
                                     <TableBody>
                                         <TableRow className="font-bold bg-muted">
                                             <TableCell colSpan={10} className="text-right">TOTAL GENERAL RETROACTIVAS (POST-COMPARTICIÓN)</TableCell>
-                                            <TableCell>{formatCurrency(totalGeneralRetroactivasTabla3)}</TableCell>
+                                            <TableCell className="text-right">{formatCurrency(totalGeneralRetroactivasTabla3)}</TableCell>
                                         </TableRow>
                                     </TableBody>
                                 </Table>
