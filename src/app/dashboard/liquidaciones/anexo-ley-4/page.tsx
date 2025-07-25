@@ -142,6 +142,39 @@ export default function AnexoLey4Page() {
     const tabla1Data = useMemo(() => {
         if (!selectedPensioner) return [];
         
+        const countMesadasInYear = (year: number): number => {
+            const paymentsToCount = payments.filter(p => parseInt(p.año, 10) === year);
+        
+            if (sharingDateInfo && year === sharingDateInfo.year) {
+                const paymentsInSharingYear = paymentsToCount.filter(p => {
+                    const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
+                    return paymentDate && (paymentDate.getMonth() + 1) <= sharingDateInfo.month;
+                });
+                
+                 return paymentsInSharingYear.reduce((count, p) => {
+                    return count + p.detalles.filter(detail =>
+                        (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional')) ||
+                        (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) ||
+                        (detail.nombre === '285-Mesada Adicional')
+                    ).length;
+                }, 0);
+            }
+        
+            if (paymentsToCount.length === 0) {
+                const historicalRecordsForYear = historicalPayments.filter(rec => rec.ANO_RET === year);
+                if (historicalRecordsForYear.length > 0) return 14; 
+                return 0;
+            }
+        
+             return paymentsToCount.reduce((count, p) => {
+                return count + p.detalles.filter(detail =>
+                    (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional')) ||
+                    (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) ||
+                    (detail.nombre === '285-Mesada Adicional')
+                ).length;
+            }, 0);
+        };
+        
         const getFirstPensionInYear = (year: number): number => {
             const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
             if (paymentsInYear.length > 0) {
@@ -157,40 +190,7 @@ export default function AnexoLey4Page() {
             if (historicalRecord) return parseFloat(historicalRecord.VALOR_ACT!.replace(/,/g, ''));
             return 0;
         };
-        
-        const countMesadasInYear = (year: number): number => {
-            const paymentsToCount = payments.filter(p => parseInt(p.año, 10) === year);
-        
-            if (sharingDateInfo && year === sharingDateInfo.year) {
-                const paymentsInSharingYear = paymentsToCount.filter(p => {
-                    const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
-                    return paymentDate && (paymentDate.getMonth() + 1) <= sharingDateInfo.month;
-                });
-                
-                return paymentsInSharingYear.reduce((count, p) => {
-                    return count + p.detalles.filter(detail =>
-                        (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional')) ||
-                        (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) ||
-                        (detail.nombre === '285-Mesada Adicional')
-                    ).length;
-                }, 0);
-            }
-        
-            if (paymentsToCount.length === 0) {
-                const historicalRecordsForYear = historicalPayments.filter(rec => rec.ANO_RET === year);
-                if (historicalRecordsForYear.length > 0) return 14; 
-                return 0;
-            }
-        
-            return paymentsToCount.reduce((count, p) => {
-                return count + p.detalles.filter(detail =>
-                    (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional')) ||
-                    (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) ||
-                    (detail.nombre === '285-Mesada Adicional')
-                ).length;
-            }, 0);
-        };
-        
+
         const firstPensionYear = Object.keys(datosConsolidados).map(Number).find(year => getFirstPensionInYear(year) > 0);
         if (!firstPensionYear) return [];
 
@@ -255,11 +255,12 @@ export default function AnexoLey4Page() {
 
         if (!initialSharingRecord) return null;
 
+        const ultimaFilaTabla1 = tabla1Data[tabla1Data.length - 1];
+        if (!ultimaFilaTabla1) return null;
+
+        const mesadaPlena = ultimaFilaTabla1.proyeccionMesada;
         const mesadaColpensiones = initialSharingRecord.valor_iss || 0;
-        const mayorValorEmpresa = initialSharingRecord.valor_empresa || 0;
-        
-        const ultimaProyeccionAnexo1 = tabla1Data.length > 0 ? tabla1Data[tabla1Data.length - 1].proyeccionMesada : 0;
-        const mesadaPlena = ultimaProyeccionAnexo1 > 0 ? ultimaProyeccionAnexo1 : (mesadaColpensiones + mayorValorEmpresa);
+        const mayorValorEmpresa = mesadaPlena > 0 ? mesadaPlena - mesadaColpensiones : 0;
         
         const porcentajeColpensiones = mesadaPlena > 0 ? (mesadaColpensiones / mesadaPlena) * 100 : 0;
         const porcentajeEmpresa = mesadaPlena > 0 ? (mayorValorEmpresa / mesadaPlena) * 100 : 0;
@@ -275,7 +276,7 @@ export default function AnexoLey4Page() {
             porcentajeColpensiones,
             porcentajeEmpresa,
             sharingDate,
-            mesadaAntes: ultimaProyeccionAnexo1,
+            mesadaAntes: ultimaFilaTabla1.proyeccionMesada,
         };
     }, [causanteRecords, tabla1Data, sharingDateInfo]);
 
