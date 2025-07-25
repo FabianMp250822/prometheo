@@ -20,6 +20,24 @@ export const datosConsolidados: { [year: number]: { smlmv: number; ipc: number; 
   2005: { smlmv: 381500, ipc: 5.50, reajusteSMLMV: 6.56 },
   2006: { smlmv: 408000, ipc: 4.85, reajusteSMLMV: 6.95 },
   2007: { smlmv: 433700, ipc: 4.48, reajusteSMLMV: 6.30 },
+  2008: { smlmv: 461500, ipc: 5.69, reajusteSMLMV: 6.41 },
+  2009: { smlmv: 496900, ipc: 7.67, reajusteSMLMV: 7.67 },
+  2010: { smlmv: 515000, ipc: 2.00, reajusteSMLMV: 3.64 },
+  2011: { smlmv: 535600, ipc: 3.17, reajusteSMLMV: 4.00 },
+  2012: { smlmv: 566000, ipc: 3.73, reajusteSMLMV: 5.81 },
+  2013: { smlmv: 589500, ipc: 2.44, reajusteSMLMV: 4.02 },
+  2014: { smlmv: 616000, ipc: 1.94, reajusteSMLMV: 4.50 },
+  2015: { smlmv: 644350, ipc: 3.66, reajusteSMLMV: 4.60 },
+  2016: { smlmv: 689455, ipc: 6.77, reajusteSMLMV: 7.00 },
+  2017: { smlmv: 737717, ipc: 5.75, reajusteSMLMV: 7.00 },
+  2018: { smlmv: 781242, ipc: 4.09, reajusteSMLMV: 5.90 },
+  2019: { smlmv: 828116, ipc: 3.18, reajusteSMLMV: 6.00 },
+  2020: { smlmv: 877803, ipc: 3.80, reajusteSMLMV: 6.00 },
+  2021: { smlmv: 908526, ipc: 1.61, reajusteSMLMV: 3.50 },
+  2022: { smlmv: 1000000, ipc: 5.62, reajusteSMLMV: 10.07 },
+  2023: { smlmv: 1160000, ipc: 13.12, reajusteSMLMV: 16.00 },
+  2024: { smlmv: 1300000, ipc: 9.28, reajusteSMLMV: 12.00 },
+  2025: { smlmv: 1423500, ipc: 5.20, reajusteSMLMV: 9.50 }
 };
 
 export const datosIPC: { [key: number]: number } = {
@@ -32,6 +50,24 @@ export const datosIPC: { [key: number]: number } = {
   2004: 5.50,
   2005: 4.85,
   2006: 4.48,
+  2007: 5.69,
+  2008: 7.67,
+  2009: 2.00,
+  2010: 3.17,
+  2011: 3.73,
+  2012: 2.44,
+  2013: 1.94,
+  2014: 3.66,
+  2015: 6.77,
+  2016: 5.75,
+  2017: 4.09,
+  2018: 3.18,
+  2019: 3.80,
+  2020: 1.61,
+  2021: 5.62,
+  2022: 13.12,
+  2023: 9.28,
+  2024: 5.20
 };
 
 export default function AnexoLey4Page() {
@@ -93,33 +129,24 @@ export default function AnexoLey4Page() {
         fetchAllData();
     }, [selectedPensioner]);
 
+    const sharingDateInfo = useMemo(() => {
+        if (!causanteRecords || causanteRecords.length === 0) return null;
+        const sortedRecords = [...causanteRecords]
+            .filter(r => r.fecha_desde)
+            .sort((a, b) => formatFirebaseTimestamp(a.fecha_desde!, 't') - formatFirebaseTimestamp(b.fecha_desde!, 't'));
+
+        if (sortedRecords.length === 0) return null;
+        
+        const sharingDate = new Date(formatFirebaseTimestamp(sortedRecords[0].fecha_desde, 'yyyy-MM-dd'));
+        return {
+            date: sharingDate,
+            year: sharingDate.getFullYear(),
+            month: sharingDate.getMonth() + 1
+        };
+    }, [causanteRecords]);
+
     const tabla1Data = useMemo(() => {
         if (!selectedPensioner) return [];
-        
-        const countMesadasInYear = (year: number): number => {
-            let count = 0;
-            const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
-            if (!paymentsInYear.length) {
-                const historicalRecordsForYear = historicalPayments.filter(rec => rec.ANO_RET === year);
-                if (historicalRecordsForYear.length > 0) return 14; 
-                return 0;
-            }
-
-            paymentsInYear.forEach(p => {
-                p.detalles.forEach(detail => {
-                    const code = detail.codigo || '';
-                    const name = detail.nombre || '';
-                    
-                    const isMesada = code === 'MESAD' || name.includes('Mesada Pensional');
-                    const isAdicionalJunio = code === 'MESAD14' || name.includes('Mesada Adicional 14_Junio') || name.includes('285-Mesada Adicional');
-                    
-                    if ((isMesada || isAdicionalJunio) && detail.ingresos > 0) {
-                        count++;
-                    }
-                });
-            });
-            return count;
-        };
         
         const getFirstPensionInYear = (year: number): number => {
             const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
@@ -136,13 +163,49 @@ export default function AnexoLey4Page() {
             if (historicalRecord) return parseFloat(historicalRecord.VALOR_ACT!.replace(/,/g, ''));
             return 0;
         };
+        
+        const countMesadasInYear = (year: number): number => {
+            let count = 0;
+            const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
+            if (!paymentsInYear.length) {
+                const historicalRecordsForYear = historicalPayments.filter(rec => rec.ANO_RET === year);
+                if (historicalRecordsForYear.length > 0) return 14; 
+                return 0;
+            }
+
+            let monthLimit = 12;
+            if (sharingDateInfo && year === sharingDateInfo.year) {
+                monthLimit = sharingDateInfo.month;
+            }
+
+            paymentsInYear.forEach(p => {
+                 const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
+                 if (paymentDate && paymentDate.getMonth() + 1 > monthLimit) {
+                    return; // Skip payments after the sharing month in the final year
+                 }
+                p.detalles.forEach(detail => {
+                    const code = detail.codigo || '';
+                    const name = detail.nombre || '';
+                    
+                    const isMesada = code === 'MESAD' || name.includes('Mesada Pensional');
+                    const isAdicional = code === 'MESAD14' || name.includes('Mesada Adicional 14_Junio') || name.includes('285-Mesada Adicional');
+                    
+                    if ((isMesada || isAdicional) && detail.ingresos > 0) {
+                        count++;
+                    }
+                });
+            });
+            return count;
+        };
 
         const firstPensionYear = Object.keys(datosConsolidados).map(Number).find(year => getFirstPensionInYear(year) > 0);
         if (!firstPensionYear) return [];
 
+        const endYear = sharingDateInfo ? sharingDateInfo.year : 2007;
+
         const relevantYears = Object.keys(datosConsolidados)
             .map(Number)
-            .filter(year => year >= firstPensionYear && year <= 2007)
+            .filter(year => year >= firstPensionYear && year <= endYear)
             .sort((a, b) => a - b);
         
         let proyeccionAnterior = 0;
@@ -184,7 +247,7 @@ export default function AnexoLey4Page() {
             };
         });
 
-    }, [selectedPensioner, payments, historicalPayments]);
+    }, [selectedPensioner, payments, historicalPayments, sharingDateInfo]);
 
     const totalGeneralRetroactivas = useMemo(() => {
         return tabla1Data.reduce((acc, row) => acc + row.totalRetroactivas, 0);
@@ -213,6 +276,9 @@ export default function AnexoLey4Page() {
         const sharingDate = initialSharingRecord.fecha_desde
             ? formatFirebaseTimestamp(initialSharingRecord.fecha_desde, 'dd/MM/yyyy')
             : 'N/A';
+        
+        const mesadaAntesRecord = tabla1Data.find(d => d.año === (sharingDateInfo?.year || 0) -1 );
+        const mesadaAntes = mesadaAntesRecord ? mesadaAntesRecord.proyeccionMesada : 0;
 
         return {
             mesadaPlena,
@@ -221,8 +287,9 @@ export default function AnexoLey4Page() {
             porcentajeColpensiones,
             porcentajeEmpresa,
             sharingDate,
+            mesadaAntes,
         };
-    }, [causanteRecords]);
+    }, [causanteRecords, tabla1Data, sharingDateInfo]);
 
 
     return (
@@ -326,7 +393,7 @@ export default function AnexoLey4Page() {
                             </Table>
                             </div>
                         ) : (
-                            <p className="text-center text-muted-foreground py-4">No se encontraron datos de pagos para este pensionado en los años relevantes (1999-2007).</p>
+                            <p className="text-center text-muted-foreground py-4">No se encontraron datos de pagos para este pensionado en los años relevantes.</p>
                         )}
                     </CardContent>
                 </Card>
@@ -342,8 +409,13 @@ export default function AnexoLey4Page() {
                         <CardContent>
                              <Table>
                                 <TableBody>
+                                     <TableRow>
+                                        <TableCell className="font-semibold bg-muted/30">MESADA PLENA DE LA PENSION CONVENCIONAL ANTES DE LA COMPARTICION</TableCell>
+                                        <TableCell className="text-right font-bold">{formatCurrency(sharingData.mesadaAntes)}</TableCell>
+                                        <TableCell className="text-right font-bold"></TableCell>
+                                    </TableRow>
                                     <TableRow className="bg-muted/30">
-                                        <TableCell className="font-semibold">MESADA PLENA DE LA PENSION CONVENCIONAL ANTES DE LA COMPARTICION</TableCell>
+                                        <TableCell className="font-semibold">MESADA PLENA DE LA PENSION CONVENCIONAL</TableCell>
                                         <TableCell className="text-right font-bold">{formatCurrency(sharingData.mesadaPlena)}</TableCell>
                                         <TableCell className="text-right font-bold">100.00%</TableCell>
                                     </TableRow>
