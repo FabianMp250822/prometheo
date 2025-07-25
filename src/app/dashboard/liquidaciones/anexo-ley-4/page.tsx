@@ -146,12 +146,12 @@ export default function AnexoLey4Page() {
             const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
         
             if (sharingDateInfo && year === sharingDateInfo.year) {
-                const paymentsBeforeSharing = paymentsInYear.filter(p => {
+                const paymentsInSharingYear = payments.filter(p => {
                     const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
-                    return paymentDate && (paymentDate.getMonth() + 1) <= sharingDateInfo.month;
+                    return paymentDate && paymentDate.getFullYear() === year && (paymentDate.getMonth() + 1) <= sharingDateInfo.month;
                 });
                 
-                 return paymentsBeforeSharing.reduce((count, p) => {
+                return paymentsInSharingYear.reduce((count, p) => {
                     const hasMesada = p.detalles.some(detail =>
                         (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional'))
                     );
@@ -298,7 +298,6 @@ export default function AnexoLey4Page() {
             porcentajeColpensiones,
             porcentajeEmpresa,
             sharingDate,
-            mesadaAntes: lastRowTabla1.proyeccionMesada,
             smlmvEmpresa,
             smlmvColpensiones,
         };
@@ -330,7 +329,7 @@ export default function AnexoLey4Page() {
             const causanteRecordForYear = causanteRecords.find(r => r.fecha_desde && new Date(formatFirebaseTimestamp(r.fecha_desde, 'yyyy-MM-dd')).getFullYear() === year);
             const mesadaPagada = (causanteRecordForYear?.valor_empresa || 0) + (causanteRecordForYear?.valor_iss || 0);
 
-            const numSmlmvProyectado = smlmv > 0 ? proyeccionMesada / smlmv : 0;
+            const numSmlmvProyectado = sharingData.smlmvEmpresa;
             const numSmlmvPagado = smlmv > 0 ? mesadaPagada / smlmv : 0;
             const diferencia = proyeccionMesada > 0 ? proyeccionMesada - mesadaPagada : 0;
             const numMesadas = year === sharingDateInfo.year ? (14 - sharingDateInfo.month) : 14;
@@ -478,12 +477,7 @@ export default function AnexoLey4Page() {
                              <Table>
                                 <TableBody>
                                      <TableRow className="hidden">
-                                        <TableCell className="font-semibold bg-muted/30">MESADA PLENA DE LA PENSION CONVENCIONAL ANTES DE LA COMPARTICION</TableCell>
-                                        <TableCell className="text-right font-bold">{formatCurrency(sharingData.mesadaAntes)}</TableCell>
-                                        <TableCell className="text-right font-bold"></TableCell>
-                                    </TableRow>
-                                    <TableRow className="bg-muted/30">
-                                        <TableCell className="font-semibold">MESADA PLENA DE LA PENSION CONVENCIONAL</TableCell>
+                                        <TableCell className="font-semibold bg-muted/30">MESADA PLENA DE LA PENSION CONVENCIONAL</TableCell>
                                         <TableCell className="text-right font-bold">{formatCurrency(sharingData.mesadaPlena)}</TableCell>
                                         <TableCell className="text-right font-bold">100.00%</TableCell>
                                     </TableRow>
