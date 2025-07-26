@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { collectionGroup, query, where, getDocs, doc, getDoc, Timestamp, orderBy, limit } from 'firebase/firestore';
+import { collectionGroup, query, where, getDocs, doc, getDoc, Timestamp, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,11 +9,11 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Search, Loader2, CalendarIcon, AlertTriangle, ListFilter } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, getMonth, getYear, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { parseEmployeeName, formatCurrency } from '@/lib/helpers';
+import { parseEmployeeName, formatCurrency, parsePeriodoPago } from '@/lib/helpers';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface PaymentResult {
@@ -27,11 +27,10 @@ interface PaymentResult {
 
 export default function BusquedasPage() {
     const { toast } = useToast();
-    const [dateRange, setDateRange] = useState<{ from: Date | undefined, to: Date | undefined }>({ from: undefined, to: undefined });
+    const [dateRange, setDateRange] = useState<{ from: Date | undefined, to: Date | undefined }>({ from: new Date(), to: new Date() });
     const [results, setResults] = useState<PaymentResult[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     
-    // This function will cache pensioner data to avoid re-fetching the same user multiple times.
     const pensionerCache = new Map<string, { nombre: string; documento: string }>();
 
     const handleSearch = useCallback(async () => {
@@ -49,6 +48,8 @@ export default function BusquedasPage() {
         pensionerCache.clear();
 
         try {
+            // Firestore query is on `fechaProcesado` as it's a timestamp and can be indexed for range queries.
+            // This is more efficient than fetching all documents.
             const startDate = Timestamp.fromDate(dateRange.from);
             const endDate = Timestamp.fromDate(dateRange.to);
 
@@ -56,13 +57,12 @@ export default function BusquedasPage() {
                 collectionGroup(db, 'pagos'),
                 where('fechaProcesado', '>=', startDate),
                 where('fechaProcesado', '<=', endDate),
-                orderBy('fechaProcesado', 'desc'),
-                limit(100) // Add a limit to prevent excessive reads
+                orderBy('fechaProcesado', 'desc')
             );
 
             const querySnapshot = await getDocs(paymentsQuery);
-            if(querySnapshot.empty) {
-                 toast({ title: 'Sin Resultados', description: 'No se encontraron pagos en el rango de fechas seleccionado.' });
+            if (querySnapshot.empty) {
+                 toast({ title: 'Sin Resultados', description: 'No se encontraron pagos procesados en el rango de fechas seleccionado.' });
                  setIsLoading(false);
                  return;
             }
@@ -71,6 +71,13 @@ export default function BusquedasPage() {
 
             for (const paymentDoc of querySnapshot.docs) {
                 const paymentData = paymentDoc.data();
+                
+                // Client-side filtering based on the `periodoPago` string.
+                const periodoDates = parsePeriodoPago(paymentData.periodoPago);
+                if (!periodoDates.startDate || !isWithinInterval(periodoDates.startDate, { start: dateRange.from, end: dateRange.to })) {
+                    continue; // Skip if the payment period doesn't start within the selected range.
+                }
+
                 const pensionadoId = paymentDoc.ref.parent.parent?.id;
 
                 if (pensionadoId) {
@@ -97,8 +104,8 @@ export default function BusquedasPage() {
                 }
             }
             
-             if(querySnapshot.size >= 100) {
-                 toast({ variant: 'destructive', title: 'Resultados Excedidos', description: 'Se encontraron más de 100 pagos. Mostrando los más recientes. Por favor, acote su búsqueda.' });
+            if (paymentResults.length === 0) {
+                 toast({ title: 'Sin Resultados', description: 'Ningún periodo de pago coincide con las fechas seleccionadas.' });
             }
 
             setResults(paymentResults);
@@ -124,7 +131,7 @@ export default function BusquedasPage() {
                         Búsqueda Avanzada de Pagos
                     </CardTitle>
                     <CardDescription>
-                        Filtre los pensionados que recibieron pagos dentro de un rango de fechas específico.
+                        Filtre los pensionados que recibieron pagos correspondientes a un rango de fechas específico.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col md:flex-row gap-4 items-center">
@@ -173,8 +180,8 @@ export default function BusquedasPage() {
                                 <TableRow>
                                     <TableHead>Pensionado</TableHead>
                                     <TableHead>Documento</TableHead>
-                                    <TableHead>Fecha de Pago</TableHead>
                                     <TableHead>Periodo Pagado</TableHead>
+                                    <TableHead>Fecha de Procesado</TableHead>
                                     <TableHead className="text-right">Valor Neto</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -183,8 +190,8 @@ export default function BusquedasPage() {
                                     <TableRow key={`${r.pensionadoId}-${index}`}>
                                         <TableCell className="font-medium">{parseEmployeeName(r.pensionadoNombre)}</TableCell>
                                         <TableCell>{r.pensionadoDocumento}</TableCell>
-                                        <TableCell>{r.fechaProcesado}</TableCell>
                                         <TableCell>{r.periodoPago}</TableCell>
+                                        <TableCell>{r.fechaProcesado}</TableCell>
                                         <TableCell className="text-right font-semibold text-green-600">{formatCurrency(parseFloat(r.valorNeto.replace(/\./g, '').replace(',', '.')))}</TableCell>
                                     </TableRow>
                                 ))}
@@ -199,7 +206,7 @@ export default function BusquedasPage() {
                         <AlertTriangle className="h-4 w-4" />
                         <AlertTitle>Nota sobre Índices</AlertTitle>
                         <AlertDescription>
-                            Para que esta búsqueda funcione correctamente, es necesario tener un índice compuesto en Firestore para la colección de grupo `pagos` que incluya `fechaProcesado` (ascendente o descendente) y cualquier otro campo que se quiera ordenar o filtrar.
+                            Para que esta búsqueda funcione correctamente, es necesario tener un índice compuesto en Firestore para la colección de grupo `pagos` que incluya `fechaProcesado`. La búsqueda se realiza por fecha de procesado y se filtra por periodo en el código para mayor precisión.
                         </AlertDescription>
                     </Alert>
                 </CardContent>
