@@ -326,8 +326,20 @@ export default function AnexoLey4Page() {
             }
             proyeccionAnterior = proyeccionMesada;
 
-            const causanteRecordForYear = causanteRecords.find(r => r.fecha_desde && new Date(formatFirebaseTimestamp(r.fecha_desde, 'yyyy-MM-dd')).getFullYear() === year);
-            const mesadaPagada = (causanteRecordForYear?.valor_empresa || 0) + (causanteRecordForYear?.valor_iss || 0);
+            let mesadaPagada = 0;
+            if (year === sharingDateInfo.year) {
+                const firstPaymentAfterSharing = payments.find(p => {
+                    const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
+                    return paymentDate && paymentDate.getFullYear() === year && (paymentDate.getMonth() + 1) > sharingDateInfo.month;
+                });
+                if (firstPaymentAfterSharing) {
+                    const mesadaDetail = firstPaymentAfterSharing.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
+                    mesadaPagada = mesadaDetail?.ingresos || 0;
+                }
+            } else {
+                const causanteRecordForYear = causanteRecords.find(r => r.fecha_desde && new Date(formatFirebaseTimestamp(r.fecha_desde, 'yyyy-MM-dd')).getFullYear() === year);
+                mesadaPagada = (causanteRecordForYear?.valor_empresa || 0) + (causanteRecordForYear?.valor_iss || 0);
+            }
 
             const numSmlmvProyectado = sharingData.smlmvEmpresa;
             const numSmlmvPagado = smlmv > 0 ? mesadaPagada / smlmv : 0;
@@ -350,7 +362,7 @@ export default function AnexoLey4Page() {
             };
         });
 
-    }, [sharingData, sharingDateInfo, causanteRecords]);
+    }, [sharingData, sharingDateInfo, causanteRecords, payments]);
 
     const totalGeneralRetroactivasTabla3 = useMemo(() => {
         return tabla3Data.reduce((acc, row) => acc + row.totalRetroactivas, 0);
