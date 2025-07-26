@@ -1,7 +1,8 @@
+
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { collectionGroup, query, where, getDocs, doc, getDoc, Timestamp, orderBy } from 'firebase/firestore';
+import { collectionGroup, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Search, Loader2, CalendarIcon, AlertTriangle, ListFilter } from 'lucide-react';
-import { format, getMonth, getYear, isWithinInterval } from 'date-fns';
+import { format, isWithinInterval, getYear } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -48,64 +49,77 @@ export default function BusquedasPage() {
         pensionerCache.clear();
 
         try {
-            // Firestore query is on `fechaProcesado` as it's a timestamp and can be indexed for range queries.
-            // This is more efficient than fetching all documents.
-            const startDate = Timestamp.fromDate(dateRange.from);
-            const endDate = Timestamp.fromDate(dateRange.to);
-
+            const startYear = getYear(dateRange.from).toString();
+            const endYear = getYear(dateRange.to).toString();
+            const yearsToQuery = startYear === endYear ? [startYear] : [startYear, endYear];
+            
             const paymentsQuery = query(
                 collectionGroup(db, 'pagos'),
-                where('fechaProcesado', '>=', startDate),
-                where('fechaProcesado', '<=', endDate),
-                orderBy('fechaProcesado', 'desc')
+                where('año', 'in', yearsToQuery)
             );
 
             const querySnapshot = await getDocs(paymentsQuery);
             if (querySnapshot.empty) {
-                 toast({ title: 'Sin Resultados', description: 'No se encontraron pagos procesados en el rango de fechas seleccionado.' });
+                 toast({ title: 'Sin Resultados', description: 'No se encontraron pagos en los años seleccionados.' });
                  setIsLoading(false);
                  return;
             }
 
             const paymentResults: PaymentResult[] = [];
+            const pensionerIdsToFetch = new Set<string>();
 
-            for (const paymentDoc of querySnapshot.docs) {
+            // First pass: filter by date range and collect pensioner IDs
+            querySnapshot.forEach(paymentDoc => {
                 const paymentData = paymentDoc.data();
-                
-                // Client-side filtering based on the `periodoPago` string.
                 const periodoDates = parsePeriodoPago(paymentData.periodoPago);
-                if (!periodoDates.startDate || !isWithinInterval(periodoDates.startDate, { start: dateRange.from, end: dateRange.to })) {
-                    continue; // Skip if the payment period doesn't start within the selected range.
+                if (periodoDates.startDate && isWithinInterval(periodoDates.startDate, { start: dateRange.from!, end: dateRange.to! })) {
+                    const pensionadoId = paymentDoc.ref.parent.parent?.id;
+                    if (pensionadoId) {
+                        pensionerIdsToFetch.add(pensionadoId);
+                    }
+                }
+            });
+
+            // Fetch all required pensioner data in batches
+            if (pensionerIdsToFetch.size > 0) {
+                const idsArray = Array.from(pensionerIdsToFetch);
+                const chunks = [];
+                for (let i = 0; i < idsArray.length; i += 30) {
+                    chunks.push(idsArray.slice(i, i + 30));
                 }
 
-                const pensionadoId = paymentDoc.ref.parent.parent?.id;
-
-                if (pensionadoId) {
-                    let pensionerInfo = pensionerCache.get(pensionadoId);
-
-                    if (!pensionerInfo) {
-                        const pensionerDocRef = doc(db, 'pensionados', pensionadoId);
-                        const pensionerDocSnap = await getDoc(pensionerDocRef);
-                        if (pensionerDocSnap.exists()) {
-                            const data = pensionerDocSnap.data();
-                            pensionerInfo = { nombre: data.empleado, documento: data.documento };
-                            pensionerCache.set(pensionadoId, pensionerInfo);
-                        }
-                    }
-
-                    paymentResults.push({
-                        pensionadoId: pensionadoId,
-                        pensionadoNombre: pensionerInfo?.nombre || 'Desconocido',
-                        pensionadoDocumento: pensionerInfo?.documento || 'N/A',
-                        periodoPago: paymentData.periodoPago,
-                        valorNeto: paymentData.valorNeto,
-                        fechaProcesado: format(paymentData.fechaProcesado.toDate(), "d MMM, yyyy", { locale: es }),
+                for (const chunk of chunks) {
+                    const pensionerQuery = query(collection(db, 'pensionados'), where('documento', 'in', chunk));
+                    const pensionerSnapshot = await getDocs(pensionerQuery);
+                    pensionerSnapshot.forEach(pensionerDoc => {
+                        const data = pensionerDoc.data();
+                        pensionerCache.set(pensionerDoc.id, { nombre: data.empleado, documento: data.documento });
                     });
                 }
             }
+
+            // Second pass: construct final results
+            querySnapshot.forEach(paymentDoc => {
+                const paymentData = paymentDoc.data();
+                const periodoDates = parsePeriodoPago(paymentData.periodoPago);
+                if (periodoDates.startDate && isWithinInterval(periodoDates.startDate, { start: dateRange.from!, end: dateRange.to! })) {
+                    const pensionadoId = paymentDoc.ref.parent.parent?.id;
+                    if (pensionadoId) {
+                        const pensionerInfo = pensionerCache.get(pensionadoId);
+                        paymentResults.push({
+                            pensionadoId: pensionadoId,
+                            pensionadoNombre: pensionerInfo?.nombre || 'Desconocido',
+                            pensionadoDocumento: pensionerInfo?.documento || 'N/A',
+                            periodoPago: paymentData.periodoPago,
+                            valorNeto: paymentData.valorNeto,
+                            fechaProcesado: paymentData.fechaProcesado?.toDate ? format(paymentData.fechaProcesado.toDate(), "d MMM, yyyy", { locale: es }) : 'N/A',
+                        });
+                    }
+                }
+            });
             
             if (paymentResults.length === 0) {
-                 toast({ title: 'Sin Resultados', description: 'Ningún periodo de pago coincide con las fechas seleccionadas.' });
+                 toast({ title: 'Sin Resultados', description: 'Ningún periodo de pago coincide con el rango de fechas exacto.' });
             }
 
             setResults(paymentResults);
@@ -206,7 +220,7 @@ export default function BusquedasPage() {
                         <AlertTriangle className="h-4 w-4" />
                         <AlertTitle>Nota sobre Índices</AlertTitle>
                         <AlertDescription>
-                            Para que esta búsqueda funcione correctamente, es necesario tener un índice compuesto en Firestore para la colección de grupo `pagos` que incluya `fechaProcesado`. La búsqueda se realiza por fecha de procesado y se filtra por periodo en el código para mayor precisión.
+                            Para que esta búsqueda funcione correctamente, es necesario tener un índice en Firestore para el campo `año` en la colección de grupo `pagos`. La búsqueda se realiza por año y se filtra por el periodo exacto en el código para mayor precisión.
                         </AlertDescription>
                     </Alert>
                 </CardContent>
