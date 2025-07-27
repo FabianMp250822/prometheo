@@ -161,13 +161,17 @@ export default function BusquedasPage() {
         setRetirementResults([]);
 
         try {
+            // Step 1: Query by the indexed field 'dependencia1'
             const q = query(
                 collection(db, 'pensionados'),
-                where('dependencia1', '==', selectedDependencia),
-                where('ano_jubilacion', '==', retirementDate)
+                where('dependencia1', '==', selectedDependencia)
             );
             const querySnapshot = await getDocs(q);
-            const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
+            const allPensionersInDep = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
+
+            // Step 2: Filter in-code by the string date
+            const results = allPensionersInDep.filter(p => p.ano_jubilacion?.trim() === retirementDate.trim());
+            
             setRetirementResults(results);
 
             if (results.length === 0) {
@@ -216,8 +220,8 @@ export default function BusquedasPage() {
                             </Select>
                         </div>
                         <div>
-                            <Label htmlFor="retirement-date">Fecha de Jubilación</Label>
-                            <Input id="retirement-date" type="date" value={retirementDate} onChange={e => setRetirementDate(e.target.value)} />
+                            <Label htmlFor="retirement-date">Fecha de Jubilación (YYYY-MM-DD)</Label>
+                            <Input id="retirement-date" type="text" placeholder="YYYY-MM-DD" value={retirementDate} onChange={e => setRetirementDate(e.target.value)} />
                         </div>
                         <Button onClick={handleJubilacionSearch} disabled={isLoadingRetirement}>
                              {isLoadingRetirement ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
@@ -328,3 +332,4 @@ export default function BusquedasPage() {
         </div>
     );
 }
+
