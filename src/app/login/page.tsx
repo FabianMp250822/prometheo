@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 import { app } from '@/lib/firebase';
@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Scale, Mail, KeyRound, Loader2 } from 'lucide-react';
+import { Scale, Mail, KeyRound, Loader2, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -18,11 +19,30 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const auth = getAuth(app);
+  const { executeRecaptcha } = useGoogleReCaptcha();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!executeRecaptcha) {
+      toast({
+        variant: 'destructive',
+        title: 'Error de reCAPTCHA',
+        description: 'No se pudo cargar el verificador de seguridad. Por favor, recargue la página.',
+      });
+      return;
+    }
     setIsLoading(true);
+
     try {
+      // Get reCAPTCHA token
+      const token = await executeRecaptcha('login');
+
+      // Note: In a production environment, this token should be sent to your backend (a Cloud Function)
+      // along with the email/password. The backend would then verify the token with Google's API
+      // before proceeding with Firebase Authentication. This frontend implementation is the first step.
+      
+      console.log('reCAPTCHA token:', token); // For demonstration
+
       await signInWithEmailAndPassword(auth, email, password);
       toast({ title: 'Inicio de sesión exitoso', description: 'Bienvenido de nuevo.' });
       router.push('/dashboard');
@@ -36,7 +56,7 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [auth, email, password, executeRecaptcha, router, toast]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-card p-4">
@@ -63,6 +83,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10"
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -78,6 +99,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10"
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -87,7 +109,11 @@ export default function LoginPage() {
             </Button>
           </form>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex-col gap-2">
+           <div className="text-xs text-muted-foreground flex items-center gap-1">
+              <ShieldCheck className="h-3 w-3 text-green-600" />
+              <span>Protegido por reCAPTCHA</span>
+           </div>
           <p className="text-xs text-muted-foreground text-center w-full">
             © {new Date().getFullYear()} Prometeo. Todos los derechos reservados.
           </p>
