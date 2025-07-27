@@ -1,88 +1,92 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check for authenticated users
-    function isAuthenticated() {
-      return request.auth != null;
-    }
 
-    // Default deny all reads and writes
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // Allow authenticated users to read from data collections
+    // Allow read access to 'pensionados' for any authenticated user.
+    // This is necessary for the search page to load dependencies.
     match /pensionados/{pensionadoId} {
-      allow read: if isAuthenticated();
-      // Allow read access to subcollections
-      match /{subcollection}/{docId} {
-        allow read: if isAuthenticated();
-      }
+      allow read: if request.auth != null;
+      // Keep write access restricted unless specified otherwise.
+      allow write: if false; 
+    }
+    
+    // Allow read access to subcollections of pensionados if needed
+    match /pensionados/{pensionadoId}/{subcollection}/{docId} {
+       allow read, write: if request.auth != null;
     }
 
     match /procesos/{procesoId} {
-      allow read: if isAuthenticated();
-      allow update: if isAuthenticated(); // Allow updates for editing details
-      match /{subcollection}/{docId} {
-        allow read, write, delete: if isAuthenticated(); // Allow full control over subcollections
-      }
+      allow read, write: if request.auth != null;
     }
     
-    match /nuevosclientes/{clienteId} {
-      allow read, write: if isAuthenticated();
-       match /documentos/{docId} {
-        allow read, write: if isAuthenticated();
-      }
-      match /pagos/{pagoId} {
-        allow read, write: if isAuthenticated();
-      }
+    match /procesos/{procesoId}/{subcollection}/{docId} {
+       allow read, write: if request.auth != null;
     }
     
-    match /grupos/{grupoId} {
-      allow read, write: if isAuthenticated();
+    match /procesoscancelados/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false; // These are created by a backend function
     }
 
-    match /pagosHistorico/{pagoId} {
-        allow read: if isAuthenticated();
-    }
-    
-    match /causante/{causanteId} {
-        allow read: if isAuthenticated();
-    }
-
-    match /parris1/{parrisId} {
-        allow read: if isAuthenticated();
-    }
-
-    match /procesoscancelados/{procesoId} {
-        allow read: if isAuthenticated();
-    }
-    
+    // Allow authenticated users to manage their own tasks
     match /tareas/{tareaId} {
-      allow read, write, delete: if isAuthenticated();
+        allow read, write: if request.auth != null;
     }
     
-    match /documentTemplates/{templateId} {
-      allow read, write: if isAuthenticated();
+    // Allow authenticated users to manage clients in 'nuevosclientes' collection
+    match /nuevosclientes/{clienteId} {
+        allow read, write: if request.auth != null;
     }
 
-    // Allow read access for provired data
-    match /provired_departments/{depId} {
-      allow read, write: if isAuthenticated();
+    // Allow authenticated users to manage payments in 'pagos' subcollection
+    match /nuevosclientes/{clienteId}/pagos/{pagoId} {
+        allow read, write: if request.auth != null;
     }
-    match /provired_municipalities/{munId} {
-      allow read, write: if isAuthenticated();
+
+    // Allow authenticated users to manage documents in 'documentos' subcollection
+    match /nuevosclientes/{clienteId}/documentos/{documentoId} {
+        allow read, write: if request.auth != null;
     }
-    match /provired_corporations/{corpId} {
-      allow read, write: if isAuthenticated();
+    
+     // Allow authenticated users to manage groups
+    match /grupos/{grupoId} {
+        allow read, write: if request.auth != null;
     }
-    match /provired_offices/{officeId} {
-      allow read, write: if isAuthenticated();
+    
+     // Allow read access to Provired data for any authenticated user
+    match /provired_notifications/{notificationId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Should only be written by a trusted backend process
     }
-    match /provired_notifications/{notifId} {
-      allow read, write: if isAuthenticated();
+    
+    match /provired_departments/{departmentId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+    
+    match /provired_municipalities/{municipalityId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+    
+     match /provired_corporations/{corporationId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+    
+     match /provired_offices/{officeId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+    
+     match /documentTemplates/{templateId} {
+      allow read, write: if request.auth != null; // Allow admins to update templates
+    }
+
+    // Default deny all other reads/writes
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
