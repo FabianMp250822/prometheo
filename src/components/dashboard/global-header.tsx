@@ -11,6 +11,7 @@ import { ChevronsUpDown, User, Search, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { SidebarTrigger, useSidebar } from '../ui/sidebar';
 
 function useDebounce<T>(value: T, delay: number): T {
     const [debouncedValue, setDebouncedValue] = useState<T>(value);
@@ -27,6 +28,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export function GlobalHeader() {
     const { selectedPensioner, setSelectedPensioner } = usePensioner();
+    const { isMobile } = useSidebar();
     const router = useRouter();
     const [open, setOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -130,14 +132,15 @@ export function GlobalHeader() {
 
     return (
         <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+                 {isMobile && <SidebarTrigger />}
                  <Popover open={open} onOpenChange={setOpen}>
                     <PopoverTrigger asChild>
                         <Button
                             variant="outline"
                             role="combobox"
                             aria-expanded={open}
-                            className="w-[300px] justify-between"
+                            className="w-[200px] md:w-[300px] justify-between"
                         >
                             <Search className="mr-2 h-4 w-4" />
                             {selectedPensioner
