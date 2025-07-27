@@ -1,4 +1,5 @@
 
+
       
 'use client';
 
@@ -12,7 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Search, Loader2, AlertTriangle } from 'lucide-react';
-import { format, isWithinInterval, getYear } from 'date-fns';
+import { format, isWithinInterval, getYear, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -31,6 +32,18 @@ interface PaymentResult {
     valorNeto: string;
     fechaProcesado: string;
 }
+
+// Helper to parse DD/MM/YYYY string to Date object
+const parseSpanishDate = (dateStr: string): Date | null => {
+    if (!dateStr || typeof dateStr !== 'string') return null;
+    const parts = dateStr.split('/');
+    if (parts.length !== 3) return null;
+    const [day, month, year] = parts.map(Number);
+    if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+    // Month is 0-indexed in JavaScript Date
+    return new Date(year, month - 1, day);
+};
+
 
 export default function BusquedasPage() {
     const { toast } = useToast();
@@ -162,16 +175,35 @@ export default function BusquedasPage() {
         setRetirementResults([]);
 
         try {
-            // Firestore string comparison works lexicographically. 
-            // If format is YYYY-MM-DD, '<=' works for range queries.
             const q = query(
                 collection(db, 'pensionados'),
-                where('dependencia1', '==', selectedDependencia),
-                where('ano_jubilacion', '<=', retirementDate.trim())
+                where('dependencia1', '==', selectedDependencia)
             );
             
             const querySnapshot = await getDocs(q);
-            const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
+            const allPensionersFromDep = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+            
+            const retirementDateUntil = parse(retirementDate.trim(), 'yyyy-MM-dd', new Date());
+
+            if(isNaN(retirementDateUntil.getTime())){
+                toast({ variant: 'destructive', title: 'Formato de Fecha Inválido', description: 'Por favor, use el formato AAAA-MM-DD.' });
+                setIsLoadingRetirement(false);
+                return;
+            }
+            
+            const results = allPensionersFromDep.filter(pensioner => {
+                // Prioritize 'ano_jubilacion' if available and valid
+                if (pensioner.ano_jubilacion && /^\d{4}-\d{2}-\d{2}$/.test(pensioner.ano_jubilacion)) {
+                     const pensionDate = parse(pensioner.ano_jubilacion, 'yyyy-MM-dd', new Date());
+                     return !isNaN(pensionDate.getTime()) && pensionDate <= retirementDateUntil;
+                }
+                // Fallback to 'fechaPensionado'
+                if (pensioner.fechaPensionado) {
+                    const pensionDate = parseSpanishDate(pensioner.fechaPensionado);
+                    return pensionDate && pensionDate <= retirementDateUntil;
+                }
+                return false;
+            });
             
             setRetirementResults(results);
 
@@ -247,7 +279,7 @@ export default function BusquedasPage() {
                                         <TableRow key={p.id}>
                                             <TableCell>{parseEmployeeName(p.empleado)}</TableCell>
                                             <TableCell>{p.documento}</TableCell>
-                                            <TableCell>{p.ano_jubilacion}</TableCell>
+                                            <TableCell>{p.ano_jubilacion || p.fechaPensionado || 'N/A'}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
