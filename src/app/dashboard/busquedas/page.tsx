@@ -1,6 +1,4 @@
 
-
-      
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -34,35 +32,31 @@ interface PaymentResult {
     fechaProcesado: string;
 }
 
-// Helper to parse DD/MM/YYYY string to Date object
 const parseSpanishDate = (dateStr: string): Date | null => {
     if (!dateStr || typeof dateStr !== 'string') return null;
     const parts = dateStr.split('/');
     if (parts.length !== 3) return null;
     const [day, month, year] = parts.map(Number);
     if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
-    // Month is 0-indexed in JavaScript Date
     return new Date(year, month - 1, day);
 };
 
 
 export default function BusquedasPage() {
     const { toast } = useToast();
-    // State for payment search
     const [dateRange, setDateRange] = useState<{ from: Date | undefined, to: Date | undefined }>({ from: new Date(), to: new Date() });
     const [paymentResults, setPaymentResults] = useState<PaymentResult[]>([]);
     const [isLoadingPayments, setIsLoadingPayments] = useState(false);
     
-    // State for retirement search
     const [uniqueDependencias, setUniqueDependencias] = useState<string[]>([]);
     const [selectedDependencia, setSelectedDependencia] = useState('');
     const [retirementDate, setRetirementDate] = useState('');
     const [retirementResults, setRetirementResults] = useState<Pensioner[]>([]);
     const [isLoadingRetirement, setIsLoadingRetirement] = useState(false);
+    const [searchMode, setSearchMode] = useState<'until' | 'after'>('until');
     
     const pensionerCache = new Map<string, { nombre: string; documento: string }>();
 
-    // Fetch dependencies for the dropdown
     useEffect(() => {
         const fetchDependencies = async () => {
             try {
@@ -167,7 +161,7 @@ export default function BusquedasPage() {
         }
     }, [dateRange, toast]);
 
-     const handleJubilacionSearch = async () => {
+    const handleJubilacionSearch = useCallback(async (mode: 'until' | 'after') => {
         if (!selectedDependencia || !retirementDate) {
             toast({ variant: 'destructive', title: 'Campos requeridos', description: 'Debe seleccionar una dependencia y una fecha.' });
             return;
@@ -193,17 +187,17 @@ export default function BusquedasPage() {
             }
             
             const results = allPensionersFromDep.filter(pensioner => {
-                // Prioritize 'ano_jubilacion' if available and valid
-                 if (pensioner.ano_jubilacion && /^\d{4}-\d{2}-\d{2}$/.test(pensioner.ano_jubilacion)) {
-                     const pensionDate = parse(pensioner.ano_jubilacion, 'yyyy-MM-dd', new Date());
-                     return !isNaN(pensionDate.getTime()) && pensionDate <= retirementDateUntil;
+                const dateSource = pensioner.fechaPensionado || pensioner.ano_jubilacion;
+                if (!dateSource) return false;
+
+                const pensionDate = parseSpanishDate(dateSource);
+                if (!pensionDate) return false;
+
+                if (mode === 'until') {
+                    return pensionDate <= retirementDateUntil;
+                } else { // 'after'
+                    return pensionDate > retirementDateUntil;
                 }
-                // Fallback to 'fechaPensionado'
-                if (pensioner.fechaPensionado) {
-                    const pensionDate = parseSpanishDate(pensioner.fechaPensionado);
-                    return pensionDate && pensionDate <= retirementDateUntil;
-                }
-                return false;
             });
             
             setRetirementResults(results);
@@ -218,7 +212,7 @@ export default function BusquedasPage() {
         } finally {
             setIsLoadingRetirement(false);
         }
-    };
+    }, [selectedDependencia, retirementDate, toast]);
     
     const handleExportToExcel = () => {
         if (retirementResults.length === 0) {
@@ -242,16 +236,15 @@ export default function BusquedasPage() {
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Jubilados');
 
-        // Adjust column widths
         worksheet['!cols'] = [
-            { wch: 5 },  // #
-            { wch: 40 }, // Nombre
-            { wch: 15 }, // Documento
-            { wch: 15 }, // Fecha Jubilación
-            { wch: 30 }, // Dependencia
+            { wch: 5 },
+            { wch: 40 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 30 },
         ];
 
-        XLSX.writeFile(workbook, `Reporte_Jubilados_Hasta_${retirementDate}.xlsx`);
+        XLSX.writeFile(workbook, `Reporte_Jubilados_${retirementDate}.xlsx`);
     };
 
 
@@ -276,7 +269,7 @@ export default function BusquedasPage() {
                     <CardDescription>Encuentre pensionados según su dependencia y fecha de retiro.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="grid md:grid-cols-3 gap-4 items-end">
+                     <div className="grid md:grid-cols-3 gap-4 items-end">
                         <div>
                             <Label htmlFor="dependencia-select">Dependencia</Label>
                             <Select value={selectedDependencia} onValueChange={setSelectedDependencia}>
@@ -289,25 +282,32 @@ export default function BusquedasPage() {
                             </Select>
                         </div>
                         <div>
-                            <Label htmlFor="retirement-date">Fecha de Jubilación (Hasta)</Label>
+                            <Label htmlFor="retirement-date">Fecha de Jubilación</Label>
                             <Input id="retirement-date" type="text" placeholder="YYYY-MM-DD" value={retirementDate} onChange={e => setRetirementDate(e.target.value)} />
                         </div>
-                        <div className="flex gap-2">
-                            <Button onClick={handleJubilacionSearch} disabled={isLoadingRetirement} className="flex-1">
-                                {isLoadingRetirement ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                                Buscar
+                        <div className="flex flex-col sm:flex-row gap-2">
+                             <Button onClick={() => handleJubilacionSearch('until')} disabled={isLoadingRetirement} className="flex-1">
+                                {isLoadingRetirement && searchMode === 'until' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                                Buscar (Hasta esta fecha)
                             </Button>
-                             <Button onClick={handleExportToExcel} disabled={retirementResults.length === 0} variant="outline" className="flex-1">
-                                <Download className="mr-2 h-4 w-4" />
-                                Exportar
+                             <Button onClick={() => handleJubilacionSearch('after')} disabled={isLoadingRetirement} className="flex-1" variant="secondary">
+                                {isLoadingRetirement && searchMode === 'after' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                                Buscar (Desde esta fecha)
                             </Button>
                         </div>
                     </div>
-                     {isLoadingRetirement ? (
-                        <div className="flex justify-center items-center p-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-                     ) : retirementResults.length > 0 && (
-                        <div className="mt-6">
-                             <h4 className="text-md font-semibold mb-2">Resultados de Jubilación ({retirementResults.length})</h4>
+
+                    <div className="mt-6">
+                        <div className="flex justify-between items-center mb-2">
+                           <h4 className="text-md font-semibold">Resultados de Jubilación ({retirementResults.length})</h4>
+                            <Button onClick={handleExportToExcel} disabled={retirementResults.length === 0} variant="outline" size="sm">
+                                <Download className="mr-2 h-4 w-4" />
+                                Exportar a Excel
+                            </Button>
+                        </div>
+                        {isLoadingRetirement ? (
+                            <div className="flex justify-center items-center p-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                        ) : retirementResults.length > 0 && (
                              <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -328,8 +328,8 @@ export default function BusquedasPage() {
                                     ))}
                                 </TableBody>
                              </Table>
-                        </div>
-                     )}
+                        )}
+                    </div>
                 </CardContent>
             </Card>
 
@@ -409,7 +409,3 @@ export default function BusquedasPage() {
         </div>
     );
 }
-
-
-
-    
