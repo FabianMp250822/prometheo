@@ -1,4 +1,5 @@
 
+      
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -161,26 +162,26 @@ export default function BusquedasPage() {
         setRetirementResults([]);
 
         try {
-            // Step 1: Query by the indexed field 'dependencia1'
+            // Firestore string comparison works lexicographically. 
+            // If format is YYYY-MM-DD, '<=' works for range queries.
             const q = query(
                 collection(db, 'pensionados'),
-                where('dependencia1', '==', selectedDependencia)
+                where('dependencia1', '==', selectedDependencia),
+                where('ano_jubilacion', '<=', retirementDate.trim())
             );
+            
             const querySnapshot = await getDocs(q);
-            const allPensionersInDep = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
-
-            // Step 2: Filter in-code by the string date
-            const results = allPensionersInDep.filter(p => p.ano_jubilacion?.trim() === retirementDate.trim());
+            const results = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
             
             setRetirementResults(results);
 
             if (results.length === 0) {
-                toast({ title: 'Sin resultados', description: 'No se encontraron pensionados con esa fecha y dependencia.' });
+                toast({ title: 'Sin resultados', description: 'No se encontraron pensionados con esos criterios.' });
             }
 
         } catch (error: any) {
             console.error(error);
-            toast({ variant: 'destructive', title: 'Error de Búsqueda', description: error.message });
+            toast({ variant: 'destructive', title: 'Error de Búsqueda', description: 'La consulta falló. Verifique los índices en Firestore.' });
         } finally {
             setIsLoadingRetirement(false);
         }
@@ -220,7 +221,7 @@ export default function BusquedasPage() {
                             </Select>
                         </div>
                         <div>
-                            <Label htmlFor="retirement-date">Fecha de Jubilación (YYYY-MM-DD)</Label>
+                            <Label htmlFor="retirement-date">Fecha de Jubilación (Hasta)</Label>
                             <Input id="retirement-date" type="text" placeholder="YYYY-MM-DD" value={retirementDate} onChange={e => setRetirementDate(e.target.value)} />
                         </div>
                         <Button onClick={handleJubilacionSearch} disabled={isLoadingRetirement}>
@@ -333,3 +334,6 @@ export default function BusquedasPage() {
     );
 }
 
+
+
+    
