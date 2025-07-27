@@ -3,14 +3,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Allow read access to 'pensionados' for any authenticated user.
     match /pensionados/{pensionadoId} {
-      allow get, list: if request.auth != null;
-      // Keep write access restricted unless specified otherwise.
+      allow list, get: if request.auth != null;
       allow write: if false; 
     }
     
-    // Allow read/write access to subcollections of pensionados
     match /pensionados/{pensionadoId}/{subcollection}/{docId} {
        allow read, write: if request.auth != null;
     }
@@ -25,65 +22,70 @@ service cloud.firestore {
     
     match /procesoscancelados/{docId} {
       allow read: if request.auth != null;
-      allow write: if false; // These are created by a backend function
+      allow write: if false;
     }
 
-    // --- Reglas para Agenda ---
-    // Allow collection group queries for 'anotaciones'
-    match /{path=**}/anotaciones/{anotacionId} {
-        allow read: if request.auth != null;
+    match /pagosHistorico/{docId} {
+      allow read: if request.auth != null;
     }
 
-    // Allow authenticated users to manage their own tasks
+    match /causante/{docId} {
+      allow read: if request.auth != null;
+    }
+
+    match /parris1/{parrisId} {
+      allow read: if request.auth != null;
+    }
+
     match /tareas/{tareaId} {
         allow read, write: if request.auth != null;
     }
     
-    // --- Reglas para Contabilidad ---
     match /nuevosclientes/{clienteId} {
         allow read, write: if request.auth != null;
     }
+
     match /nuevosclientes/{clienteId}/{subcollection}/{docId} {
         allow read, write: if request.auth != null;
     }
+    
     match /grupos/{grupoId} {
         allow read, write: if request.auth != null;
     }
-    match /documentTemplates/{templateId} {
-      allow read, write: if request.auth != null;
-    }
     
-    // --- Reglas para Liquidaciones ---
-    match /pagosHistorico/{docId} {
-        allow read: if request.auth != null;
-    }
-    match /causante/{docId} {
-        allow read: if request.auth != null;
-    }
-
-    // --- Reglas para Procesos en Línea (Provired) ---
     match /provired_notifications/{notificationId} {
       allow read: if request.auth != null;
-      allow write: if false; // Should only be written by a trusted backend process
+      allow write: if false;
     }
+    
     match /provired_departments/{departmentId} {
       allow read: if request.auth != null;
       allow write: if false;
     }
+    
     match /provired_municipalities/{municipalityId} {
       allow read: if request.auth != null;
       allow write: if false;
     }
+    
      match /provired_corporations/{corporationId} {
       allow read: if request.auth != null;
       allow write: if false;
     }
+    
      match /provired_offices/{officeId} {
       allow read: if request.auth != null;
       allow write: if false;
     }
+    
+     match /documentTemplates/{templateId} {
+      allow read, write: if request.auth != null;
+    }
 
-    // Default deny all other reads/writes
+    match /{path=**}/anotaciones/{anotacionId} {
+      allow read, write: if request.auth != null;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
