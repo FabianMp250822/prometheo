@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Search, Loader2, AlertTriangle } from 'lucide-react';
-import { format, isWithinInterval, getYear, parse } from 'date-fns';
+import { format, isWithinInterval, getYear, parse, isValid, isBefore, isAfter } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -34,11 +34,24 @@ interface PaymentResult {
 
 const parseSpanishDate = (dateStr: string): Date | null => {
     if (!dateStr || typeof dateStr !== 'string') return null;
+
+    // Try YYYY-MM-DD format first
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        const date = parse(dateStr, 'yyyy-MM-dd', new Date());
+        return isValid(date) ? date : null;
+    }
+
+    // Try DD/MM/YYYY format
     const parts = dateStr.split('/');
-    if (parts.length !== 3) return null;
-    const [day, month, year] = parts.map(Number);
-    if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
-    return new Date(year, month - 1, day);
+    if (parts.length === 3) {
+        const [day, month, year] = parts.map(Number);
+        if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+            const date = new Date(year, month - 1, day);
+            return isValid(date) ? date : null;
+        }
+    }
+
+    return null;
 };
 
 
@@ -50,11 +63,13 @@ export default function BusquedasPage() {
     
     const [uniqueDependencias, setUniqueDependencias] = useState<string[]>([]);
     const [selectedDependencia, setSelectedDependencia] = useState('');
-    const [retirementDate, setRetirementDate] = useState('');
     const [retirementResults, setRetirementResults] = useState<Pensioner[]>([]);
     const [isLoadingRetirement, setIsLoadingRetirement] = useState(false);
-    const [searchMode, setSearchMode] = useState<'until' | 'after'>('until');
     
+    const [jubilacionSearchType, setJubilacionSearchType] = useState<'antes' | 'despues' | 'rango'>('rango');
+    const [jubilacionDate1, setJubilacionDate1] = useState('');
+    const [jubilacionDate2, setJubilacionDate2] = useState('');
+
     const pensionerCache = new Map<string, { nombre: string; documento: string }>();
 
     useEffect(() => {
@@ -161,11 +176,25 @@ export default function BusquedasPage() {
         }
     }, [dateRange, toast]);
 
-    const handleJubilacionSearch = useCallback(async (mode: 'until' | 'after') => {
-        if (!selectedDependencia || !retirementDate) {
-            toast({ variant: 'destructive', title: 'Campos requeridos', description: 'Debe seleccionar una dependencia y una fecha.' });
+    const handleJubilacionSearch = useCallback(async () => {
+        if (!selectedDependencia) {
+            toast({ variant: 'destructive', title: 'Campos requeridos', description: 'Debe seleccionar una dependencia.' });
             return;
         }
+
+        const date1 = parse(jubilacionDate1, 'yyyy-MM-dd', new Date());
+        const date2 = jubilacionSearchType === 'rango' ? parse(jubilacionDate2, 'yyyy-MM-dd', new Date()) : null;
+
+        if (jubilacionSearchType !== 'rango' && !isValid(date1)) {
+            toast({ variant: 'destructive', title: 'Fecha inválida', description: 'Por favor ingrese una fecha válida (AAAA-MM-DD).' });
+            return;
+        }
+        if (jubilacionSearchType === 'rango' && (!isValid(date1) || !isValid(date2))) {
+            toast({ variant: 'destructive', title: 'Fechas inválidas', description: 'Por favor ingrese un rango de fechas válido.' });
+            return;
+        }
+
+
         setIsLoadingRetirement(true);
         setRetirementResults([]);
 
@@ -178,14 +207,6 @@ export default function BusquedasPage() {
             const querySnapshot = await getDocs(q);
             const allPensionersFromDep = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
             
-            const retirementDateUntil = parse(retirementDate.trim(), 'yyyy-MM-dd', new Date());
-
-            if(isNaN(retirementDateUntil.getTime())){
-                toast({ variant: 'destructive', title: 'Formato de Fecha Inválido', description: 'Por favor, use el formato AAAA-MM-DD.' });
-                setIsLoadingRetirement(false);
-                return;
-            }
-            
             const results = allPensionersFromDep.filter(pensioner => {
                 const dateSource = pensioner.fechaPensionado || pensioner.ano_jubilacion;
                 if (!dateSource) return false;
@@ -193,10 +214,15 @@ export default function BusquedasPage() {
                 const pensionDate = parseSpanishDate(dateSource);
                 if (!pensionDate) return false;
 
-                if (mode === 'until') {
-                    return pensionDate <= retirementDateUntil;
-                } else { // 'after'
-                    return pensionDate > retirementDateUntil;
+                switch(jubilacionSearchType) {
+                    case 'antes':
+                        return isBefore(pensionDate, date1);
+                    case 'despues':
+                        return isAfter(pensionDate, date1);
+                    case 'rango':
+                        return isWithinInterval(pensionDate, { start: date1, end: date2! });
+                    default:
+                        return false;
                 }
             });
             
@@ -212,7 +238,7 @@ export default function BusquedasPage() {
         } finally {
             setIsLoadingRetirement(false);
         }
-    }, [selectedDependencia, retirementDate, toast]);
+    }, [selectedDependencia, jubilacionSearchType, jubilacionDate1, jubilacionDate2, toast]);
     
     const handleExportToExcel = () => {
         if (retirementResults.length === 0) {
@@ -244,7 +270,7 @@ export default function BusquedasPage() {
             { wch: 30 },
         ];
 
-        XLSX.writeFile(workbook, `Reporte_Jubilados_${retirementDate}.xlsx`);
+        XLSX.writeFile(workbook, `Reporte_Jubilados_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
     };
 
 
@@ -282,19 +308,34 @@ export default function BusquedasPage() {
                             </Select>
                         </div>
                         <div>
-                            <Label htmlFor="retirement-date">Fecha de Jubilación</Label>
-                            <Input id="retirement-date" type="text" placeholder="YYYY-MM-DD" value={retirementDate} onChange={e => setRetirementDate(e.target.value)} />
+                            <Label htmlFor="search-type-select">Tipo de Búsqueda</Label>
+                             <Select value={jubilacionSearchType} onValueChange={(v) => setJubilacionSearchType(v as any)}>
+                                <SelectTrigger id="search-type-select"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="rango">Rango</SelectItem>
+                                    <SelectItem value="antes">Antes de</SelectItem>
+                                    <SelectItem value="despues">Después de</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
-                        <div className="flex flex-col sm:flex-row gap-2">
-                             <Button onClick={() => handleJubilacionSearch('until')} disabled={isLoadingRetirement} className="flex-1">
-                                {isLoadingRetirement && searchMode === 'until' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                                Buscar (Hasta esta fecha)
-                            </Button>
-                             <Button onClick={() => handleJubilacionSearch('after')} disabled={isLoadingRetirement} className="flex-1" variant="secondary">
-                                {isLoadingRetirement && searchMode === 'after' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                                Buscar (Desde esta fecha)
-                            </Button>
+                        <div className="flex flex-col sm:flex-row gap-2 md:col-span-3 lg:col-span-1 lg:items-end">
+                            <div className='flex-1'>
+                                <Label htmlFor="retirement-date-1">{jubilacionSearchType === 'rango' ? 'Desde' : 'Fecha'}</Label>
+                                <Input id="retirement-date-1" type="text" placeholder="AAAA-MM-DD" value={jubilacionDate1} onChange={e => setJubilacionDate1(e.target.value)} />
+                            </div>
+                            {jubilacionSearchType === 'rango' && (
+                               <div className='flex-1'>
+                                    <Label htmlFor="retirement-date-2">Hasta</Label>
+                                    <Input id="retirement-date-2" type="text" placeholder="AAAA-MM-DD" value={jubilacionDate2} onChange={e => setJubilacionDate2(e.target.value)} />
+                               </div>
+                            )}
                         </div>
+                    </div>
+                     <div className="mt-4 flex justify-end">
+                        <Button onClick={handleJubilacionSearch} disabled={isLoadingRetirement}>
+                            {isLoadingRetirement ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                            Buscar Jubilados
+                        </Button>
                     </div>
 
                     <div className="mt-6">
@@ -307,7 +348,7 @@ export default function BusquedasPage() {
                         </div>
                         {isLoadingRetirement ? (
                             <div className="flex justify-center items-center p-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-                        ) : retirementResults.length > 0 && (
+                        ) : retirementResults.length > 0 ? (
                              <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -328,6 +369,10 @@ export default function BusquedasPage() {
                                     ))}
                                 </TableBody>
                              </Table>
+                        ) : (
+                             <div className="text-center py-10">
+                                <p className="text-muted-foreground">Realice una búsqueda para ver los resultados.</p>
+                            </div>
                         )}
                     </div>
                 </CardContent>
@@ -366,7 +411,7 @@ export default function BusquedasPage() {
                         </Button>
                     </div>
                     
-                    <h4 className="text-md font-semibold mb-2">Resultados de Pagos</h4>
+                    <h4 className="text-md font-semibold mb-2">Resultados de Pagos ({paymentResults.length})</h4>
                     {isLoadingPayments ? (
                         <div className="flex justify-center items-center p-10"><Loader2 className="h-10 w-10 animate-spin text-primary" /></div>
                     ) : paymentResults.length > 0 ? (
