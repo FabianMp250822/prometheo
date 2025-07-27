@@ -1,20 +1,15 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
-import { collection, getDocs, query } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { BarChart2, DollarSign, Users, TrendingUp, Loader2 } from 'lucide-react';
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from '@/components/ui/chart';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, CartesianGrid } from 'recharts';
-import { UserPayment } from '@/lib/data';
-import { formatCurrency } from '@/lib/helpers';
+import { formatCurrency, parseDepartmentName } from '@/lib/helpers';
 import type { ChartConfig } from '@/components/ui/chart';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getProcesosCanceladosConPensionados } from '@/services/pensioner-service';
+import type { ProcesoCancelado } from '@/lib/data';
 
 const chartConfig = {
   totalAmount: {
@@ -24,17 +19,15 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export default function ReportesPage() {
-    const [payments, setPayments] = useState<UserPayment[]>([]);
+    const [procesos, setProcesos] = useState<ProcesoCancelado[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
      useEffect(() => {
-        const fetchPayments = async () => {
+        const fetchReportData = async () => {
             setIsLoading(true);
             try {
-                const q = query(collection(db, "USUARIOS_SENTENCIAS_COLLECTION"));
-                const querySnapshot = await getDocs(q);
-                const paymentsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserPayment));
-                setPayments(paymentsData);
+                const data = await getProcesosCanceladosConPensionados();
+                setProcesos(data);
             } catch (error) {
                 console.error("Error fetching reports data from Firestore:", error);
             } finally {
@@ -42,30 +35,42 @@ export default function ReportesPage() {
             }
         };
 
-        fetchPayments();
+        fetchReportData();
     }, []);
 
-    const dataByDepartment = useMemo(() => {
-        const departments: { [key: string]: { totalAmount: number, userCount: number } } = {};
-        payments.forEach(p => {
-            if (!departments[p.department]) {
-                departments[p.department] = { totalAmount: 0, userCount: 0 };
-            }
-            departments[p.department].totalAmount += p.totalAmount;
-            departments[p.department].userCount += 1;
-        });
-        return Object.entries(departments).map(([name, values]) => ({ name, ...values }));
-    }, [payments]);
-    
     const totalStats = useMemo(() => {
-        const totalAmount = payments.reduce((acc, p) => acc + p.totalAmount, 0);
-        const totalUsers = payments.length;
+        const totalAmount = procesos.reduce((acc, p) => {
+            const procesoTotal = p.conceptos.reduce((sum, c) => sum + (c.ingresos || 0), 0);
+            return acc + procesoTotal;
+        }, 0);
+
+        const uniqueUserIds = new Set(procesos.map(p => p.pensionadoId));
+        const totalUsers = uniqueUserIds.size;
+        
         return {
             totalAmount,
             totalUsers,
             avgAmount: totalUsers > 0 ? totalAmount / totalUsers : 0,
         }
-    }, [payments]);
+    }, [procesos]);
+    
+    const dataByDepartment = useMemo(() => {
+        const departments: { [key: string]: { totalAmount: number, userCount: number } } = {};
+        
+        procesos.forEach(p => {
+            if (!p.pensionerInfo?.department) return;
+            const depName = parseDepartmentName(p.pensionerInfo.department);
+            
+            if (!departments[depName]) {
+                departments[depName] = { totalAmount: 0, userCount: 0 };
+            }
+
+            const procesoTotal = p.conceptos.reduce((sum, c) => sum + (c.ingresos || 0), 0);
+            departments[depName].totalAmount += procesoTotal;
+        });
+        return Object.entries(departments).map(([name, values]) => ({ name, ...values }));
+    }, [procesos]);
+
 
     if (isLoading) {
       return (
@@ -181,9 +186,12 @@ export default function ReportesPage() {
                                 tickLine={false}
                                 tickMargin={10}
                                 axisLine={false}
+                                angle={-45}
+                                textAnchor="end"
+                                height={80}
                             />
                             <YAxis
-                                tickFormatter={(value) => formatCurrency(Number(value)).slice(0, -4) + 'M'}
+                                tickFormatter={(value) => `$${new Intl.NumberFormat('es-CO', { notation: "compact", compactDisplay: "short" }).format(Number(value))}`}
                                 axisLine={false}
                                 tickLine={false}
                             />

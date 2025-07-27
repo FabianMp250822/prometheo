@@ -1,6 +1,6 @@
 'use server';
 
-import { collection, query, getDocs } from 'firebase/firestore';
+import { collection, query, getDocs, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { ProcesoCancelado } from '@/lib/data';
 
@@ -36,5 +36,58 @@ export async function getProcesosCancelados(): Promise<ProcesoCancelado[]> {
     } catch (error: any) {
         console.error("Error fetching procesos cancelados:", error);
         throw new Error("Failed to fetch a list of processed sentences.");
+    }
+}
+
+
+/**
+ * Fetches all processed sentence payments and enriches them with pensioner details.
+ * This is optimized to reduce Firestore reads.
+ * @returns A promise that resolves to the enriched data.
+ */
+export async function getProcesosCanceladosConPensionados(): Promise<ProcesoCancelado[]> {
+    try {
+        const procesosSnapshot = await getDocs(query(collection(db, PROCESOS_CANCELADOS_COLLECTION)));
+        let data = procesosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcesoCancelado));
+
+        if (data.length > 0) {
+            const pensionerIds = [...new Set(data.map(p => p.pensionadoId))];
+            const pensionersData: { [key: string]: { name: string, document: string, department: string } } = {};
+            
+            const chunks = [];
+            for (let i = 0; i < pensionerIds.length; i += 30) {
+                chunks.push(pensionerIds.slice(i, i + 30));
+            }
+            
+            for (const chunk of chunks) {
+                const pensionersQuery = query(collection(db, 'pensionados'), where('documento', 'in', chunk));
+                const pensionersSnapshot = await getDocs(pensionersQuery);
+                pensionersSnapshot.forEach(doc => {
+                    const pData = doc.data();
+                    pensionersData[pData.documento] = {
+                        name: pData.empleado,
+                        document: pData.documento,
+                        department: pData.dependencia1
+                    };
+                });
+            }
+
+            data = data.map(p => ({
+                ...p,
+                pensionerInfo: pensionersData[p.pensionadoId]
+            }));
+        }
+
+        const sortedData = data.sort((a, b) => {
+            const dateA = a.creadoEn ? new Date((a.creadoEn as any).seconds * 1000) : new Date(0);
+            const dateB = b.creadoEn ? new Date((b.creadoEn as any).seconds * 1000) : new Date(0);
+            return dateB.getTime() - dateA.getTime();
+        });
+
+        return sortedData;
+
+    } catch (error: any) {
+        console.error("Error fetching data:", error);
+        throw new Error("Failed to fetch processed sentences with pensioner details.");
     }
 }

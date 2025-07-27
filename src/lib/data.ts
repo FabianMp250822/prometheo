@@ -54,6 +54,7 @@ export interface Pensioner {
   dependencia1: string;
   centroCosto: string;
   ano_jubilacion?: string; // Add this optional field
+  fechaPensionado?: string; // Optional field for retirement date
 }
 
 export interface PaymentDetail {
@@ -92,6 +93,7 @@ export interface ProcesoCancelado {
     pensionerInfo?: {
         name: string;
         document: string;
+        department: string;
     };
 }
 
@@ -132,6 +134,9 @@ export interface ProviredNotification {
   proceso: string;
   radicacion: string;
   demandante: string;
+  demandante_lower: string;
+  demandado_lower: string;
+  rutaAuto: string;
 }
 
 
