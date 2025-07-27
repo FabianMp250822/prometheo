@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { ListFilter, UserSearch, Download, UserSquare, Banknote } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Search, Loader2 } from 'lucide-react';
-import { isBefore, isAfter, isValid } from 'date-fns';
+import { isBefore, isAfter, isValid, parse } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { parseEmployeeName, parseDepartmentName } from '@/lib/helpers';
 import { Pensioner } from '@/lib/data';
@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import * as XLSX from 'xlsx';
-import { format } from 'date-fns';
+import { format as formatDate } from 'date-fns';
 import { usePensioner } from '@/context/pensioner-provider';
 import { useRouter } from 'next/navigation';
 import { PaymentDetailsSheet } from '@/components/dashboard/payment-details-sheet';
@@ -26,7 +26,7 @@ const parseSpanishDate = (dateStr: string): Date | null => {
     if (!dateStr || typeof dateStr !== 'string') return null;
     
     const cleanedDateStr = dateStr.trim();
-
+    
     // Try YYYY-MM-DD format first
     if (/^\d{4}-\d{2}-\d{2}$/.test(cleanedDateStr)) {
         const [year, month, day] = cleanedDateStr.split('-').map(Number);
@@ -87,11 +87,11 @@ export default function BusquedasPage() {
             return;
         }
 
-        const date1 = jubilacionDate1 ? new Date(jubilacionDate1) : null;
-        const date2 = jubilacionSearchType === 'rango' && jubilacionDate2 ? new Date(jubilacionDate2) : null;
+        const date1 = jubilacionDate1 ? parse(jubilacionDate1, 'yyyy-MM-dd', new Date()) : null;
+        const date2 = jubilacionSearchType === 'rango' && jubilacionDate2 ? parse(jubilacionDate2, 'yyyy-MM-dd', new Date()) : null;
 
         if (jubilacionSearchType !== 'rango' && (!date1 || !isValid(date1))) {
-            toast({ variant: 'destructive', title: 'Fecha inválida', description: 'Por favor ingrese una fecha válida (AAAA-MM-DD).' });
+            toast({ variant: 'destructive', title: 'Fecha inválida', description: 'Por favor ingrese una fecha válida.' });
             return;
         }
         if (jubilacionSearchType === 'rango' && ((!date1 || !isValid(date1)) || (!date2 || !isValid(date2)))) {
@@ -124,10 +124,7 @@ export default function BusquedasPage() {
                     case 'despues':
                         return isAfter(pensionDate, date1!);
                     case 'rango':
-                         // Add 1 day to date2 to make the range inclusive
-                        const inclusiveDate2 = new Date(date2!);
-                        inclusiveDate2.setDate(inclusiveDate2.getDate() + 1);
-                        return isAfter(pensionDate, date1!) && isBefore(pensionDate, inclusiveDate2);
+                        return isAfter(pensionDate, date1!) && isBefore(pensionDate, date2!);
                     default:
                         return false;
                 }
@@ -177,7 +174,7 @@ export default function BusquedasPage() {
             { wch: 30 },
         ];
 
-        XLSX.writeFile(workbook, `Reporte_Jubilados_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+        XLSX.writeFile(workbook, `Reporte_Jubilados_${formatDate(new Date(), 'yyyy-MM-dd')}.xlsx`);
     };
 
     const handleViewHojaDeVida = (pensioner: Pensioner) => {

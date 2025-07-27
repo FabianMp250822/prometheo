@@ -4,18 +4,15 @@
  *
  * This file contains the backend logic for:
  * - Automatically creating 'procesoscancelados' documents from new payments.
- * - Sending payment reminder emails via an HTTP endpoint.
- * - Daily synchronization of Provired notifications.
+ * - Sending payment reminder emails via a callable function.
  */
 
 import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import {initializeApp, getApps} from "firebase-admin/app";
-import {getFirestore, Timestamp, WriteBatch} from "firebase-admin/firestore";
-import {onRequest, Request} from "firebase-functions/v2/https";
+import {getFirestore, Timestamp} from "firebase-admin/firestore";
+import {HttpsError, onCall} from "firebase-functions/v2/https";
 import * as nodemailer from "nodemailer";
-import {onSchedule} from "firebase-functions/v2/scheduler";
-import fetch, {Response as FetchResponse} from "node-fetch";
 
 // Initialize admin SDK if not already initialized
 if (getApps().length === 0) {
@@ -128,37 +125,34 @@ export const onNewPaymentCreate = onDocumentCreated(
 );
 
 
-// ===================================
-// HTTP Function: sendPaymentReminder
-// ===================================
-export const sendPaymentReminder = onRequest(
-  async (req: Request, res) => {
-    // Handle OPTIONS request for CORS preflight
-    if (req.method === "OPTIONS") {
-      res.set("Access-Control-Allow-Origin", "*");
-      res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-      res.set("Access-Control-Allow-Headers", "Content-Type");
-      res.status(204).send("");
-      return;
+// ===============================================
+// Secure Callable Function: sendPaymentReminder
+// ===============================================
+export const sendPaymentReminder = onCall(
+  {cors: true}, // Firebase handles CORS for callable functions
+  async (request) => {
+    // Check if the user is authenticated.
+    // This provides a layer of security, only allowing app users to trigger this.
+    if (!request.auth) {
+      throw new HttpsError(
+        "unauthenticated",
+        "The function must be called while authenticated.",
+      );
     }
-
-    // Set CORS headers for the main request
-    res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Headers", "Content-Type");
 
     const {
       emailUsuario,
       nombreUsuario,
       deudaActual,
       cuotaSugerida,
-    } = req.body;
+    } = request.data;
 
     if (!emailUsuario || !nombreUsuario || !deudaActual || !cuotaSugerida) {
-      logger.error("Missing parameters in the request", req.body);
-      res.status(400).json({
-        message: "Required parameters: emailUsuario, nombreUsuario, etc.",
-      });
-      return;
+      logger.error("Missing parameters in the request", request.data);
+      throw new HttpsError(
+        "invalid-argument",
+        "Required parameters: emailUsuario, nombreUsuario, deudaActual, cuotaSugerida.",
+      );
     }
 
     const subject = "Recordatorio de Pago Pendiente - Dajusticia";
@@ -256,169 +250,18 @@ export const sendPaymentReminder = onRequest(
     try {
       const info = await transporter.sendMail(mailOptions);
       logger.info("Reminder sent:", info.messageId);
-      res.status(200).json({
+      return {
+        success: true,
         message: "Reminder sent successfully",
         messageId: info.messageId,
-      });
+      };
     } catch (error) {
       logger.error("Error sending reminder:", error);
-      res.status(500).json({
-        message: "Error sending reminder email",
-        error: (error as Error).message,
-      });
-    }
-  },
-);
-
-// =====================================
-// Scheduled Function: Sync Notifications
-// =====================================
-const API_BASE_URL = "https://apiclient.proviredcolombia.com";
-const STATIC_TOKEN =
-  "iYmMqGfKb057z8ImmAm82ULmMgd26lelgs5BcYkOkQJgkacDljdbBbyb4Dh2pPP8";
-
-let jwtToken: string | null = null;
-let tokenExpiresAt: number | null = null;
-
-interface ApiResponse {
-  data?: Record<string, unknown>[];
-}
-
-interface NotificationItem {
-  fechaPublicacion?: string;
-  radicacion?: string;
-  demandante?: string;
-  demandado?: string;
-  [key: string]: unknown;
-}
-
-
-/**
- * Retrieves a JWT token, fetching a new one if expired.
- * @return {Promise<string>} The JWT token.
- */
-async function getJwtToken(): Promise<string> {
-  if (jwtToken && tokenExpiresAt && Date.now() < tokenExpiresAt) {
-    return jwtToken;
-  }
-
-  logger.info("JWT is expired or null, fetching a new one.");
-  const response: FetchResponse = await fetch(`${API_BASE_URL}/token`, {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({token: STATIC_TOKEN}),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to get JWT: ${response.status}`);
-  }
-
-  const data = (await response.json()) as {token?: string};
-  if (!data.token) {
-    throw new Error("JWT not found in token response");
-  }
-
-  jwtToken = data.token;
-  tokenExpiresAt = Date.now() + 5 * 60 * 60 * 1000; // 5 hours expiration
-  return jwtToken;
-}
-
-/**
- * Makes an authenticated request to the Provired API.
- * @param {string} endpoint The API endpoint to call.
- * @param {string} method The method for the API request body.
- * @return {Promise<Record<string, unknown>[]>} The data from the API.
- */
-async function makeApiRequest(
-  endpoint: string,
-  method: string,
-): Promise<Record<string, unknown>[]> {
-  const jwt = await getJwtToken();
-  const body = JSON.stringify({method, params: {}});
-  const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${jwt}`,
-    },
-    body,
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`API Error: ${response.status} ${errorBody}`);
-  }
-
-  const responseData = (await response.json()) as ApiResponse;
-  return responseData.data || [];
-}
-
-export const syncDailyNotifications = onSchedule(
-  "every day 07:00",
-  async () => {
-    logger.info("Starting daily notification sync...");
-    try {
-      // 1. Fetch existing notification identifiers from Firestore
-      const existingNotifsSnapshot =
-        await db.collection("provired_notifications").get();
-      const existingNotifIds = new Set(
-        existingNotifsSnapshot.docs.map((doc) => doc.data().uniqueId),
+      throw new HttpsError(
+        "internal",
+        "Error sending reminder email",
+        (error as Error).message,
       );
-      logger.info(`Found ${existingNotifIds.size} existing notifs in DB.`);
-
-      // 2. Fetch all notifications from the external API
-      const newNotifications =
-        (await makeApiRequest("report", "getData")) as NotificationItem[];
-      if (!Array.isArray(newNotifications) || newNotifications.length === 0) {
-        logger.info("No new notifications to sync from API.");
-        return;
-      }
-      logger.info(`Fetched ${newNotifications.length} notifs from API.`);
-
-      // 3. Filter out notifications that already exist in the database
-      const notificationsToSave = newNotifications.filter((item) => {
-        const uniqueId =
-          `${item.fechaPublicacion}-${item.radicacion}`.replace(/\s+/g, "");
-        return !existingNotifIds.has(uniqueId);
-      });
-
-      if (notificationsToSave.length === 0) {
-        logger.info("No new notifications to save after filtering.");
-        return;
-      }
-      logger.info(`Found ${notificationsToSave.length} new notifications.`);
-
-      // 4. Save the new notifications in batches
-      const BATCH_SIZE = 400;
-      for (let i = 0; i < notificationsToSave.length; i += BATCH_SIZE) {
-        const batch: WriteBatch = db.batch();
-        const chunk = notificationsToSave.slice(i, i + BATCH_SIZE);
-
-        chunk.forEach((item) => {
-          const uniqueId =
-            `${item.fechaPublicacion}-${item.radicacion}`.replace(/\s+/g, "");
-          const docId = db.collection("provired_notifications").doc().id;
-          const docRef = db.collection("provired_notifications").doc(docId);
-
-          const dataToSet = {
-            ...item,
-            uniqueId: uniqueId,
-            demandante_lower: (item.demandante || "").toLowerCase(),
-            demandado_lower: (item.demandado || "").toLowerCase(),
-            syncedAt: Timestamp.now(),
-          };
-          batch.set(docRef, dataToSet);
-        });
-
-        await batch.commit();
-        logger.info(`Committed batch ${i / BATCH_SIZE + 1}.`);
-      }
-
-      logger.info("Daily notification sync completed successfully.");
-    } catch (error) {
-      logger.error("Error during daily notification sync:", error);
-      // Throw error to indicate failure for potential retries
-      throw error;
     }
   },
 );

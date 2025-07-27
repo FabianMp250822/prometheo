@@ -1,47 +1,88 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper function to check for authenticated users
+    function isAuthenticated() {
+      return request.auth != null;
+    }
 
-    // Regla general: por defecto, se necesita estar autenticado para leer o escribir.
+    // Default deny all reads and writes
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
+    }
+
+    // Allow authenticated users to read from data collections
+    match /pensionados/{pensionadoId} {
+      allow read: if isAuthenticated();
+      // Allow read access to subcollections
+      match /{subcollection}/{docId} {
+        allow read: if isAuthenticated();
+      }
+    }
+
+    match /procesos/{procesoId} {
+      allow read: if isAuthenticated();
+      allow update: if isAuthenticated(); // Allow updates for editing details
+      match /{subcollection}/{docId} {
+        allow read, write, delete: if isAuthenticated(); // Allow full control over subcollections
+      }
     }
     
-    // Regla específica para permitir lecturas en el collectionGroup
-    match /procesoscancelados/{docId} {
-      allow read: if request.auth != null;
+    match /nuevosclientes/{clienteId} {
+      allow read, write: if isAuthenticated();
+       match /documentos/{docId} {
+        allow read, write: if isAuthenticated();
+      }
+      match /pagos/{pagoId} {
+        allow read, write: if isAuthenticated();
+      }
+    }
+    
+    match /grupos/{grupoId} {
+      allow read, write: if isAuthenticated();
     }
 
-    // --- PROVIRED SYNC ---
-    // Allow server-side sync to write to these collections
-    match /provired_departments/{docId=**} {
-      allow read, write: if true;
+    match /pagosHistorico/{pagoId} {
+        allow read: if isAuthenticated();
     }
-    match /provired_municipalities/{docId=**} {
-      allow read, write: if true;
-    }
-    match /provired_corporations/{docId=**} {
-      allow read, write: if true;
-    }
-    match /provired_offices/{docId=**} {
-      allow read, write: if true;
-    }
-    match /provired_notifications/{docId=**} {
-      allow read, write: if true;
+    
+    match /causante/{causanteId} {
+        allow read: if isAuthenticated();
     }
 
-
-    // Excepción para la colección 'blog'.
-    // Permite que CUALQUIER usuario (autenticado o no) pueda leer y escribir.
-    match /blog/{entry=**} {
-      allow read, write: if true;
+    match /parris1/{parrisId} {
+        allow read: if isAuthenticated();
     }
 
-    // Excepción para la colección 'nuevasDemandas'.
-    // Permite que CUALQUIER usuario (autenticado o no) pueda leer y escribir.
-    match /nuevasDemandas/{demanda=**} {
-      allow read, write: if true;
+    match /procesoscancelados/{procesoId} {
+        allow read: if isAuthenticated();
+    }
+    
+    match /tareas/{tareaId} {
+      allow read, write, delete: if isAuthenticated();
+    }
+    
+    match /documentTemplates/{templateId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Allow read access for provired data
+    match /provired_departments/{depId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /provired_municipalities/{munId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /provired_corporations/{corpId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /provired_offices/{officeId} {
+      allow read, write: if isAuthenticated();
+    }
+    match /provired_notifications/{notifId} {
+      allow read, write: if isAuthenticated();
     }
   }
 }

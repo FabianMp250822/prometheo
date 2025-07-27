@@ -14,10 +14,15 @@ import { DataTableSkeleton } from '@/components/dashboard/data-table-skeleton';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 interface ClientWithPayments extends DajusticiaClient {
   pagos: DajusticiaPayment[];
 }
+
+// Initialize functions
+const functions = getFunctions();
+const sendPaymentReminderCallable = httpsCallable(functions, 'sendPaymentReminder');
 
 export default function MorososPage() {
   const [clients, setClients] = useState<ClientWithPayments[]>([]);
@@ -83,16 +88,7 @@ export default function MorososPage() {
         cuotaSugerida: client.cuotaMensual,
       };
 
-      const response = await fetch('https://us-central1-prometeo-376422.cloudfunctions.net/sendPaymentReminder', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(emailData),
-      });
-
-      if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Error del servidor');
-      }
+      await sendPaymentReminderCallable(emailData);
 
       toast({
         title: 'Correo Enviado',
@@ -103,7 +99,7 @@ export default function MorososPage() {
       toast({
         variant: 'destructive',
         title: 'Error al Enviar',
-        description: error.message,
+        description: error.message || 'No se pudo enviar el correo.',
       });
     } finally {
       setIsSending(null);
