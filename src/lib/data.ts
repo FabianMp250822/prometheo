@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 
 export type PaymentStatus = "Analizado" | "Pendiente" | "Pagado";
@@ -52,6 +53,7 @@ export interface Pensioner {
   empleado: string;
   dependencia1: string;
   centroCosto: string;
+  ano_jubilacion?: string; // Add this optional field
 }
 
 export interface PaymentDetail {

@@ -1,3 +1,4 @@
+
 import { Sentence } from "./data";
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -87,7 +88,7 @@ export const parsePaymentDetailName = (detailName: string): string => {
 
 export const parseDepartmentName = (departmentName: string): string => {
   if (!departmentName) return 'N/A';
-  // Removes prefixes like "V1-"
+  // Removes prefixes like "V1-" and trims the result
   return departmentName.replace(/^V\d+-/, '').trim();
 };
 
