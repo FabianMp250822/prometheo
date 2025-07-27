@@ -1,18 +1,17 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Allow authenticated users to LIST the collection (for dropdowns) and GET individual documents.
+    // Allow read access to 'pensionados' for any authenticated user.
     match /pensionados/{pensionadoId} {
-      allow get: if request.auth != null;
-      allow write: if false; // Writes should be handled by trusted backends or more specific rules
-    }
-    match /pensionados/{pensionadoId=**} {
-       allow list: if request.auth != null;
+      allow list, get: if request.auth != null;
+      // Keep write access restricted unless specified otherwise.
+      allow write: if false; 
     }
     
-    // Allow read/write access to subcollections of pensionados
+    // Allow read access to subcollections of pensionados if needed
     match /pensionados/{pensionadoId}/{subcollection}/{docId} {
        allow read, write: if request.auth != null;
     }
@@ -21,12 +20,18 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
     
+    // This rule allows access to a specific document in a subcollection
     match /procesos/{procesoId}/{subcollection}/{docId} {
        allow read, write: if request.auth != null;
     }
     
+    // This rule allows collection group queries on 'anotaciones'
+    match /{path=**}/anotaciones/{anotacionId} {
+      allow read, write: if request.auth != null;
+    }
+
     match /procesoscancelados/{docId} {
-      allow list, get: if request.auth != null;
+      allow read: if request.auth != null;
       allow write: if false; // These are created by a backend function
     }
 
@@ -57,53 +62,33 @@ service cloud.firestore {
     
      // Allow read access to Provired data for any authenticated user
     match /provired_notifications/{notificationId} {
-      allow read, list: if request.auth != null;
+      allow read: if request.auth != null;
       allow write: if false; // Should only be written by a trusted backend process
     }
     
     match /provired_departments/{departmentId} {
-      allow read, list: if request.auth != null;
+      allow read: if request.auth != null;
       allow write: if false;
     }
     
     match /provired_municipalities/{municipalityId} {
-      allow read, list: if request.auth != null;
+      allow read: if request.auth != null;
       allow write: if false;
     }
     
      match /provired_corporations/{corporationId} {
-      allow read, list: if request.auth != null;
+      allow read: if request.auth != null;
       allow write: if false;
     }
     
      match /provired_offices/{officeId} {
-      allow read, list: if request.auth != null;
+      allow read: if request.auth != null;
       allow write: if false;
     }
     
      match /documentTemplates/{templateId} {
       allow read, write: if request.auth != null; // Allow admins to update templates
     }
-    
-    match /causante/{causanteId} {
-      allow read, list: if request.auth != null;
-      allow write: if false;
-    }
-    
-    match /pagosHistorico/{pagoId} {
-      allow read, list: if request.auth != null;
-      allow write: if false;
-    }
-    
-    match /parris1/{parrisId} {
-      allow read, list: if request.auth != null;
-      allow write: if false;
-    }
 
-    // It's good practice to have a default deny rule, but the specific rules above should cover all app actions.
-    // If you still face issues, a broader rule might be needed, but start with specifics.
-    // match /{document=**} {
-    //  allow read, write: if false;
-    // }
   }
 }
