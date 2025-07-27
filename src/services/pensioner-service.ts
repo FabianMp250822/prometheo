@@ -1,6 +1,6 @@
 'use server';
 
-import { collection, query, getDocs, where } from 'firebase/firestore';
+import { collection, query, getDocs, where, documentId } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { ProcesoCancelado } from '@/lib/data';
 
@@ -51,27 +51,38 @@ export async function getProcesosCanceladosConPensionados(): Promise<ProcesoCanc
         let data = procesosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcesoCancelado));
 
         if (data.length > 0) {
-            const pensionerIds = [...new Set(data.map(p => p.pensionadoId))];
+            // Get unique pensioner IDs from the processes
+            const pensionerIds = [...new Set(data.map(p => p.pensionadoId).filter(Boolean))];
+            
+            // This will hold the fetched pensioner data, keyed by their ID.
             const pensionersData: { [key: string]: { name: string, document: string, department: string } } = {};
             
+            // Firestore 'in' queries are limited to 30 values. We must process in chunks.
             const chunks = [];
             for (let i = 0; i < pensionerIds.length; i += 30) {
                 chunks.push(pensionerIds.slice(i, i + 30));
             }
             
             for (const chunk of chunks) {
-                const pensionersQuery = query(collection(db, 'pensionados'), where('documento', 'in', chunk));
+                if (chunk.length === 0) continue;
+
+                // **OPTIMIZED QUERY**: Instead of querying a field, query by document ID.
+                // This is faster and more reliable. The document ID in 'pensionados' is the pensioner's document number.
+                const pensionersQuery = query(collection(db, 'pensionados'), where(documentId(), 'in', chunk));
                 const pensionersSnapshot = await getDocs(pensionersQuery);
+                
                 pensionersSnapshot.forEach(doc => {
                     const pData = doc.data();
-                    pensionersData[pData.documento] = {
+                    // Use the document ID as the key, as it's guaranteed to be the pensioner's ID.
+                    pensionersData[doc.id] = {
                         name: pData.empleado,
-                        document: pData.documento,
+                        document: pData.documento || doc.id, // Fallback to doc.id if field is missing
                         department: pData.dependencia1
                     };
                 });
             }
 
+            // Enrich the original process data with the fetched pensioner info.
             data = data.map(p => ({
                 ...p,
                 pensionerInfo: pensionersData[p.pensionadoId]
@@ -88,6 +99,7 @@ export async function getProcesosCanceladosConPensionados(): Promise<ProcesoCanc
 
     } catch (error: any) {
         console.error("Error fetching data:", error);
-        throw new Error("Failed to fetch processed sentences with pensioner details.");
+        // Throw a more specific error to help with debugging.
+        throw new Error(`Failed to fetch processed sentences with pensioner details: ${error.message}`);
     }
 }
