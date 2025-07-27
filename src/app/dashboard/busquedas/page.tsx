@@ -8,7 +8,7 @@ import { collection, collectionGroup, query, where, getDocs, doc, getDoc } from 
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon, ClipboardList, ListFilter, UserSearch } from 'lucide-react';
+import { Calendar as CalendarIcon, ClipboardList, ListFilter, UserSearch, Download } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -23,6 +23,7 @@ import { Pensioner } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import * as XLSX from 'xlsx';
 
 interface PaymentResult {
     pensionadoId: string;
@@ -166,7 +167,7 @@ export default function BusquedasPage() {
         }
     }, [dateRange, toast]);
 
-    const handleJubilacionSearch = async () => {
+     const handleJubilacionSearch = async () => {
         if (!selectedDependencia || !retirementDate) {
             toast({ variant: 'destructive', title: 'Campos requeridos', description: 'Debe seleccionar una dependencia y una fecha.' });
             return;
@@ -181,7 +182,7 @@ export default function BusquedasPage() {
             );
             
             const querySnapshot = await getDocs(q);
-            const allPensionersFromDep = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+            const allPensionersFromDep = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
             
             const retirementDateUntil = parse(retirementDate.trim(), 'yyyy-MM-dd', new Date());
 
@@ -193,7 +194,7 @@ export default function BusquedasPage() {
             
             const results = allPensionersFromDep.filter(pensioner => {
                 // Prioritize 'ano_jubilacion' if available and valid
-                if (pensioner.ano_jubilacion && /^\d{4}-\d{2}-\d{2}$/.test(pensioner.ano_jubilacion)) {
+                 if (pensioner.ano_jubilacion && /^\d{4}-\d{2}-\d{2}$/.test(pensioner.ano_jubilacion)) {
                      const pensionDate = parse(pensioner.ano_jubilacion, 'yyyy-MM-dd', new Date());
                      return !isNaN(pensionDate.getTime()) && pensionDate <= retirementDateUntil;
                 }
@@ -218,6 +219,41 @@ export default function BusquedasPage() {
             setIsLoadingRetirement(false);
         }
     };
+    
+    const handleExportToExcel = () => {
+        if (retirementResults.length === 0) {
+            toast({
+                variant: 'destructive',
+                title: 'Sin Datos',
+                description: 'No hay resultados de jubilación para exportar.',
+            });
+            return;
+        }
+
+        const dataToExport = retirementResults.map((p, index) => ({
+            '#': index + 1,
+            'Nombre': parseEmployeeName(p.empleado),
+            'Documento': p.documento,
+            'Fecha Jubilación': p.fechaPensionado || p.ano_jubilacion,
+            'Dependencia': parseDepartmentName(p.dependencia1),
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Jubilados');
+
+        // Adjust column widths
+        worksheet['!cols'] = [
+            { wch: 5 },  // #
+            { wch: 40 }, // Nombre
+            { wch: 15 }, // Documento
+            { wch: 15 }, // Fecha Jubilación
+            { wch: 30 }, // Dependencia
+        ];
+
+        XLSX.writeFile(workbook, `Reporte_Jubilados_Hasta_${retirementDate}.xlsx`);
+    };
+
 
 
     return (
@@ -256,30 +292,38 @@ export default function BusquedasPage() {
                             <Label htmlFor="retirement-date">Fecha de Jubilación (Hasta)</Label>
                             <Input id="retirement-date" type="text" placeholder="YYYY-MM-DD" value={retirementDate} onChange={e => setRetirementDate(e.target.value)} />
                         </div>
-                        <Button onClick={handleJubilacionSearch} disabled={isLoadingRetirement}>
-                             {isLoadingRetirement ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-                             Buscar por Jubilación
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button onClick={handleJubilacionSearch} disabled={isLoadingRetirement} className="flex-1">
+                                {isLoadingRetirement ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
+                                Buscar
+                            </Button>
+                             <Button onClick={handleExportToExcel} disabled={retirementResults.length === 0} variant="outline" className="flex-1">
+                                <Download className="mr-2 h-4 w-4" />
+                                Exportar
+                            </Button>
+                        </div>
                     </div>
                      {isLoadingRetirement ? (
                         <div className="flex justify-center items-center p-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
                      ) : retirementResults.length > 0 && (
                         <div className="mt-6">
-                             <h4 className="text-md font-semibold mb-2">Resultados de Jubilación</h4>
+                             <h4 className="text-md font-semibold mb-2">Resultados de Jubilación ({retirementResults.length})</h4>
                              <Table>
                                 <TableHeader>
                                     <TableRow>
+                                        <TableHead className="w-[50px]">#</TableHead>
                                         <TableHead>Nombre</TableHead>
                                         <TableHead>Documento</TableHead>
                                         <TableHead>Fecha Jubilación</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {retirementResults.map(p => (
+                                    {retirementResults.map((p, index) => (
                                         <TableRow key={p.id}>
+                                            <TableCell>{index + 1}</TableCell>
                                             <TableCell>{parseEmployeeName(p.empleado)}</TableCell>
                                             <TableCell>{p.documento}</TableCell>
-                                            <TableCell>{p.ano_jubilacion || p.fechaPensionado || 'N/A'}</TableCell>
+                                            <TableCell>{p.fechaPensionado || p.ano_jubilacion || 'N/A'}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>
