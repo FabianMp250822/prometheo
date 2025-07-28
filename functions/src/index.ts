@@ -494,33 +494,44 @@ export const createUser = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
 
 /**
  * Triggered when a new user document is created in Firestore.
- * Automatically assigns the "Administrador" role to a specific hardcoded UID.
+ * Automatically assigns the "Administrador" role to a specific hardcoded email.
  * This is a secure way to bootstrap the first administrator.
  */
 export const onUserCreate = onDocumentCreated("users/{userId}", async (event) => {
   const userId = event.params.userId;
-  const adminUid = "hlCWfLJvWnS8v8CZA0m6JNlNgN73"; // The specific UID to make an admin
+  const userData = event.data?.data();
 
-  if (userId === adminUid) {
+  if (!userData) {
+    logger.info(`No data for user ${userId}, skipping.`);
+    return;
+  }
+
+  const adminEmail = "fabianmuniozpuello@gmail.com";
+  
+  logger.info(`Checking user ${userId} with email ${userData.email}`);
+
+  if (userData.email === adminEmail) {
     try {
       await auth.setCustomUserClaims(userId, {role: "Administrador"});
-      logger.info(`Successfully assigned 'Administrador' role to user ${userId}`);
+      logger.info(`Successfully assigned 'Administrador' role to user ${userId} with email ${adminEmail}`);
     } catch (error) {
       logger.error(`Error setting admin role for user ${userId}:`, error);
     }
   }
 });
 
+
 export const setAdminRole = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
-  // Authentication check (optional for first admin, but good practice)
-  // For bootstrapping, you might temporarily disable this check.
+  // Authentication check: Ensure the caller is an authenticated admin.
   if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Must be authenticated.");
+    throw new HttpsError("unauthenticated", "Must be authenticated to set roles.");
   }
+  
   const callerUid = request.auth.uid;
   const callerUserRecord = await auth.getUser(callerUid);
+  
   if (callerUserRecord.customClaims?.role !== "Administrador") {
-    throw new HttpsError("permission-denied", "Only admins can set roles.");
+    throw new HttpsError("permission-denied", "Only administrators can set user roles.");
   }
 
   const {uid, role} = request.data;
