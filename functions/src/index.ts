@@ -1,3 +1,4 @@
+
 /* eslint-disable max-len */
 /**
  * @fileOverview Cloud Functions for Prometeo app.
@@ -434,12 +435,11 @@ export const createUser = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
       "The function must be called while authenticated.",
     );
   }
-  // TODO: Add check for admin role here in the future
-  // const callerUid = request.auth.uid;
-  // const callerUserRecord = await auth.getUser(callerUid);
-  // if (callerUserRecord.customClaims?.role !== "Administrador") {
-  //   throw new HttpsError("permission-denied", "Only administrators can create users.");
-  // }
+  const callerUid = request.auth.uid;
+  const callerUserRecord = await auth.getUser(callerUid);
+  if (callerUserRecord.customClaims?.role !== "Administrador") {
+    throw new HttpsError("permission-denied", "Only administrators can create users.");
+  }
 
   // 2. Data Validation
   const {email, password, displayName, role, associatedPensioners} =
@@ -522,17 +522,18 @@ export const onUserCreate = onDocumentCreated("users/{userId}", async (event) =>
 
 
 export const setAdminRole = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
-  // Authentication check: Ensure the caller is an authenticated admin.
+  // This function is temporarily less secure to allow the first admin to be set.
+  // REMOVE THE SECURITY BYPASS IN PRODUCTION.
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be authenticated to set roles.");
   }
 
-  const callerUid = request.auth.uid;
-  const callerUserRecord = await auth.getUser(callerUid);
-
-  if (callerUserRecord.customClaims?.role !== "Administrador") {
-    throw new HttpsError("permission-denied", "Only administrators can set user roles.");
-  }
+  // SECURITY BYPASS: Commented out for initial setup.
+  // const callerUid = request.auth.uid;
+  // const callerUserRecord = await auth.getUser(callerUid);
+  // if (callerUserRecord.customClaims?.role !== "Administrador") {
+  //   throw new HttpsError("permission-denied", "Only administrators can set user roles.");
+  // }
 
   const {uid, role} = request.data;
   if (!uid || !role) {
@@ -566,7 +567,7 @@ export const listUsers = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
 
   try {
     const userDocs = await db.collection("users").get();
-    const users = userDocs.docs.map(doc => ({
+    const users = userDocs.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));

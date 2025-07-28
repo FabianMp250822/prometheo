@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -22,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 const functions = getFunctions();
 const createUserCallable = httpsCallable(functions, 'createUser');
 const listUsersCallable = httpsCallable(functions, 'listUsers');
+const setAdminRoleCallable = httpsCallable(functions, 'setAdminRole');
 
 interface AppUser {
     id: string;
@@ -30,7 +32,7 @@ interface AppUser {
     rol: string;
 }
 
-const roles = ["Administrador", "Abogado", "Abogado Externo", "Contador"];
+const roles = ["Administrador", "Abogado Titular", "Abogado Externo", "Contador"];
 
 export default function UsuariosPage() {
     const { toast } = useToast();
@@ -84,7 +86,7 @@ export default function UsuariosPage() {
         }
         setIsLoading(true);
         try {
-            const associatedPensioners = rol === 'Abogado' ? selectedPensioners.map(p => p.id) : [];
+            const associatedPensioners = (rol === 'Abogado Titular' || rol === 'Abogado Externo') ? selectedPensioners.map(p => p.id) : [];
             
             await createUserCallable({
                 email,
@@ -145,7 +147,7 @@ export default function UsuariosPage() {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            {rol === 'Abogado' && (
+                            {(rol === 'Abogado Titular' || rol === 'Abogado Externo') && (
                                 <div>
                                     <Label>Asociar Pensionados</Label>
                                     <Popover open={openPensionerSelect} onOpenChange={setOpenPensionerSelect}>

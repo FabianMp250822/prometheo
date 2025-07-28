@@ -39,15 +39,10 @@ export default function DashboardLayout({
       durationSeconds: durationSeconds,
     };
     
-    // Use sendBeacon for reliability on page unload
-    if (navigator.sendBeacon) {
-      const blob = new Blob([JSON.stringify({ ...sessionLog, isBeacon: true })], { type: 'application/json' });
-       // Note: You would need an HTTP endpoint (Cloud Function) to receive this beacon.
-       // For now, we'll rely on the logout click and regular saves.
-       // navigator.sendBeacon('/api/log-session', blob);
-    } else {
-       // Fallback for older browsers (less reliable)
-       await addDoc(collection(db, `users/${user.uid}/sessionLogs`), sessionLog);
+    try {
+        await addDoc(collection(db, `users/${user.uid}/sessionLogs`), sessionLog);
+    } catch (error) {
+        console.error("Failed to log session:", error);
     }
   };
 
@@ -55,7 +50,7 @@ export default function DashboardLayout({
     if (user) {
       sessionStartTimeRef.current = new Date();
 
-      const handleBeforeUnload = () => {
+      const handleBeforeUnload = (event: BeforeUnloadEvent) => {
         if (sessionStartTimeRef.current) {
           logSession(sessionStartTimeRef.current, new Date());
         }

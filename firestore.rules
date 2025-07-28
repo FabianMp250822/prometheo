@@ -1,104 +1,111 @@
+
 rules_version = '2';
+
+// Helper function to check for an admin role
+function isAdmin(request) {
+  return request.auth.token.role == 'Administrador';
+}
+
+// Helper function to check for an accountant role
+function isContador(request) {
+  return request.auth.token.role == 'Contador';
+}
+
+// Helper function to check for either lawyer role
+function isAbogado(request) {
+  return request.auth.token.role == 'Abogado Titular' || request.auth.token.role == 'Abogado Externo';
+}
 
 service cloud.firestore {
   match /databases/{database}/documents {
+  
+    // Secure the 'users' collection
+    match /users/{userId} {
+      // Any authenticated user can read their own profile
+      allow read: if request.auth.uid == userId;
+      
+      // Admins can read or write any user profile
+      allow get, list, write: if isAdmin(request);
 
-    // Allow read access to 'pensionados' for any authenticated user.
-    // The 'read' rule covers both 'get' (single doc) and 'list' (query) operations.
+      // Abogados can only read their own profile
+      allow get: if isAbogado(request) && request.auth.uid == userId;
+      
+      // Allow creation for authenticated users (handled by Cloud Function)
+      allow create: if request.auth.uid != null;
+    }
+
+    match /users/{userId}/sessionLogs/{logId} {
+        // Only the user themselves can create their own session logs
+        allow create: if request.auth.uid == userId;
+        // Only admins can read session logs for audit purposes
+        allow read, list: if isAdmin(request);
+    }
+    
+    // Secure the 'pensionados' collection
     match /pensionados/{pensionadoId} {
-      allow read: if request.auth != null;
-      // Keep write access restricted.
+      // Admins and Accountants can read the full list or individual documents
+      allow get, list: if isAdmin(request) || isContador(request);
+
+      // Abogados can only read a pensioner document if it's in their assigned list
+      allow get: if isAbogado(request) && 
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.associatedPensioners.hasAny([pensionadoId]);
+      
+      // Prevent any direct writes to the pensionados collection from the client
       allow write: if false; 
     }
     
-    // Allow read/write access to subcollections of pensionados
-    match /pensionados/{pensionadoId}/{subcollection}/{docId} {
-       allow read, write: if request.auth != null;
+    // Secure the payments subcollection
+    match /pensionados/{pensionadoId}/pagos/{pagoId} {
+      // Allow read access under the same conditions as the parent pensioner document
+      allow read: if isAdmin(request) || isContador(request) || 
+                    (isAbogado(request) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.associatedPensioners.hasAny([pensionadoId]));
+      allow write: if false; // No direct client writes
     }
 
-    match /procesos/{procesoId} {
-      allow read, write: if request.auth != null;
-    }
-    
-    match /procesos/{procesoId}/{subcollection}/{docId} {
-       allow read, write: if request.auth != null;
-    }
-
-    // Rules for collection group queries
-    match /{path=**}/anotaciones/{anotacionId} {
-      allow read: if request.auth != null;
-    }
-    
-    match /procesoscancelados/{docId} {
-      allow read: if request.auth != null;
-      allow write: if false; // These are created by a backend function
-    }
-
-    // Allow authenticated users to manage their own tasks
-    match /tareas/{tareaId} {
-        allow read, write: if request.auth != null;
-    }
-    
-    // Allow authenticated users to manage clients in 'nuevosclientes' collection
+    // Secure the 'nuevosclientes' collection
     match /nuevosclientes/{clienteId} {
-        allow read, write: if request.auth != null;
+        // Admins and Accountants can read and list clients
+        allow get, list: if isAdmin(request) || isContador(request);
+        // Only admins or the backend can write/update client data
+        allow write: if isAdmin(request);
+        // Abogados can only read clients assigned to them
+        allow get: if isAbogado(request) && 
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.associatedPensioners.hasAny([clienteId]);
     }
 
-    // Allow authenticated users to manage payments in 'pagos' subcollection
     match /nuevosclientes/{clienteId}/pagos/{pagoId} {
-        allow read, write: if request.auth != null;
+        allow read: if isAdmin(request) || isContador(request);
+        allow write: if isAdmin(request);
     }
 
-    // Allow authenticated users to manage documents in 'documentos' subcollection
-    match /nuevosclientes/{clienteId}/documentos/{documentoId} {
-        allow read, write: if request.auth != null;
+    match /nuevosclientes/{clienteId}/documentos/{docId} {
+        allow read: if isAdmin(request) || isContador(request);
+        allow write: if isAdmin(request);
+    }
+
+    // Secure other collections
+    match /{document=**} {
+      // Default deny all reads and writes unless specified above
+      allow read, write: if isAdmin(request);
     }
     
-     // Allow authenticated users to manage groups
-    match /grupos/{grupoId} {
-        allow read, write: if request.auth != null;
+     match /procesoscancelados/{procesoId} {
+        allow read: if isAdmin(request) || isContador(request);
+        // Prevent client-side writes
+        allow write: if false;
     }
-    
-     // Allow read access to Provired data for any authenticated user
+
     match /provired_notifications/{notificationId} {
-      allow read: if request.auth != null;
-      allow write: if false; // Should only be written by a trusted backend process
-    }
-    
-    match /provired_departments/{departmentId} {
-      allow read: if request.auth != null;
-      allow write: if false;
-    }
-    
-    match /provired_municipalities/{municipalityId} {
-      allow read: if request.auth != null;
-      allow write: if false;
-    }
-    
-     match /provired_corporations/{corporationId} {
-      allow read: if request.auth != null;
-      allow write: if false;
-    }
-    
-     match /provired_offices/{officeId} {
-      allow read: if request.auth != null;
-      allow write: if false;
-    }
-    
-     match /documentTemplates/{templateId} {
-      allow read, write: if request.auth != null; // Allow admins to update templates
-    }
-    
-    match /pagosHistorico/{pagoId} {
-      allow read: if request.auth != null;
+        // Only admins can read general notifications
+        allow read: if isAdmin(request);
+        // Prevent any client-side writes
+        allow write: if false;
     }
 
-    match /causante/{causanteId} {
-      allow read: if request.auth != null;
-    }
-    
-    match /parris1/{parrisId} {
-      allow read: if request.auth != null;
+    match /procesos/{procesoId}/{subcollection}/{documentId} {
+        allow read: if isAdmin(request) || isContador(request) ||
+                    (isAbogado(request) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.associatedPensioners.hasAny([procesoId]));
+        allow write: if isAdmin(request);
     }
   }
 }

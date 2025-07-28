@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Gavel, TrendingUp, Banknote, UserCircle, Clock } from "lucide-react";
 import { useAuth } from '@/context/auth-provider';
-import { getIdTokenResult } from 'firebase/auth';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -14,7 +14,7 @@ export default function DashboardPage() {
   const [greeting, setGreeting] = useState('');
   const [sessionDuration, setSessionDuration] = useState('00:00:00');
   
-  const sessionStartTime = new Date();
+  const [sessionStartTime] = useState(new Date());
 
   useEffect(() => {
     if (user) {
@@ -45,7 +45,7 @@ export default function DashboardPage() {
     
     return () => clearInterval(timer);
 
-  }, [user]);
+  }, [user, sessionStartTime]);
 
   return (
     <div className="p-4 md:p-8">
