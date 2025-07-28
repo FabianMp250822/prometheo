@@ -510,3 +510,33 @@ export const onUserCreate = onDocumentCreated("users/{userId}", async (event) =>
     }
   }
 });
+
+export const setAdminRole = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
+  // Authentication check (optional for first admin, but good practice)
+  // For bootstrapping, you might temporarily disable this check.
+  // if (!request.auth) {
+  //   throw new HttpsError("unauthenticated", "Must be authenticated.");
+  // }
+  // const callerUid = request.auth.uid;
+  // const callerUserRecord = await auth.getUser(callerUid);
+  // if (callerUserRecord.customClaims?.role !== "Administrador") {
+  //   throw new HttpsError("permission-denied", "Only admins can set roles.");
+  // }
+
+  const {uid, role} = request.data;
+  if (!uid || !role) {
+    throw new HttpsError("invalid-argument", "UID and role are required.");
+  }
+
+  try {
+    await auth.setCustomUserClaims(uid, {role: role});
+    // Also update the user's document in Firestore for consistency
+    await db.collection("users").doc(uid).set({rol: role}, {merge: true});
+
+    logger.info(`Successfully set role '${role}' for user ${uid}.`);
+    return {success: true, message: `Role '${role}' assigned.`};
+  } catch (error: any) {
+    logger.error(`Error setting role for user ${uid}:`, error);
+    throw new HttpsError("internal", "Failed to set user role.", error.message);
+  }
+});

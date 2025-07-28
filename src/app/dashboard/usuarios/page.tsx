@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 
 const functions = getFunctions();
 const createUserCallable = httpsCallable(functions, 'createUser');
+const setAdminRoleCallable = httpsCallable(functions, 'setAdminRole');
 
 interface AppUser {
     id: string;
@@ -108,7 +109,7 @@ export default function UsuariosPage() {
             setIsLoading(false);
         }
     };
-
+    
     return (
         <div className="p-4 md:p-8 space-y-6">
             <Card>
