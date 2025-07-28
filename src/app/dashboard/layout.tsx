@@ -393,22 +393,6 @@ export default function DashboardLayout({
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Maestros">
-                  <Link href="/dashboard/maestros">
-                    <Database />
-                    <span className="group-data-[collapsible=icon]:hidden">Maestros</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Historial de Cargas">
-                  <Link href="/dashboard/historial-cargas">
-                    <FileUp />
-                    <span className="group-data-[collapsible=icon]:hidden">Historial de Cargas</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
                 <SidebarMenuButton asChild tooltip="Gestión de Demandas">
                   <Link href="/dashboard/gestion-demandas">
                     <FileClock />
