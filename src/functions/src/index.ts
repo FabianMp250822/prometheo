@@ -12,10 +12,12 @@ import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import {initializeApp, getApps} from "firebase-admin/app";
 import {getFirestore, Timestamp} from "firebase-admin/firestore";
-import {HttpsError, onCall} from "firebase-functions/v2/https";
+import { HttpsError, onCall } from "firebase-functions/v2/https";
 import * as nodemailer from "nodemailer";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import fetch from "node-fetch";
+import { getAuth } from 'firebase-admin/auth';
+
 
 // Initialize admin SDK if not already initialized
 if (getApps().length === 0) {
@@ -23,6 +25,7 @@ if (getApps().length === 0) {
 }
 
 const db = getFirestore();
+const auth = getAuth();
 
 // ============================
 // Nodemailer Configuration
@@ -391,5 +394,61 @@ export const syncDailyNotifications = onSchedule("every day 07:00", async () => 
         logger.error("Error during daily notification sync:", error);
         // Throw error to indicate failure for potential retries
         throw error;
+    }
+});
+
+// =====================================
+// User Management Function
+// =====================================
+
+export const createUser = onCall({ cors: true }, async (request) => {
+    // 1. Authentication Check: Ensure the caller is an authenticated admin.
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+    // You might want to add a check for admin role here in the future
+    // const callerUid = request.auth.uid;
+    // const callerUserRecord = await auth.getUser(callerUid);
+    // if (callerUserRecord.customClaims?.role !== 'Administrador') {
+    //   throw new HttpsError('permission-denied', 'Only administrators can create users.');
+    // }
+
+    // 2. Data Validation
+    const { email, password, displayName, role, associatedPensioners } = request.data;
+    if (!email || !password || !displayName || !role) {
+        throw new HttpsError('invalid-argument', 'Request must include email, password, displayName, and role.');
+    }
+
+    try {
+        // 3. Create user in Firebase Authentication
+        const userRecord = await auth.createUser({
+            email: email,
+            password: password,
+            displayName: displayName,
+        });
+
+        // 4. Set custom claims for role-based access control
+        await auth.setCustomUserClaims(userRecord.uid, { role: role });
+
+        // 5. Create user profile in Firestore
+        const userDocRef = db.collection('users').doc(userRecord.uid);
+        await userDocRef.set({
+            nombre: displayName,
+            email: email,
+            rol: role,
+            associatedPensioners: associatedPensioners || [], // Store associated pensioners for lawyers
+            createdAt: Timestamp.now(),
+        });
+        
+        logger.info(`Successfully created new user: ${email} with role ${role}`);
+        return { success: true, uid: userRecord.uid };
+
+    } catch (error: any) {
+        logger.error('Error creating new user:', error);
+        // Clean up partially created user if something went wrong
+        if (error.code === 'auth/email-already-exists') {
+             throw new HttpsError('already-exists', 'This email is already in use by another account.');
+        }
+        throw new HttpsError('internal', 'An unexpected error occurred while creating the user.', error.message);
     }
 });

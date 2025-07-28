@@ -106,9 +106,9 @@ export default function DashboardLayout({
                        <SidebarMenuSub>
                           <SidebarMenuSubItem>
                              <SidebarMenuSubButton asChild>
-                              <Link href="/dashboard/agenda/por-fecha">
+                              <Link href="/dashboard/agenda/calendario">
                                 <CalendarSearch />
-                                <span>Por Fecha</span>
+                                <span>Calendario</span>
                               </Link>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
@@ -130,14 +130,6 @@ export default function DashboardLayout({
                                           <Link href="/dashboard/agenda/agregar-tareas">
                                             <CalendarPlus />
                                             <span>Agregar Tareas</span>
-                                          </Link>
-                                        </SidebarMenuSubButton>
-                                      </SidebarMenuSubItem>
-                                      <SidebarMenuSubItem>
-                                        <SidebarMenuSubButton asChild size="sm">
-                                          <Link href="/dashboard/agenda/ver-tareas">
-                                            <CalendarSearch />
-                                            <span>Ver Tareas</span>
                                           </Link>
                                         </SidebarMenuSubButton>
                                       </SidebarMenuSubItem>
