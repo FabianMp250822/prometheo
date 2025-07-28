@@ -8,7 +8,7 @@
  * - Daily synchronization of Provired notifications.
  */
 
-import {onDocumentCreated, onDocumentWritten} from "firebase-functions/v2/firestore";
+import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import {initializeApp, getApps} from "firebase-admin/app";
 import {getFirestore, Timestamp} from "firebase-admin/firestore";
