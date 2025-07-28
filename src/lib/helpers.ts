@@ -71,10 +71,23 @@ export const getLatestYear = (sentencias: Sentence[]): number => {
     return endDate ? endDate.getFullYear() : 0;
 }
 
-export const parseEmployeeName = (employeeName: string): string => {
-  if (!employeeName) return 'N/A';
-  return employeeName.split(' (C.C.')[0].trim();
+export const parseEmployeeName = (fullName: string): { nombres: string, apellidos: string } => {
+    if (!fullName) return { nombres: 'N/A', apellidos: 'N/A' };
+    
+    const nameWithoutCC = fullName.split(' (C.C.')[0].trim();
+    const parts = nameWithoutCC.split(' ').filter(p => p);
+    
+    if (parts.length <= 2) {
+        return { nombres: parts.join(' '), apellidos: '' };
+    }
+    
+    // A common convention in Colombia is two last names.
+    const apellidos = parts.slice(-2).join(' ');
+    const nombres = parts.slice(0, -2).join(' ');
+    
+    return { nombres: nombres || nameWithoutCC, apellidos };
 };
+
 
 export const parsePaymentDetailName = (detailName: string): string => {
   if (!detailName) return '';

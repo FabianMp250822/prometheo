@@ -90,48 +90,54 @@ export default function AgregarClientePage() {
       return;
     }
     setIsSearching(true);
-    setSelectedExistingClient(null);
+    setSelectedExistingClient(null); // Reset on new search
     try {
       const resultsMap = new Map<string, SearchResult>();
 
-      // Search in 'nuevosclientes'
-      const clientesRef = collection(db, "nuevosclientes");
-      const nameQueryClientes = query(clientesRef, where("nombres", ">=", searchVal.toUpperCase()), where("nombres", "<=", searchVal.toUpperCase() + '\uf8ff'), limit(5));
-      const cedulaQueryClientes = query(clientesRef, where("cedula", ">=", searchVal), where("cedula", "<=", searchVal + '\uf8ff'), limit(5));
-      const [nameSnap, cedulaSnap] = await Promise.all([getDocs(nameQueryClientes), getDocs(cedulaQueryClientes)]);
-      
-      nameSnap.forEach(doc => resultsMap.set(doc.data().cedula, { id: doc.id, ...doc.data(), source: 'cliente' } as SearchResult));
-      cedulaSnap.forEach(doc => resultsMap.set(doc.data().cedula, { id: doc.id, ...doc.data(), source: 'cliente' } as SearchResult));
-      
-      // Search in 'pensionados'
-      const pensionadosRef = collection(db, "pensionados");
-      const nameQueryPensionados = query(pensionadosRef, where("empleado", ">=", searchVal.toUpperCase()), where("empleado", "<=", searchVal.toUpperCase() + '\uf8ff'), limit(5));
-      const cedulaQueryPensionados = query(pensionadosRef, where("documento", ">=", searchVal), where("documento", "<=", searchVal + '\uf8ff'), limit(5));
-      const [pNameSnap, pCedulaSnap] = await Promise.all([getDocs(nameQueryPensionados), getDocs(cedulaQueryPensionados)]);
-
-      const processPensionado = (doc: any) => {
-        const data = doc.data();
-        const fullName = parseEmployeeName(data.empleado);
-        const nameParts = fullName.split(' ');
-        const apellidos = nameParts.slice(-2).join(' ');
-        const nombres = nameParts.slice(0, -2).join(' ');
-        return {
-          id: doc.id,
-          nombres: nombres || fullName,
-          apellidos: apellidos,
-          cedula: data.documento,
-          source: 'pensionado'
-        } as SearchResult;
-      };
-
-      pNameSnap.forEach(doc => {
-          const pensionado = processPensionado(doc);
-          if (!resultsMap.has(pensionado.cedula)) resultsMap.set(pensionado.cedula, pensionado);
+      // Search in 'nuevosclientes' by Cédula
+      const clientesCedulaQuery = query(collection(db, "nuevosclientes"), where("cedula", ">=", searchVal), where("cedula", "<=", searchVal + '\uf8ff'), limit(5));
+      const clientesCedulaSnap = await getDocs(clientesCedulaQuery);
+      clientesCedulaSnap.forEach(doc => {
+          const data = doc.data();
+          resultsMap.set(data.cedula, { id: doc.id, nombres: data.nombres, apellidos: data.apellidos, cedula: data.cedula, source: 'cliente' });
       });
-       pCedulaSnap.forEach(doc => {
-          const pensionado = processPensionado(doc);
-          if (!resultsMap.has(pensionado.cedula)) resultsMap.set(pensionado.cedula, pensionado);
+      
+      // Search in 'pensionados' by Documento
+      const pensionadosCedulaQuery = query(collection(db, "pensionados"), where("documento", ">=", searchVal), where("documento", "<=", searchVal + '\uf8ff'), limit(5));
+      const pensionadosCedulaSnap = await getDocs(pensionadosCedulaQuery);
+      pensionadosCedulaSnap.forEach(doc => {
+          const data = doc.data();
+          const { nombres, apellidos } = parseEmployeeName(data.empleado);
+          if (!resultsMap.has(data.documento)) {
+            resultsMap.set(data.documento, { id: doc.id, nombres, apellidos, cedula: data.documento, source: 'pensionado' });
+          }
       });
+      
+      // If search is not numeric, also search by name
+      if (isNaN(Number(searchVal))) {
+        const searchUpper = searchVal.toUpperCase();
+        
+        // Search in 'nuevosclientes' by Nombre
+        const clientesNameQuery = query(collection(db, "nuevosclientes"), where("nombres", ">=", searchUpper), where("nombres", "<=", searchUpper + '\uf8ff'), limit(5));
+        const clientesNameSnap = await getDocs(clientesNameQuery);
+        clientesNameSnap.forEach(doc => {
+          const data = doc.data();
+          if (!resultsMap.has(data.cedula)) {
+            resultsMap.set(data.cedula, { id: doc.id, nombres: data.nombres, apellidos: data.apellidos, cedula: data.cedula, source: 'cliente' });
+          }
+        });
+
+        // Search in 'pensionados' by Empleado
+        const pensionadosNameQuery = query(collection(db, "pensionados"), where("empleado", ">=", searchUpper), where("empleado", "<=", searchUpper + '\uf8ff'), limit(5));
+        const pensionadosNameSnap = await getDocs(pensionadosNameQuery);
+        pensionadosNameSnap.forEach(doc => {
+          const data = doc.data();
+          const { nombres, apellidos } = parseEmployeeName(data.empleado);
+          if (!resultsMap.has(data.documento)) {
+            resultsMap.set(data.documento, { id: doc.id, nombres, apellidos, cedula: data.documento, source: 'pensionado' });
+          }
+        });
+      }
 
       setSearchResults(Array.from(resultsMap.values()));
     } catch (error: any) {
@@ -151,6 +157,7 @@ export default function AgregarClientePage() {
         nombres: user.nombres,
         apellidos: user.apellidos,
         cedula: user.cedula,
+        // Reset other fields
         correo: '',
         telefonoFijo: '',
         celular: '',
@@ -160,6 +167,8 @@ export default function AgregarClientePage() {
     setIsDropdownVisible(false);
     if(user.source === 'cliente') {
         setSelectedExistingClient(user);
+    } else {
+        setSelectedExistingClient(null);
     }
   };
   
