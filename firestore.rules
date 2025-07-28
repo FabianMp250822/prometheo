@@ -4,13 +4,14 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Allow read access to 'pensionados' for any authenticated user.
-    // This is necessary for search pages and reports.
+    // The 'read' rule covers both 'get' (single doc) and 'list' (query) operations.
     match /pensionados/{pensionadoId} {
       allow read: if request.auth != null;
-      allow write: if false; // Keep write access restricted
+      // Keep write access restricted.
+      allow write: if false; 
     }
     
-    // Allow read access to subcollections of pensionados if needed
+    // Allow read/write access to subcollections of pensionados
     match /pensionados/{pensionadoId}/{subcollection}/{docId} {
        allow read, write: if request.auth != null;
     }
@@ -21,6 +22,11 @@ service cloud.firestore {
     
     match /procesos/{procesoId}/{subcollection}/{docId} {
        allow read, write: if request.auth != null;
+    }
+
+    // Rules for collection group queries
+    match /{path=**}/anotaciones/{anotacionId} {
+      allow read: if request.auth != null;
     }
     
     match /procesoscancelados/{docId} {
@@ -83,30 +89,16 @@ service cloud.firestore {
       allow read, write: if request.auth != null; // Allow admins to update templates
     }
     
-    // Allow read access to historical and related data for authenticated users
     match /pagosHistorico/{pagoId} {
       allow read: if request.auth != null;
-      allow write: if false;
+    }
+
+    match /causante/{causanteId} {
+      allow read: if request.auth != null;
     }
     
-    match /causante/{causanteId} {
-       allow read: if request.auth != null;
-       allow write: if false;
-    }
-
     match /parris1/{parrisId} {
       allow read: if request.auth != null;
-      allow write: if false;
-    }
-
-    // Rules for collection groups needed for the Agenda
-    match /{path=**}/anotaciones/{anotacionId} {
-      allow read, write: if request.auth != null;
-    }
-
-    // Default deny all other reads/writes
-    match /{document=**} {
-      allow read, write: if false;
     }
   }
 }
