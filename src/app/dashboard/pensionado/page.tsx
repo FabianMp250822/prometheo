@@ -183,6 +183,17 @@ export default function PensionadoPage() {
         };
 
     }, [profileData?.dajusticiaClientData, profileData?.dajusticiaPayments]);
+    
+    const totalMesada = useMemo(() => {
+        if (!profileData?.payments.length) return 0;
+        
+        return profileData.payments.reduce((total, payment) => {
+            const mesadaAmount = payment.detalles
+                .filter(d => (d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD' || d.codigo === 'MESAD14'))
+                .reduce((sum, d) => sum + (d.ingresos || 0), 0);
+            return total + mesadaAmount;
+        }, 0);
+    }, [profileData?.payments]);
 
 
     if (isLoading) {
@@ -221,10 +232,11 @@ export default function PensionadoPage() {
                     </CardTitle>
                     <CardDescription>Resumen de la información de {parseEmployeeName(selectedPensioner.empleado)}.</CardDescription>
                 </CardHeader>
-                <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <CardContent className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <InfoField icon={<Hash />} label="Documento" value={selectedPensioner.documento} />
                     <InfoField icon={<Landmark />} label="Dependencia" value={parseDepartmentName(selectedPensioner.dependencia1)} />
                     <InfoField icon={<Tag />} label="Centro de Costo" value={selectedPensioner.centroCosto} />
+                    <InfoField icon={<Sigma />} label="Total Mesada Pensional" value={<span className="font-bold text-primary">{formatCurrency(totalMesada)}</span>} />
                 </CardContent>
             </Card>
 
