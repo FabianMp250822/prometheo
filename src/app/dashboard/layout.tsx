@@ -1,10 +1,10 @@
 
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-provider';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarSeparator, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '@/components/ui/sidebar';
 import { Scale, LayoutGrid, TrendingUp, Banknote, BarChart2, Settings, LogOut, User as UserIcon, Gavel, Database, FileUp, FileClock, BookUser, UserSquare, CalendarClock, ListTodo, CalendarPlus, CalendarSearch, Percent, Calculator, Ribbon, Wallet, Receipt, History, PlusCircle, UserCog, BarChartHorizontal, FileText, UserPlus, UserMinus, Landmark, BellRing, Network, Search as SearchIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -14,6 +14,7 @@ import { GlobalHeader } from '@/components/dashboard/global-header';
 import { usePensioner } from '@/context/pensioner-provider';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown } from 'lucide-react';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function DashboardLayout({
   children,
@@ -24,6 +25,53 @@ export default function DashboardLayout({
   const { selectedPensioner } = usePensioner();
   const router = useRouter();
   const { toast } = useToast();
+  const sessionStartTimeRef = useRef<Date | null>(null);
+
+  const logSession = async (startTime: Date | null, endTime: Date) => {
+    if (!user || !startTime) return;
+    const durationSeconds = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
+    if (durationSeconds < 5) return; // Ignore very short sessions
+
+    const sessionLog = {
+      userId: user.uid,
+      startTime: startTime,
+      endTime: endTime,
+      durationSeconds: durationSeconds,
+    };
+    
+    // Use sendBeacon for reliability on page unload
+    if (navigator.sendBeacon) {
+      const blob = new Blob([JSON.stringify({ ...sessionLog, isBeacon: true })], { type: 'application/json' });
+       // Note: You would need an HTTP endpoint (Cloud Function) to receive this beacon.
+       // For now, we'll rely on the logout click and regular saves.
+       // navigator.sendBeacon('/api/log-session', blob);
+    } else {
+       // Fallback for older browsers (less reliable)
+       await addDoc(collection(db, `users/${user.uid}/sessionLogs`), sessionLog);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      sessionStartTimeRef.current = new Date();
+
+      const handleBeforeUnload = () => {
+        if (sessionStartTimeRef.current) {
+          logSession(sessionStartTimeRef.current, new Date());
+        }
+      };
+
+      window.addEventListener('beforeunload', handleBeforeUnload);
+
+      return () => {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+        if (sessionStartTimeRef.current) {
+            logSession(sessionStartTimeRef.current, new Date());
+        }
+      };
+    }
+  }, [user]);
+
 
   useEffect(() => {
     if (!loading && !user) {
@@ -33,6 +81,10 @@ export default function DashboardLayout({
 
   const handleLogout = async () => {
     try {
+      if (sessionStartTimeRef.current && user) {
+        await logSession(sessionStartTimeRef.current, new Date());
+        sessionStartTimeRef.current = null;
+      }
       await auth.signOut();
       toast({ title: 'Sesión cerrada', description: 'Has cerrado sesión exitosamente.' });
       router.push('/login');

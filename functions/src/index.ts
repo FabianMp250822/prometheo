@@ -507,7 +507,7 @@ export const onUserCreate = onDocumentCreated("users/{userId}", async (event) =>
   }
 
   const adminEmail = "fabianmuniozpuello@gmail.com";
-  
+
   logger.info(`Checking user ${userId} with email ${userData.email}`);
 
   if (userData.email === adminEmail) {
@@ -526,10 +526,10 @@ export const setAdminRole = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "Must be authenticated to set roles.");
   }
-  
+
   const callerUid = request.auth.uid;
   const callerUserRecord = await auth.getUser(callerUid);
-  
+
   if (callerUserRecord.customClaims?.role !== "Administrador") {
     throw new HttpsError("permission-denied", "Only administrators can set user roles.");
   }
