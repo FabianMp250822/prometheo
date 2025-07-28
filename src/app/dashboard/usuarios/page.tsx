@@ -21,7 +21,6 @@ import { Badge } from '@/components/ui/badge';
 
 const functions = getFunctions();
 const createUserCallable = httpsCallable(functions, 'createUser');
-const setAdminRoleCallable = httpsCallable(functions, 'setAdminRole');
 
 interface AppUser {
     id: string;

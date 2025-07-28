@@ -514,14 +514,14 @@ export const onUserCreate = onDocumentCreated("users/{userId}", async (event) =>
 export const setAdminRole = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
   // Authentication check (optional for first admin, but good practice)
   // For bootstrapping, you might temporarily disable this check.
-  // if (!request.auth) {
-  //   throw new HttpsError("unauthenticated", "Must be authenticated.");
-  // }
-  // const callerUid = request.auth.uid;
-  // const callerUserRecord = await auth.getUser(callerUid);
-  // if (callerUserRecord.customClaims?.role !== "Administrador") {
-  //   throw new HttpsError("permission-denied", "Only admins can set roles.");
-  // }
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+  const callerUid = request.auth.uid;
+  const callerUserRecord = await auth.getUser(callerUid);
+  if (callerUserRecord.customClaims?.role !== "Administrador") {
+    throw new HttpsError("permission-denied", "Only admins can set roles.");
+  }
 
   const {uid, role} = request.data;
   if (!uid || !role) {
