@@ -1,5 +1,3 @@
-'use server';
-
 import { collection, query, getDocs, where, documentId } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { ProcesoCancelado } from '@/lib/data';
