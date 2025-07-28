@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 /**
  * @fileOverview Cloud Functions for Prometeo app.
  *
@@ -7,7 +8,7 @@
  * - Daily synchronization of Provired notifications.
  */
 
-import {onDocumentCreated} from "firebase-functions/v2/firestore";
+import {onDocumentCreated, onDocumentWritten} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import {initializeApp, getApps} from "firebase-admin/app";
 import {getFirestore, Timestamp} from "firebase-admin/firestore";
@@ -17,7 +18,7 @@ import {onSchedule} from "firebase-functions/v2/scheduler";
 import fetch from "node-fetch";
 import {getAuth} from "firebase-admin/auth";
 
-const ALLOWED_ORIGINS = ['https://9000-firebase-studio-1751988148835.cluster-joak5ukfbnbyqspg4tewa33d24.cloudworkstations.dev'];
+const ALLOWED_ORIGINS = ["https://9000-firebase-studio-1751988148835.cluster-joak5ukfbnbyqspg4tewa33d24.cloudworkstations.dev"];
 
 // Initialize admin SDK if not already initialized
 if (getApps().length === 0) {
@@ -491,53 +492,21 @@ export const createUser = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
   }
 });
 
-export const setAdminRole = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
-  // Note: For the first admin, this check will fail.
-  // You might need to run this function once from a trusted environment
-  // or temporarily disable this check to bootstrap the first admin.
+/**
+ * Triggered when a new user document is created in Firestore.
+ * Automatically assigns the "Administrador" role to a specific hardcoded UID.
+ * This is a secure way to bootstrap the first administrator.
+ */
+export const onUserCreate = onDocumentCreated("users/{userId}", async (event) => {
+  const userId = event.params.userId;
+  const adminUid = "hlCWfLJvWnS8v8CZA0m6JNlNgN73"; // The specific UID to make an admin
 
-  // TEMPORARILY DISABLED FOR BOOTSTRAPPING FIRST ADMIN
-  // if (request.auth?.token.role !== "Administrador") {
-  //   throw new HttpsError(
-  //     "permission-denied",
-  //     "Only administrators can set user roles.",
-  //   );
-  // }
-
-  const {uid, newRole} = request.data;
-  if (!uid || !newRole) {
-    throw new HttpsError(
-      "invalid-argument",
-      "The function must be called with a \"uid\" and \"newRole\" argument.",
-    );
-  }
-  if (newRole !== "Administrador") {
-    throw new HttpsError(
-      "invalid-argument",
-      "This function can only assign the Administrator role.",
-    );
-  }
-
-
-  try {
-    // Set custom claims
-    await auth.setCustomUserClaims(uid, {role: newRole});
-
-    // Update the user"s document in Firestore
-    const userDocRef = db.collection("users").doc(uid);
-    await userDocRef.update({rol: newRole});
-
-    logger.info(`Successfully set role "${newRole}" for user ${uid}`);
-    return {
-      success: true,
-      message: `Role "${newRole}" has been set for user ${uid}.`,
-    };
-  } catch (error: any) {
-    logger.error(`Error setting role for user ${uid}:`, error);
-    throw new HttpsError(
-      "internal",
-      "An unexpected error occurred while setting the user role.",
-      error.message,
-    );
+  if (userId === adminUid) {
+    try {
+      await auth.setCustomUserClaims(userId, {role: "Administrador"});
+      logger.info(`Successfully assigned 'Administrador' role to user ${userId}`);
+    } catch (error) {
+      logger.error(`Error setting admin role for user ${userId}:`, error);
+    }
   }
 });
