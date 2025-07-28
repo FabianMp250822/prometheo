@@ -17,6 +17,7 @@ import {onSchedule} from "firebase-functions/v2/scheduler";
 import fetch from "node-fetch";
 import {getAuth} from "firebase-admin/auth";
 
+const ALLOWED_ORIGINS = ['https://9000-firebase-studio-1751988148835.cluster-joak5ukfbnbyqspg4tewa33d24.cloudworkstations.dev'];
 
 // Initialize admin SDK if not already initialized
 if (getApps().length === 0) {
@@ -134,7 +135,7 @@ export const onNewPaymentCreate = onDocumentCreated(
 // Secure Callable Function: sendPaymentReminder
 // ===============================================
 export const sendPaymentReminder = onCall(
-  {cors: true}, // Firebase handles CORS for callable functions
+  {cors: ALLOWED_ORIGINS}, // Firebase handles CORS for callable functions
   async (request) => {
     // Check if the user is authenticated.
     // This provides a layer of security, only allowing app users to trigger this.
@@ -424,7 +425,7 @@ export const syncDailyNotifications = onSchedule("every day 07:00",
 // User Management Functions
 // =====================================
 
-export const createUser = onCall({cors: true}, async (request) => {
+export const createUser = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
   // 1. Authentication Check: Ensure the caller is an authenticated admin.
   if (!request.auth) {
     throw new HttpsError(
@@ -490,11 +491,11 @@ export const createUser = onCall({cors: true}, async (request) => {
   }
 });
 
-export const setAdminRole = onCall({cors: true}, async (request) => {
+export const setAdminRole = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
   // Note: For the first admin, this check will fail.
   // You might need to run this function once from a trusted environment
   // or temporarily disable this check to bootstrap the first admin.
-  
+
   // TEMPORARILY DISABLED FOR BOOTSTRAPPING FIRST ADMIN
   // if (request.auth?.token.role !== "Administrador") {
   //   throw new HttpsError(
