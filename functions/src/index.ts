@@ -1,9 +1,8 @@
-
 /**
  * @fileOverview Cloud Functions for Prometeo app.
  *
  * This file contains the backend logic for:
- * - Automatically creating 'procesoscancelados' documents from new payments.
+ * - Automatically creating "procesoscancelados" documents from new payments.
  * - Sending payment reminder emails via a callable function.
  * - Daily synchronization of Provired notifications.
  */
@@ -12,11 +11,11 @@ import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import {initializeApp, getApps} from "firebase-admin/app";
 import {getFirestore, Timestamp} from "firebase-admin/firestore";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import {HttpsError, onCall} from "firebase-functions/v2/https";
 import * as nodemailer from "nodemailer";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import fetch from "node-fetch";
-import { getAuth } from 'firebase-admin/auth';
+import {getAuth} from "firebase-admin/auth";
 
 
 // Initialize admin SDK if not already initialized
@@ -43,10 +42,10 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Define the prefixes for the legal concepts we're interested in.
+// Define the prefixes for the legal concepts we"re interested in.
 const SENTENCE_CONCEPT_PREFIXES = ["470-", "785-", "475-"];
 
-// Define a type for payment details to avoid using 'any'.
+// Define a type for payment details to avoid using "any".
 interface PaymentDetail {
   nombre?: string;
   codigo?: string | null;
@@ -57,7 +56,7 @@ interface PaymentDetail {
 /**
  * A Cloud Function that triggers when a new payment is created.
  * It checks for specific legal concepts within the payment details and,
- * if found, creates a corresponding document in the 'procesoscancelados'
+ * if found, creates a corresponding document in the "procesoscancelados"
  * collection.
  */
 export const onNewPaymentCreate = onDocumentCreated(
@@ -278,7 +277,8 @@ export const sendPaymentReminder = onCall(
 // =====================================
 
 const API_BASE_URL = "https://apiclient.proviredcolombia.com";
-const STATIC_TOKEN = "iYmMqGfKb057z8ImmAm82ULmMgd26lelgs5BcYkOkQJgkacDljdbBbyb4Dh2pPP8";
+const STATIC_TOKEN =
+"iYmMqGfKb057z8ImmAm82ULmMgd26lelgs5BcYkOkQJgkacDljdbBbyb4Dh2pPP8";
 
 let jwtToken: string | null = null;
 let tokenExpiresAt: number | null = null;
@@ -319,7 +319,10 @@ async function getJwtToken(): Promise<string> {
  * @param {string} method The method for the API request body.
  * @return {Promise<Record<string, unknown>[]>} The data from the API.
  */
-async function makeApiRequest(endpoint: string, method: string): Promise<Record<string, unknown>[]> {
+async function makeApiRequest(
+  endpoint: string,
+  method: string,
+): Promise<Record<string, unknown>[]> {
   const jwt = await getJwtToken();
   const body = JSON.stringify({method, params: {}});
   const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
@@ -340,148 +343,200 @@ async function makeApiRequest(endpoint: string, method: string): Promise<Record<
   return responseData.data || [];
 }
 
-export const syncDailyNotifications = onSchedule("every day 07:00", async () => {
+export const syncDailyNotifications = onSchedule("every day 07:00",
+  async () => {
     logger.info("Starting daily notification sync...");
     try {
-        // 1. Fetch existing notification identifiers from Firestore to avoid duplicates
-        const existingNotifsSnapshot = await db.collection("provired_notifications").select("uniqueId").get();
-        const existingNotifIds = new Set(existingNotifsSnapshot.docs.map((doc) => doc.data().uniqueId));
-        logger.info(`Found ${existingNotifIds.size} existing notifs in DB.`);
+      // 1. Fetch existing notification identifiers from Firestore to avoid duplicates
+      const existingNotifsSnapshot = await db
+        .collection("provired_notifications").select("uniqueId").get();
+      const existingNotifIds = new Set(
+        existingNotifsSnapshot.docs.map((doc) => doc.data().uniqueId),
+      );
+      logger.info(`Found ${existingNotifIds.size} existing notifs in DB.`);
 
-        // 2. Fetch all notifications from the external API
-        const newNotifications = (await makeApiRequest("report", "getData")) as { fechaPublicacion: string, radicacion: string, demandante?: string, demandado?: string }[];
-        if (!Array.isArray(newNotifications) || newNotifications.length === 0) {
-            logger.info("No new notifications to sync from API.");
-            return;
-        }
-        logger.info(`Fetched ${newNotifications.length} notifs from API.`);
+      // 2. Fetch all notifications from the external API
+      const newNotifications = (
+        await makeApiRequest("report", "getData")
+        ) as {
+        fechaPublicacion: string,
+        radicacion: string,
+        demandante?: string,
+        demandado?: string
+      }[];
+      if (!Array.isArray(newNotifications) || newNotifications.length === 0) {
+        logger.info("No new notifications to sync from API.");
+        return;
+      }
+      logger.info(`Fetched ${newNotifications.length} notifs from API.`);
 
-        // 3. Filter out notifications that already exist in the database
-        const notificationsToSave = newNotifications.filter((item) => {
-            const uniqueId = `${item.fechaPublicacion}-${item.radicacion}`.replace(/\s+/g, "");
-            return !existingNotifIds.has(uniqueId);
+      // 3. Filter out notifications that already exist in the database
+      const notificationsToSave = newNotifications.filter((item) => {
+        const uniqueId = `${item.fechaPublicacion}-${item.radicacion}`
+          .replace(/\s+/g, "");
+        return !existingNotifIds.has(uniqueId);
+      });
+
+      if (notificationsToSave.length === 0) {
+        logger.info("No new notifications to save after filtering.");
+        return;
+      }
+      logger.info(
+        `Found ${notificationsToSave.length} new notifications to save.`,
+      );
+
+      // 4. Save the new notifications in batches
+      const BATCH_SIZE = 400; // Firestore batch limit is 500
+      for (let i = 0; i < notificationsToSave.length; i += BATCH_SIZE) {
+        const batch = db.batch();
+        const chunk = notificationsToSave.slice(i, i + BATCH_SIZE);
+        chunk.forEach((item) => {
+          const uniqueId = `${item.fechaPublicacion}-${item.radicacion}`
+            .replace(/\s+/g, "");
+            // Auto-generate ID
+          const docRef = db.collection("provired_notifications").doc();
+          const dataToSet = {
+            ...item,
+            uniqueId: uniqueId,
+            demandante_lower: (item.demandante || "").toLowerCase(),
+            demandado_lower: (item.demandado || "").toLowerCase(),
+            syncedAt: Timestamp.now(),
+          };
+          batch.set(docRef, dataToSet);
         });
+        await batch.commit();
+        logger.info(
+          `Committed batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(
+            notificationsToSave.length / BATCH_SIZE,
+          )}.`,
+        );
+      }
 
-        if (notificationsToSave.length === 0) {
-            logger.info("No new notifications to save after filtering.");
-            return;
-        }
-        logger.info(`Found ${notificationsToSave.length} new notifications to save.`);
-
-        // 4. Save the new notifications in batches
-        const BATCH_SIZE = 400; // Firestore batch limit is 500
-        for (let i = 0; i < notificationsToSave.length; i += BATCH_SIZE) {
-            const batch = db.batch();
-            const chunk = notificationsToSave.slice(i, i + BATCH_SIZE);
-            chunk.forEach((item) => {
-                const uniqueId = `${item.fechaPublicacion}-${item.radicacion}`.replace(/\s+/g, "");
-                const docRef = db.collection("provired_notifications").doc(); // Auto-generate ID
-                const dataToSet = {
-                    ...item,
-                    uniqueId: uniqueId,
-                    demandante_lower: (item.demandante || "").toLowerCase(),
-                    demandado_lower: (item.demandado || "").toLowerCase(),
-                    syncedAt: Timestamp.now(),
-                };
-                batch.set(docRef, dataToSet);
-            });
-            await batch.commit();
-            logger.info(`Committed batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(notificationsToSave.length / BATCH_SIZE)}.`);
-        }
-
-        logger.info("Daily notification sync completed successfully.");
+      logger.info("Daily notification sync completed successfully.");
     } catch (error) {
-        logger.error("Error during daily notification sync:", error);
-        // Throw error to indicate failure for potential retries
-        throw error;
+      logger.error("Error during daily notification sync:", error);
+      // Throw error to indicate failure for potential retries
+      throw error;
     }
-});
+  });
 
 // =====================================
 // User Management Functions
 // =====================================
 
-export const createUser = onCall({ cors: true }, async (request) => {
-    // 1. Authentication Check: Ensure the caller is an authenticated admin.
-    if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'The function must be called while authenticated.');
+export const createUser = onCall({cors: true}, async (request) => {
+  // 1. Authentication Check: Ensure the caller is an authenticated admin.
+  if (!request.auth) {
+    throw new HttpsError(
+      "unauthenticated",
+      "The function must be called while authenticated.",
+    );
+  }
+  // TODO: Add check for admin role here in the future
+  // const callerUid = request.auth.uid;
+  // const callerUserRecord = await auth.getUser(callerUid);
+  // if (callerUserRecord.customClaims?.role !== "Administrador") {
+  //   throw new HttpsError("permission-denied", "Only administrators can create users.");
+  // }
+
+  // 2. Data Validation
+  const {email, password, displayName, role, associatedPensioners} =
+  request.data;
+  if (!email || !password || !displayName || !role) {
+    throw new HttpsError(
+      "invalid-argument",
+      "Request must include email, password, displayName, and role.",
+    );
+  }
+
+  try {
+    // 3. Create user in Firebase Authentication
+    const userRecord = await auth.createUser({
+      email: email,
+      password: password,
+      displayName: displayName,
+    });
+
+    // 4. Set custom claims for role-based access control
+    await auth.setCustomUserClaims(userRecord.uid, {role: role});
+
+    // 5. Create user profile in Firestore
+    const userDocRef = db.collection("users").doc(userRecord.uid);
+    await userDocRef.set({
+      nombre: displayName,
+      email: email,
+      rol: role,
+      // Store associated pensioners for lawyers
+      associatedPensioners: associatedPensioners || [],
+      createdAt: Timestamp.now(),
+    });
+
+    logger.info(`Successfully created new user: ${email} with role ${role}`);
+    return {success: true, uid: userRecord.uid};
+  } catch (error: any) {
+    logger.error("Error creating new user:", error);
+    // Clean up partially created user if something went wrong
+    if (error.code === "auth/email-already-exists") {
+      throw new HttpsError(
+        "already-exists",
+        "This email is already in use by another account.",
+      );
     }
-    // TODO: Add check for admin role here in the future
-    // const callerUid = request.auth.uid;
-    // const callerUserRecord = await auth.getUser(callerUid);
-    // if (callerUserRecord.customClaims?.role !== 'Administrador') {
-    //   throw new HttpsError('permission-denied', 'Only administrators can create users.');
-    // }
-
-    // 2. Data Validation
-    const { email, password, displayName, role, associatedPensioners } = request.data;
-    if (!email || !password || !displayName || !role) {
-        throw new HttpsError('invalid-argument', 'Request must include email, password, displayName, and role.');
-    }
-
-    try {
-        // 3. Create user in Firebase Authentication
-        const userRecord = await auth.createUser({
-            email: email,
-            password: password,
-            displayName: displayName,
-        });
-
-        // 4. Set custom claims for role-based access control
-        await auth.setCustomUserClaims(userRecord.uid, { role: role });
-
-        // 5. Create user profile in Firestore
-        const userDocRef = db.collection('users').doc(userRecord.uid);
-        await userDocRef.set({
-            nombre: displayName,
-            email: email,
-            rol: role,
-            associatedPensioners: associatedPensioners || [], // Store associated pensioners for lawyers
-            createdAt: Timestamp.now(),
-        });
-        
-        logger.info(`Successfully created new user: ${email} with role ${role}`);
-        return { success: true, uid: userRecord.uid };
-
-    } catch (error: any) {
-        logger.error('Error creating new user:', error);
-        // Clean up partially created user if something went wrong
-        if (error.code === 'auth/email-already-exists') {
-             throw new HttpsError('already-exists', 'This email is already in use by another account.');
-        }
-        throw new HttpsError('internal', 'An unexpected error occurred while creating the user.', error.message);
-    }
+    throw new HttpsError(
+      "internal",
+      "An unexpected error occurred while creating the user.",
+      error.message,
+    );
+  }
 });
 
-export const setAdminRole = onCall({ cors: true }, async (request) => {
-    // Note: For the first admin, this check will fail. 
-    // You might need to run this function once from a trusted environment (like a script) 
-    // or temporarily disable this check to bootstrap the first admin.
-    if (request.auth?.token.role !== 'Administrador') {
-        throw new HttpsError('permission-denied', 'Only administrators can set user roles.');
-    }
+export const setAdminRole = onCall({cors: true}, async (request) => {
+  // Note: For the first admin, this check will fail.
+  // You might need to run this function once from a trusted environment
+  // or temporarily disable this check to bootstrap the first admin.
+  
+  // TEMPORARILY DISABLED FOR BOOTSTRAPPING FIRST ADMIN
+  // if (request.auth?.token.role !== "Administrador") {
+  //   throw new HttpsError(
+  //     "permission-denied",
+  //     "Only administrators can set user roles.",
+  //   );
+  // }
 
-    const { uid, newRole } = request.data;
-    if (!uid || !newRole) {
-        throw new HttpsError('invalid-argument', 'The function must be called with a "uid" and "newRole" argument.');
-    }
-     if (newRole !== 'Administrador') {
-        throw new HttpsError('invalid-argument', 'This function can only assign the Administrator role.');
-    }
+  const {uid, newRole} = request.data;
+  if (!uid || !newRole) {
+    throw new HttpsError(
+      "invalid-argument",
+      "The function must be called with a \"uid\" and \"newRole\" argument.",
+    );
+  }
+  if (newRole !== "Administrador") {
+    throw new HttpsError(
+      "invalid-argument",
+      "This function can only assign the Administrator role.",
+    );
+  }
 
 
-    try {
-        // Set custom claims
-        await auth.setCustomUserClaims(uid, { role: newRole });
+  try {
+    // Set custom claims
+    await auth.setCustomUserClaims(uid, {role: newRole});
 
-        // Update the user's document in Firestore
-        const userDocRef = db.collection('users').doc(uid);
-        await userDocRef.update({ rol: newRole });
+    // Update the user"s document in Firestore
+    const userDocRef = db.collection("users").doc(uid);
+    await userDocRef.update({rol: newRole});
 
-        logger.info(`Successfully set role "${newRole}" for user ${uid}`);
-        return { success: true, message: `Role "${newRole}" has been set for user ${uid}.` };
-    } catch (error: any) {
-        logger.error(`Error setting role for user ${uid}:`, error);
-        throw new HttpsError('internal', 'An unexpected error occurred while setting the user role.', error.message);
-    }
+    logger.info(`Successfully set role "${newRole}" for user ${uid}`);
+    return {
+      success: true,
+      message: `Role "${newRole}" has been set for user ${uid}.`,
+    };
+  } catch (error: any) {
+    logger.error(`Error setting role for user ${uid}:`, error);
+    throw new HttpsError(
+      "internal",
+      "An unexpected error occurred while setting the user role.",
+      error.message,
+    );
+  }
 });

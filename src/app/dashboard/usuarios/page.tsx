@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -8,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, UserPlus, Users, Edit, Trash2 } from 'lucide-react';
+import { Loader2, UserPlus, Users, Edit, Trash2, ShieldAlert } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { db, auth } from '@/lib/firebase';
 import { collection, getDocs, doc, setDoc, query } from 'firebase/firestore';
@@ -22,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 
 const functions = getFunctions();
 const createUserCallable = httpsCallable(functions, 'createUser');
+const setAdminRoleCallable = httpsCallable(functions, 'setAdminRole');
 
 interface AppUser {
     id: string;
@@ -46,6 +46,7 @@ export default function UsuariosPage() {
     const [users, setUsers] = useState<AppUser[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isFetchingUsers, setIsFetchingUsers] = useState(true);
+    const [isSettingAdmin, setIsSettingAdmin] = useState(false);
 
     const fetchPensioners = useCallback(async () => {
         try {
@@ -109,6 +110,28 @@ export default function UsuariosPage() {
             setIsLoading(false);
         }
     };
+    
+    const handleSetFirstAdmin = async () => {
+        setIsSettingAdmin(true);
+        const uidToSet = 'hlCWfLJvWnS8v8CZA0m6JNlNgN73';
+        try {
+            await setAdminRoleCallable({ uid: uidToSet, newRole: 'Administrador' });
+            toast({
+                title: 'Éxito',
+                description: `Rol de Administrador asignado al usuario con UID: ${uidToSet}. Por favor, recargue la página.`,
+            });
+            await fetchUsers();
+        } catch (error: any) {
+            toast({
+                variant: 'destructive',
+                title: 'Error al asignar rol',
+                description: error.message,
+            });
+        } finally {
+            setIsSettingAdmin(false);
+        }
+    };
+
 
     return (
         <div className="p-4 md:p-8 space-y-6">
@@ -122,6 +145,12 @@ export default function UsuariosPage() {
                         Cree, vea y administre los usuarios que tienen acceso a la plataforma.
                     </CardDescription>
                 </CardHeader>
+                 <CardContent>
+                    <Button variant="destructive" onClick={handleSetFirstAdmin} disabled={isSettingAdmin}>
+                        {isSettingAdmin ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
+                        Asignar Rol de Admin (Provisional)
+                    </Button>
+                </CardContent>
             </Card>
 
             <div className="grid md:grid-cols-3 gap-6">
@@ -225,4 +254,3 @@ export default function UsuariosPage() {
         </div>
     );
 }
-
