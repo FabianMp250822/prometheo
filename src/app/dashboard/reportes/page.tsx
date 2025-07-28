@@ -58,7 +58,10 @@ export default function ReportesPage() {
         const departments: { [key: string]: { totalAmount: number, userCount: number } } = {};
         
         procesos.forEach(p => {
+            // Ensure we have pensioner info and a department to work with
             if (!p.pensionerInfo?.department) return;
+            
+            // Use the helper to clean up the department name for grouping
             const depName = parseDepartmentName(p.pensionerInfo.department);
             
             if (!departments[depName]) {
@@ -68,7 +71,12 @@ export default function ReportesPage() {
             const procesoTotal = p.conceptos.reduce((sum, c) => sum + (c.ingresos || 0), 0);
             departments[depName].totalAmount += procesoTotal;
         });
-        return Object.entries(departments).map(([name, values]) => ({ name, ...values }));
+
+        // Map the aggregated data into the format expected by the chart
+        return Object.entries(departments).map(([name, values]) => ({ 
+            name, 
+            totalAmount: values.totalAmount 
+        })).sort((a,b) => b.totalAmount - a.totalAmount); // Sort to show largest bars first
     }, [procesos]);
 
 
@@ -178,25 +186,26 @@ export default function ReportesPage() {
                     <CardDescription>Monto total sentenciado por cada dependencia.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
-                        <BarChart accessibilityLayer data={dataByDepartment}>
-                            <CartesianGrid vertical={false} />
-                            <XAxis
+                    <ChartContainer config={chartConfig} className="min-h-[400px] w-full">
+                        <BarChart accessibilityLayer data={dataByDepartment} layout="vertical">
+                            <CartesianGrid horizontal={false} />
+                            <YAxis
                                 dataKey="name"
+                                type="category"
                                 tickLine={false}
                                 tickMargin={10}
                                 axisLine={false}
-                                angle={-45}
-                                textAnchor="end"
-                                height={80}
+                                className="text-xs"
+                                width={120}
                             />
-                            <YAxis
-                                tickFormatter={(value) => `$${new Intl.NumberFormat('es-CO', { notation: "compact", compactDisplay: "short" }).format(Number(value))}`}
+                            <XAxis
+                                type="number"
                                 axisLine={false}
                                 tickLine={false}
+                                tickFormatter={(value) => `$${new Intl.NumberFormat('es-CO', { notation: "compact", compactDisplay: "short" }).format(Number(value))}`}
                             />
                             <ChartTooltip
-                                cursor={false}
+                                cursor={true}
                                 content={<ChartTooltipContent 
                                     formatter={(value) => formatCurrency(Number(value))}
                                 />}

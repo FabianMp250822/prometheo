@@ -71,21 +71,14 @@ export const getLatestYear = (sentencias: Sentence[]): number => {
     return endDate ? endDate.getFullYear() : 0;
 }
 
-export const parseEmployeeName = (fullName: string): { nombres: string, apellidos: string } => {
-    if (!fullName) return { nombres: 'N/A', apellidos: 'N/A' };
+export const parseEmployeeName = (fullName: string): string => {
+    if (!fullName) return 'N/A';
     
-    const nameWithoutCC = fullName.split(' (C.C.')[0].trim();
-    const parts = nameWithoutCC.split(' ').filter(p => p);
+    // Split by the " (C.C." part to isolate the name
+    const namePart = fullName.split(' (C.C.')[0].trim();
+    if (namePart) return namePart;
     
-    if (parts.length <= 2) {
-        return { nombres: parts.join(' '), apellidos: '' };
-    }
-    
-    // A common convention in Colombia is two last names.
-    const apellidos = parts.slice(-2).join(' ');
-    const nombres = parts.slice(0, -2).join(' ');
-    
-    return { nombres: nombres || nameWithoutCC, apellidos };
+    return fullName; // Fallback to the original string
 };
 
 
@@ -101,8 +94,11 @@ export const parsePaymentDetailName = (detailName: string): string => {
 
 export const parseDepartmentName = (departmentName: string): string => {
   if (!departmentName) return 'N/A';
-  // Removes prefixes like "V1-" and trims the result
-  return departmentName.replace(/^V\d+-/, '').trim();
+  // Removes prefixes like "V1-" and specific suffixes like " PENSIONADOS"
+  return departmentName
+    .replace(/^V\d+-/, '')
+    .replace(/ PENSIONADOS$/, '')
+    .trim();
 };
 
 export const formatPeriodoToMonthYear = (periodoPago: string): string => {
