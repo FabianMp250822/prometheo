@@ -9,10 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, UserPlus, Users, Edit, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, query } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import type { Pensioner } from '@/lib/data';
+import { collection, query, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Check, ChevronsUpDown } from 'lucide-react';
@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 
 const functions = getFunctions();
 const createUserCallable = httpsCallable(functions, 'createUser');
+const listUsersCallable = httpsCallable(functions, 'listUsers');
 
 interface AppUser {
     id: string;
@@ -60,11 +61,11 @@ export default function UsuariosPage() {
     const fetchUsers = useCallback(async () => {
         setIsFetchingUsers(true);
         try {
-            const usersSnapshot = await getDocs(collection(db, 'users'));
-            const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AppUser));
+            const result = await listUsersCallable();
+            const usersData = result.data as AppUser[];
             setUsers(usersData);
-        } catch(error){
-            toast({ variant: 'destructive', title: 'Error', description: 'No se pudieron cargar los usuarios existentes.' });
+        } catch(error: any) {
+            toast({ variant: 'destructive', title: 'Error al cargar usuarios', description: error.message });
         } finally {
             setIsFetchingUsers(false);
         }

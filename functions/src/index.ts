@@ -551,3 +551,28 @@ export const setAdminRole = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
     throw new HttpsError("internal", "Failed to set user role.", error.message);
   }
 });
+
+export const listUsers = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated to list users.");
+  }
+
+  const callerUid = request.auth.uid;
+  const callerUserRecord = await auth.getUser(callerUid);
+
+  if (callerUserRecord.customClaims?.role !== "Administrador") {
+    throw new HttpsError("permission-denied", "Only administrators can list users.");
+  }
+
+  try {
+    const userDocs = await db.collection("users").get();
+    const users = userDocs.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+    return users;
+  } catch (error: any) {
+    logger.error("Error listing users:", error);
+    throw new HttpsError("internal", "Failed to list users.", error.message);
+  }
+});
