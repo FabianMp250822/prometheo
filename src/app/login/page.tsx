@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Scale, Mail, KeyRound, Loader2, ShieldCheck } from 'lucide-react';
+import { Mail, KeyRound, Loader2, ShieldCheck } from 'lucide-react';
+import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
 import { useGoogleReCaptcha } from 'react-google-recaptcha-v3';
 
@@ -63,8 +64,13 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center items-center gap-2 mb-4">
-            <Scale className="text-accent h-10 w-10" />
-            <h1 className="text-4xl font-headline text-primary">Prometeo</h1>
+            <Image 
+                src="https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2Flogo-removebg-preview.png?alt=media&token=9a935e08-66dd-4edc-83f8-31320b0b2680"
+                alt="Dajusticia Logo"
+                width={200}
+                height={53}
+                priority
+            />
           </div>
           <CardTitle className="text-2xl">Iniciar Sesión</CardTitle>
           <CardDescription>Ingrese sus credenciales para acceder al sistema.</CardDescription>
@@ -78,7 +84,7 @@ export default function LoginPage() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="admin@prometeo.com"
+                  placeholder="admin@dajusticia.com"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -115,7 +121,7 @@ export default function LoginPage() {
               <span>Protegido por reCAPTCHA</span>
            </div>
           <p className="text-xs text-muted-foreground text-center w-full">
-            © {new Date().getFullYear()} Prometeo. Todos los derechos reservados.
+            © {new Date().getFullYear()} Dajusticia. Todos los derechos reservados.
           </p>
         </CardFooter>
       </Card>

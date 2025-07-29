@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: 'Fabian Muñoz Puello' }, { name: 'Leidy Vega Anaya' }],
   icons: {
-    icon: '/favicon.svg',
+    icon: 'https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2Flogo-removebg-preview.png?alt=media&token=9a935e08-66dd-4edc-83f8-31320b0b2680',
   },
 };
 
@@ -38,7 +38,6 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Belleza&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-        <link rel="icon" href="/favicon.svg" sizes="any" />
       </head>
       <body className="font-body antialiased">
         <RecaptchaProvider>

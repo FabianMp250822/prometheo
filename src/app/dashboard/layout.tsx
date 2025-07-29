@@ -10,6 +10,7 @@ import { Scale, LayoutGrid, TrendingUp, Banknote, BarChart2, Settings, LogOut, U
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { GlobalHeader } from '@/components/dashboard/global-header';
 import { usePensioner } from '@/context/pensioner-provider';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -105,9 +106,14 @@ export default function DashboardLayout({
     <SidebarProvider>
       <Sidebar>
         <SidebarHeader>
-          <div className="flex items-center gap-2 p-2">
-            <Scale className="text-accent h-8 w-8" />
-            <h1 className="text-2xl font-headline text-white">Prometeo</h1>
+          <div className="flex items-center justify-center p-2">
+            <Image 
+              src="https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2Flogo-removebg-preview.png?alt=media&token=9a935e08-66dd-4edc-83f8-31320b0b2680"
+              alt="Dajusticia Logo"
+              width={150}
+              height={40}
+              className="h-12 w-auto"
+            />
           </div>
         </SidebarHeader>
         <SidebarContent>

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle, Scale, Shield, Landmark, Briefcase, HeartHandshake, Building, Users, MessageCircle, Mail, Phone, MapPin, Facebook, Twitter, Instagram, FileText, Handshake, Gavel, ArrowLeft, ArrowRight } from 'lucide-react';
+import { CheckCircle, Shield, Landmark, Briefcase, HeartHandshake, Building, Users, MessageCircle, Mail, Phone, MapPin, Facebook, Twitter, Instagram, FileText, Handshake, Gavel, ArrowLeft, ArrowRight } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
@@ -34,8 +34,14 @@ export default function LandingPage() {
       <header className="sticky top-0 left-0 right-0 z-20 bg-[#FCFBF8]/80 backdrop-blur-sm border-b border-gray-200">
         <div className="container mx-auto flex justify-between items-center p-4">
           <Link href="/" className="flex items-center gap-2">
-             <Scale className="text-accent h-8 w-8" />
-             <h1 className="text-2xl font-headline text-primary">Prometeo</h1>
+             <Image 
+                src="https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2Flogo-removebg-preview.png?alt=media&token=9a935e08-66dd-4edc-83f8-31320b0b2680"
+                alt="Dajusticia Logo"
+                width={150}
+                height={40}
+                className="h-10 w-auto"
+                priority
+             />
           </Link>
           <nav className="hidden lg:flex items-center space-x-6">
             <NavLink href="#servicios">Servicios</NavLink>
@@ -180,12 +186,12 @@ export default function LandingPage() {
             En Dajusticia creemos que los clientes pensionales, laborales y civiles merecen una representación legal completa, en casos fundamentales para su tranquilidad y futuro. Por ello, hemos consolidado un modelo de servicio estructurado, atendido por diferentes áreas y equipos especializados, integrales, sinérgicos y convergentes.
           </p>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <ServiceCard icon={<Scale />} title="Reajuste Pensional" description="Reclamamos la falta de indexación pensional y la reliquidación de la mesada para lograr un monto justo y generoso." />
-            <ServiceCard icon={<Landmark />} title="Pensión de Vejez" description="Te asesoramos en el cumplimiento de requisitos para tu retiro laboral y hacemos los trámites con Colpensiones, UGPP o fondos." />
-            <ServiceCard icon={<Shield />} title="Pensión de Invalidez" description="Te representamos para que obtengas el reconocimiento y pago de tu derecho por pérdida de capacidad laboral." />
-            <ServiceCard icon={<Users />} title="Pensión de Sobrevivientes" description="Asesoramos a los beneficiarios a reclamar la pensión que por ley dejó un cotizante o un pensionado al momento de su deceso." />
-            <ServiceCard icon={<Briefcase />} title="Derecho Laboral" description="Te apoyamos en casos de acoso, despidos, agotamiento y reclamación de derechos laborales." />
-            <ServiceCard icon={<HeartHandshake />} title="Consultoría Empresarial" description="Brindamos soporte legal para que tu empresa se mantenga al día con todas las normativas." />
+            <ServiceCard icon={<Landmark />} title="Reajuste Pensional" description="Reclamamos la falta de indexación pensional y la reliquidación de la mesada para lograr un monto justo y generoso." />
+            <ServiceCard icon={<Shield />} title="Pensión de Vejez" description="Te asesoramos en el cumplimiento de requisitos para tu retiro laboral y hacemos los trámites con Colpensiones, UGPP o fondos." />
+            <ServiceCard icon={<Users />} title="Pensión de Invalidez" description="Te representamos para que obtengas el reconocimiento y pago de tu derecho por pérdida de capacidad laboral." />
+            <ServiceCard icon={<Briefcase />} title="Pensión de Sobrevivientes" description="Asesoramos a los beneficiarios a reclamar la pensión que por ley dejó un cotizante o un pensionado al momento de su deceso." />
+            <ServiceCard icon={<HeartHandshake />} title="Derecho Laboral" description="Te apoyamos en casos de acoso, despidos, agotamiento y reclamación de derechos laborales." />
+            <ServiceCard icon={<Building />} title="Consultoría Empresarial" description="Brindamos soporte legal para que tu empresa se mantenga al día con todas las normativas." />
           </div>
         </div>
       </section>
@@ -277,7 +283,13 @@ export default function LandingPage() {
       <footer className="bg-[#0A192F] text-gray-400 py-12">
         <div className="container mx-auto grid md:grid-cols-4 gap-8 px-4">
           <div>
-            <h3 className="font-headline text-lg text-white mb-4">Prometeo</h3>
+             <Image 
+                src="https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2Flogo-removebg-preview.png?alt=media&token=9a935e08-66dd-4edc-83f8-31320b0b2680"
+                alt="Dajusticia Logo"
+                width={150}
+                height={40}
+                className="h-10 w-auto mb-4"
+             />
             <p className="text-sm">Expertos en derecho laboral y seguridad social, dedicados a asegurar su futuro.</p>
             <div className="flex space-x-4 mt-4">
               <Facebook className="h-5 w-5 hover:text-white" />
@@ -312,7 +324,7 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="container mx-auto text-center border-t border-gray-800 mt-8 pt-6 text-xs">
-          <p>© {new Date().getFullYear()} Prometeo. Todos los derechos reservados. | <Link href="/politica-privacidad" className="hover:text-white underline">Política de Tratamiento de Datos</Link></p>
+          <p>© {new Date().getFullYear()} Dajusticia. Todos los derechos reservados. | <Link href="/politica-privacidad" className="hover:text-white underline">Política de Tratamiento de Datos</Link></p>
         </div>
       </footer>
     </div>
