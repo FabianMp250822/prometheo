@@ -639,66 +639,75 @@ export const submitPublicForm = onCall({cors: ALLOWED_ORIGINS}, async (request) 
 // External Data Sync Proxy
 // =====================================
 async function fetchExternalData(url: string): Promise<any> {
-    try {
-        const response = await fetch(url, {
-            headers: {
-                // Simulate a browser User-Agent to avoid simple bot blockers
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            },
-        });
-        if (!response.ok) {
-            throw new Error(`Error de red: ${response.status} ${response.statusText}`);
-        }
-        const textResponse = await response.text();
-        const jsonStart = textResponse.indexOf("[");
-        const jsonEnd = textResponse.lastIndexOf("]");
-        if (jsonStart === -1 || jsonEnd === -1) {
-            return []; // Return empty array if no JSON array is found
-        }
-        const jsonString = textResponse.substring(jsonStart, jsonEnd + 1);
-        return JSON.parse(jsonString);
-    } catch (error: any) {
-        logger.error(`Error fetching from ${url}:`, error.message);
-        throw new HttpsError("internal", `Fallo la conexión con el servidor externo en ${url}. Detalles: ${error.message}`);
+  try {
+    const response = await fetch(url, {
+      headers: {
+        // Simulate a browser User-Agent to avoid simple bot blockers
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`Error de red: ${response.status} ${response.statusText}`);
     }
+    const textResponse = await response.text();
+    const jsonStart = textResponse.indexOf("[");
+    const jsonEnd = textResponse.lastIndexOf("]");
+    if (jsonStart === -1 || jsonEnd === -1) {
+      return []; // Return empty array if no JSON array is found
+    }
+    const jsonString = textResponse.substring(jsonStart, jsonEnd + 1);
+    return JSON.parse(jsonString);
+  } catch (error: any) {
+    logger.error(`Error fetching from ${url}:`, error.message);
+    throw new HttpsError("internal", `Fallo la conexión con el servidor externo en ${url}. Detalles: ${error.message}`);
+  }
 }
 
+/**
+ * A callable function that acts as a proxy to fetch data from an external,
+ * potentially unreliable or CORS-restricted API. This allows the client-side
+ * application to securely request this data without directly exposing API keys
+ * or handling CORS issues. It's triggered by a user action in the frontend.
+ * @param {object} request - The request object from the client.
+ * @return {Promise<{success: boolean, data?: object, error?: string}>}
+ * An object indicating success and containing the fetched data or an error.
+ */
 export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
-    if (!request.auth) {
-        throw new HttpsError("unauthenticated", "Must be authenticated to sync data.");
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated to sync data.");
+  }
+  logger.info("Starting external data sync triggered by user:", request.auth.uid);
+
+  try {
+    const procesos = await fetchExternalData("https://appdajusticia.com/procesos.php?all=true");
+    if (!Array.isArray(procesos) || procesos.length === 0) {
+      return {success: false, error: "La API externa no devolvió procesos. La lista puede estar vacía o el servicio no está disponible."};
     }
-    logger.info("Starting external data sync triggered by user:", request.auth.uid);
 
-    try {
-        const procesos = await fetchExternalData("https://appdajusticia.com/procesos.php?all=true");
-        if (!Array.isArray(procesos) || procesos.length === 0) {
-            return {success: false, error: "La API externa no devolvió procesos. La lista puede estar vacía o el servicio no está disponible."};
-        }
+    const uniqueIds = [...new Set(procesos.map((p) => p.num_registro))];
+    logger.info(`Found ${uniqueIds.length} unique processes to sync.`);
 
-        const uniqueIds = [...new Set(procesos.map((p) => p.num_registro))];
-        logger.info(`Found ${uniqueIds.length} unique processes to sync.`);
+    const demandantesPromises = uniqueIds.map((id) => fetchExternalData(`https://appdajusticia.com/procesos.php?num_registro=${id}`).then((data) => ({key: id, data})));
+    const anotacionesPromises = uniqueIds.map((id) => fetchExternalData(`https://appdajusticia.com/anotaciones.php?num_registro=${id}`).then((data) => ({key: id, data})));
+    const anexosPromises = uniqueIds.map((id) => fetchExternalData(`https://appdajusticia.com/crud_anexos.php?num_registro=${id}`).then((data) => ({key: id, data})));
 
-        const demandantesPromises = uniqueIds.map((id) => fetchExternalData(`https://appdajusticia.com/procesos.php?num_registro=${id}`).then((data) => ({key: id, data})));
-        const anotacionesPromises = uniqueIds.map((id) => fetchExternalData(`https://appdajusticia.com/anotaciones.php?num_registro=${id}`).then((data) => ({key: id, data})));
-        const anexosPromises = uniqueIds.map((id) => fetchExternalData(`https://appdajusticia.com/crud_anexos.php?num_registro=${id}`).then((data) => ({key: id, data})));
+    const [demandantesResults, anotacionesResults, anexosResults] = await Promise.all([
+      Promise.all(demandantesPromises),
+      Promise.all(anotacionesPromises),
+      Promise.all(anexosPromises),
+    ]);
 
-        const [demandantesResults, anotacionesResults, anexosResults] = await Promise.all([
-            Promise.all(demandantesPromises),
-            Promise.all(anotacionesPromises),
-            Promise.all(anexosPromises),
-        ]);
+    const demandantes = Object.fromEntries(demandantesResults.map((item) => [item.key, item.data]));
+    const anotaciones = Object.fromEntries(anotacionesResults.map((item) => [item.key, item.data]));
+    const anexos = Object.fromEntries(anexosResults.map((item) => [item.key, item.data]));
 
-        const demandantes = Object.fromEntries(demandantesResults.map((item) => [item.key, item.data]));
-        const anotaciones = Object.fromEntries(anotacionesResults.map((item) => [item.key, item.data]));
-        const anexos = Object.fromEntries(anexosResults.map((item) => [item.key, item.data]));
-        
-        logger.info("Successfully fetched all external data.");
-        return {success: true, data: {procesos, demandantes, anotaciones, anexos}};
-    } catch (error: any) {
-        logger.error("Error during external data sync:", error);
-        if (error instanceof HttpsError) {
-          throw error;
-        }
-        throw new HttpsError("internal", "An unexpected error occurred during data synchronization.", error.message);
+    logger.info("Successfully fetched all external data.");
+    return {success: true, data: {procesos, demandantes, anotaciones, anexos}};
+  } catch (error: any) {
+    logger.error("Error during external data sync:", error);
+    if (error instanceof HttpsError) {
+      throw error;
     }
+    throw new HttpsError("internal", "An unexpected error occurred during data synchronization.", error.message);
+  }
 });
