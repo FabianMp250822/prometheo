@@ -145,19 +145,14 @@ async function fetchExternalData(url: string): Promise<any[]> {
     }
 }
 
-export async function getAndSyncExternalData(
-    progressCallback: (message: string) => void
-): Promise<{ success: boolean; data?: any; error?: string }> {
+export async function getAndSyncExternalData(): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
-        progressCallback('Obteniendo lista de procesos...');
         const procesos = await fetchExternalData('https://appdajusticia.com/procesos.php?all=true');
         if (!Array.isArray(procesos) || procesos.length === 0) {
             return { success: false, error: 'No se pudieron obtener los procesos iniciales o la lista está vacía.' };
         }
         
         const uniqueIds = [...new Set(procesos.map(p => p.num_registro))];
-        
-        progressCallback(`Obteniendo detalles para ${uniqueIds.length} procesos...`);
         
         const demandantesPromises = uniqueIds.map(id => fetchExternalData(`https://appdajusticia.com/procesos.php?num_registro=${id}`).then(data => ({ key: id, data })));
         const anotacionesPromises = uniqueIds.map(id => fetchExternalData(`https://appdajusticia.com/anotaciones.php?num_registro=${id}`).then(data => ({ key: id, data })));

@@ -166,9 +166,9 @@ export default function GestionDemandasPage() {
     startFetching(async () => {
       setError(null);
       setExternalData(null);
-      setLoadingMessage('Iniciando sincronización...');
+      setLoadingMessage('Iniciando sincronización... Esto puede tomar varios minutos.');
       
-      const result = await getAndSyncExternalData(setLoadingMessage);
+      const result = await getAndSyncExternalData();
 
       if (result.success) {
         setExternalData(result.data);
