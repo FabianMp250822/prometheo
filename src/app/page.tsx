@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import Link from 'next/link';
@@ -33,6 +34,7 @@ export default function LandingPage() {
       <header className="sticky top-0 left-0 right-0 z-20 bg-[#FCFBF8]/80 backdrop-blur-sm border-b border-gray-200">
         <div className="container mx-auto flex justify-between items-center p-4">
           <Link href="/" className="flex items-center gap-2">
+             <Scale className="text-accent h-8 w-8" />
              <h1 className="text-2xl font-headline text-primary">Prometeo</h1>
           </Link>
           <nav className="hidden lg:flex items-center space-x-6">

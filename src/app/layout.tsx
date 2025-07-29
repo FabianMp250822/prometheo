@@ -22,6 +22,9 @@ export const metadata: Metadata = {
     'abogados de pensiones en Colombia'
   ],
   authors: [{ name: 'Fabian Muñoz Puello' }, { name: 'Leidy Vega Anaya' }],
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({
@@ -35,6 +38,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Belleza&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        <link rel="icon" href="/favicon.svg" sizes="any" />
       </head>
       <body className="font-body antialiased">
         <RecaptchaProvider>
