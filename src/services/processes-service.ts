@@ -3,7 +3,7 @@
 
 import { adminDb } from '@/lib/firebase-admin'; // Use the admin SDK for server-side operations
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { clientDb, clientStorage } from '@/lib/firebase'; // Keep client SDK for specific needs if any, or remove
+import { clientStorage } from '@/lib/firebase'; // Keep client SDK for specific needs if any, or remove
 import { 
     collection, 
     getDocs, 
@@ -119,11 +119,9 @@ export async function deleteDemandante(procesoId: string, demandanteId: string):
 }
 
 // --- Sync to Firebase Logic ---
-// This function remains a Server Action because it's called from a Cloud Function, not the client.
-export async function saveSyncedDataToFirebase(data: any, progressCallback: (progress: { current: number, total: number }) => void): Promise<void> {
+export async function saveSyncedDataToFirebase(data: any): Promise<void> {
     const { procesos, demandantes, anotaciones, anexos } = data;
     const BATCH_SIZE = 400; // Firestore batch writes are limited to 500 operations.
-    const totalBatches = Math.ceil(procesos.length / BATCH_SIZE);
 
     for (let i = 0; i < procesos.length; i += BATCH_SIZE) {
         const batch = writeBatch(adminDb);
@@ -155,10 +153,6 @@ export async function saveSyncedDataToFirebase(data: any, progressCallback: (pro
             }
         }
         await batch.commit();
-        // Progress callback can't be called from the client, this would need a different mechanism
-        // like writing progress to Firestore and listening for changes on the client.
-        // For now, we remove the callback to fix the immediate error.
-        // progressCallback({ current: Math.floor(i / BATCH_SIZE) + 1, total: totalBatches });
         await new Promise(resolve => setTimeout(resolve, 50)); // Avoid overwhelming Firestore
     }
 }

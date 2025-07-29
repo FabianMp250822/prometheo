@@ -17,7 +17,7 @@ import { DemandantesModal } from '@/components/dashboard/demandantes-modal';
 import { AnotacionesModal } from '@/components/dashboard/anotaciones-modal';
 import { AnexosModal } from '@/components/dashboard/anexos-modal';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { saveSyncedDataToFirebase, getAndSyncExternalData } from '@/services/processes-service';
+import { saveSyncedDataToFirebase } from '@/services/processes-service';
 
 
 const ITEMS_PER_PAGE = 20;
@@ -161,7 +161,7 @@ export default function GestionDemandasPage() {
           // If search term is cleared, fetch initial paginated data
           fetchProcesosFromFirebase(false);
       }
-  }, [debouncedSearchTerm, toast]);
+  }, [debouncedSearchTerm, toast, fetchProcesosFromFirebase]);
 
 
   // --- External API Data Fetching for Syncing ---
@@ -172,8 +172,11 @@ export default function GestionDemandasPage() {
       setLoadingMessage('Iniciando sincronización... Esto puede tomar varios minutos.');
       
       try {
-        const { success, data, error: resultError } = await getAndSyncExternalData();
-
+        const functions = getFunctions(app);
+        const syncExternalDataCallable = httpsCallable(functions, 'syncExternalData');
+        const result = await syncExternalDataCallable();
+        const { success, data, error: resultError } = result.data as { success: boolean; data?: any; error?: string };
+        
         if (success && data) {
           setExternalData(data);
           toast({ title: 'Datos Externos Obtenidos', description: `Se encontraron ${data.procesos.length} procesos listos para guardar.` });
