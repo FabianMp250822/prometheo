@@ -50,7 +50,7 @@ export default function GestionDemandasPage() {
 
   // State for search
   const [searchTerm, setSearchTerm] = useState('');
-  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
   const [isSearching, setIsSearching] = useState(false);
 
   // Modals and sheets state
@@ -67,53 +67,46 @@ export default function GestionDemandasPage() {
   const { toast } = useToast();
   const { user } = useAuth();
   
-  // --- Data Fetching from Firebase ---
-  const fetchProcesosFromFirebase = useCallback(async (loadMore = false) => {
-    if (loadMore && !hasMore) return;
-    
-    if (!loadMore) {
-      setIsLoadingFirebase(true);
-      setFirebaseProcesos([]);
-      setLastDoc(null);
-      setHasMore(true);
-    }
-    
-    try {
-      let q = query(collection(db, 'procesos'), orderBy('num_registro'), limit(ITEMS_PER_PAGE));
-      if (loadMore && lastDoc) {
-        q = query(q, startAfter(lastDoc));
+  const fetchProcesos = useCallback(async (cursor?: QueryDocumentSnapshot<DocumentData> | null) => {
+      const isLoadMore = !!cursor;
+      if (isLoadMore) {
+          setIsLoadingFirebase(true);
+      } else {
+          setFirebaseProcesos([]); // Reset for initial fetch
+          setIsLoadingFirebase(true);
       }
-      
-      const querySnapshot = await getDocs(q);
-      const newProcesos = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
 
-      setLastDoc(lastVisible || null);
-      setHasMore(newProcesos.length === ITEMS_PER_PAGE);
+      try {
+          let q = query(collection(db, 'procesos'), orderBy('num_registro'), limit(ITEMS_PER_PAGE));
+          if (isLoadMore && cursor) {
+              q = query(q, startAfter(cursor));
+          }
+          
+          const querySnapshot = await getDocs(q);
+          const newProcesos = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          const lastVisible = querySnapshot.docs[querySnapshot.docs.length - 1];
 
-      setFirebaseProcesos(prev => loadMore ? [...prev, ...newProcesos] : newProcesos);
-
-    } catch (err: any) {
-      console.error("Error fetching from Firebase:", err);
-      toast({ variant: 'destructive', title: 'Error de Firebase', description: `No se pudieron cargar los procesos: ${err.message}` });
-    } finally {
-      setIsLoadingFirebase(false);
-    }
-  }, [lastDoc, toast, hasMore]);
+          setLastDoc(lastVisible || null);
+          setHasMore(newProcesos.length === ITEMS_PER_PAGE);
+          setFirebaseProcesos(prev => isLoadMore ? [...prev, ...newProcesos] : newProcesos);
+      } catch (err: any) {
+          console.error("Error fetching from Firebase:", err);
+          toast({ variant: 'destructive', title: 'Error de Firebase', description: `No se pudieron cargar los procesos: ${err.message}` });
+      } finally {
+          setIsLoadingFirebase(false);
+      }
+  }, [toast]);
   
-  // Initial fetch from Firebase (paginated)
+  // Effect for initial data load
   useEffect(() => {
-    if (!debouncedSearchTerm) {
-      fetchProcesosFromFirebase(false);
-    }
-  }, []); // Run only on initial mount when not searching
+    fetchProcesos(null);
+  }, []);
 
   // Effect for handling search queries
   useEffect(() => {
       const search = async () => {
           if (debouncedSearchTerm.length < 3) {
-              setFirebaseProcesos([]); // Clear search results
-              fetchProcesosFromFirebase(false); // Fetch initial paginated data
+              if (searchTerm === '') fetchProcesos(null); // Reload initial if search cleared
               return;
           }
 
@@ -125,13 +118,11 @@ export default function GestionDemandasPage() {
               let searchPromises: Promise<QueryDocumentSnapshot<DocumentData>[]>[] = [];
 
               if (isNumeric) {
-                  // Search by number fields
                   const radicadoIniQuery = query(collection(db, 'procesos'), where('num_radicado_ini', '>=', debouncedSearchTerm), where('num_radicado_ini', '<=', debouncedSearchTerm + '\uf8ff'));
                   const radicadoUltQuery = query(collection(db, 'procesos'), where('num_radicado_ult', '>=', debouncedSearchTerm), where('num_radicado_ult', '<=', debouncedSearchTerm + '\uf8ff'));
                   searchPromises.push(getDocs(radicadoIniQuery).then(snap => snap.docs));
                   searchPromises.push(getDocs(radicadoUltQuery).then(snap => snap.docs));
               } else {
-                  // Search by text fields (case-insensitive requires uppercase)
                   const upperSearchTerm = debouncedSearchTerm.toUpperCase();
                   const demandanteQuery = query(collection(db, 'procesos'), where('nombres_demandante', '>=', upperSearchTerm), where('nombres_demandante', '<=', upperSearchTerm + '\uf8ff'));
                   const demandadoQuery = query(collection(db, 'procesos'), where('nombres_demandado', '>=', upperSearchTerm), where('nombres_demandado', '<=', upperSearchTerm + '\uf8ff'));
@@ -155,14 +146,8 @@ export default function GestionDemandasPage() {
           }
       };
 
-      if (debouncedSearchTerm) {
-          search();
-      } else {
-          // If search term is cleared, fetch initial paginated data
-          fetchProcesosFromFirebase(false);
-      }
-  }, [debouncedSearchTerm, toast, fetchProcesosFromFirebase]);
-
+      search();
+  }, [debouncedSearchTerm, toast, searchTerm]);
 
   // --- External API Data Fetching for Syncing ---
   const handleFetchData = useCallback(() => {
@@ -191,7 +176,7 @@ export default function GestionDemandasPage() {
   }, [toast]);
 
   // --- Data Saving to Firebase ---
-  const handleSaveData = () => {
+  const handleSaveData = useCallback(() => {
     if (!user) {
         toast({ variant: 'destructive', title: 'No Autenticado', description: 'Debe iniciar sesión para guardar datos.' });
         return;
@@ -207,7 +192,7 @@ export default function GestionDemandasPage() {
       try {
         await saveSyncedDataToFirebase(externalData);
         toast({ title: 'Guardado Exitoso', description: `${externalData.procesos.length} procesos y sus datos asociados han sido guardados en Firebase.` });
-        await fetchProcesosFromFirebase();
+        await fetchProcesos(null);
 
       } catch (error: any) {
          toast({ variant: 'destructive', title: 'Error al Guardar', description: `Error de Firestore: ${error.message}` });
@@ -216,12 +201,17 @@ export default function GestionDemandasPage() {
         setExternalData(null); // Clear memory
       }
     });
-  };
+  }, [externalData, toast, user]);
 
   // --- UI Handlers ---
   const handleViewDetails = (process: any) => {
     setSelectedProcess(process);
     setIsDetailsSheetOpen(true);
+  };
+  
+  const handleRefresh = () => {
+      setSearchTerm('');
+      fetchProcesos(null);
   };
 
   return (
@@ -290,7 +280,7 @@ export default function GestionDemandasPage() {
                   {debouncedSearchTerm ? `Resultados de búsqueda para "${debouncedSearchTerm}".` : `Mostrando registros paginados.`}
                 </CardDescription>
                 <div className='flex items-center gap-2'>
-                  <Button variant="outline" size="sm" onClick={() => fetchProcesosFromFirebase()}>
+                  <Button variant="outline" size="sm" onClick={handleRefresh}>
                       <RefreshCw className="mr-2 h-4 w-4"/>
                       Refrescar
                   </Button>
@@ -310,7 +300,7 @@ export default function GestionDemandasPage() {
                   {isLoadingFirebase && firebaseProcesos.length > 0 ? (
                       <Loader2 className="h-6 w-6 animate-spin" />
                   ) : hasMore ? (
-                      <Button onClick={() => fetchProcesosFromFirebase(true)} disabled={isLoadingFirebase}>
+                      <Button onClick={() => fetchProcesos(lastDoc)} disabled={isLoadingFirebase}>
                           Cargar más
                       </Button>
                   ) : firebaseProcesos.length > 0 && (
@@ -335,7 +325,7 @@ export default function GestionDemandasPage() {
         onViewAnexos={() => setIsAnexosModalOpen(true)}
         onDataSaved={() => {
           setIsDetailsSheetOpen(false);
-          fetchProcesosFromFirebase();
+          fetchProcesos(null);
         }}
        />
        
