@@ -24,7 +24,9 @@ const ALLOWED_ORIGINS = [
   "https://studio--prometeo-ffd3w.us-central1.hosted.app",
   "https://www.dajusticia.com",
   "https://www.dajusticia.com.co",
+  "https://www.dajusticia.org",
 ];
+
 
 // Initialize admin SDK if not already initialized
 if (getApps().length === 0) {

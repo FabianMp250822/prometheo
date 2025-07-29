@@ -7,12 +7,15 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle, Shield, Landmark, Briefcase, HeartHandshake, Building, Users, MessageCircle, Mail, Phone, MapPin, Facebook, Twitter, Instagram, FileText, Handshake, Gavel, ArrowLeft, ArrowRight, Menu, X } from 'lucide-react';
+import { CheckCircle, Shield, Landmark, Briefcase, HeartHandshake, Building, Users, MessageCircle, Mail, Phone, MapPin, Facebook, Twitter, Instagram, FileText, Handshake, Gavel, ArrowLeft, ArrowRight, Menu, X, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Card, CardHeader, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
-
+import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useToast } from '@/hooks/use-toast';
+import { getBlogArticles } from '@/services/blog-service';
 
 const NavLink = ({ href, children, onClick }: { href: string; children: React.ReactNode; onClick?: () => void; }) => (
   <a href={href} onClick={onClick} className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
@@ -22,6 +25,11 @@ const NavLink = ({ href, children, onClick }: { href: string; children: React.Re
 
 export default function LandingPage() {
    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+   const { toast } = useToast();
+   const [newsletterEmail, setNewsletterEmail] = useState('');
+   const [isSubscribing, setIsSubscribing] = useState(false);
+   const [articles, setArticles] = useState<any[]>([]);
+   const [isLoadingArticles, setIsLoadingArticles] = useState(true);
 
    const teamMembers = [
     { name: 'Dr. Robinson Rada Gonzalez', role: 'Abogado Titular' },
@@ -29,6 +37,50 @@ export default function LandingPage() {
     { name: 'Fernando Alonso Hernadez', role: 'Abogado' },
     { name: 'Luis Carlos Arzuza', role: 'Analista de Pensiones' },
   ];
+
+  React.useEffect(() => {
+    const fetchArticles = async () => {
+      try {
+        const blogArticles = await getBlogArticles();
+        setArticles(blogArticles);
+      } catch (error) {
+        console.error("Failed to fetch blog articles:", error);
+        toast({
+          variant: 'destructive',
+          title: 'Error de Blog',
+          description: 'No se pudieron cargar las noticias.'
+        });
+      } finally {
+        setIsLoadingArticles(false);
+      }
+    };
+    fetchArticles();
+  }, [toast]);
+   
+  const handleNewsletterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newsletterEmail) {
+      toast({ variant: 'destructive', title: 'Error', description: 'Por favor, ingrese un correo electrónico.' });
+      return;
+    }
+    setIsSubscribing(true);
+    try {
+      // Use the email as the document ID to prevent duplicates
+      const subscriberRef = doc(db, 'suscriptores_boletin', newsletterEmail);
+      await setDoc(subscriberRef, {
+        email: newsletterEmail,
+        subscribedAt: serverTimestamp(),
+      });
+      toast({ title: '¡Suscrito!', description: 'Gracias por suscribirse a nuestro boletín.' });
+      setNewsletterEmail('');
+    } catch (error) {
+      console.error(error);
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo completar la suscripción.' });
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
 
   return (
     <div className="bg-[#FCFBF8] text-gray-800 font-body">
@@ -50,6 +102,7 @@ export default function LandingPage() {
             <NavLink href="#nosotros">Nosotros</NavLink>
             <NavLink href="#proceso">Proceso</NavLink>
             <NavLink href="#equipo">Equipo</NavLink>
+            <NavLink href="#noticias">Noticias</NavLink>
             <NavLink href="#testimonios">Testimonios</NavLink>
             <NavLink href="#contacto">Contacto</NavLink>
           </nav>
@@ -74,6 +127,7 @@ export default function LandingPage() {
               <NavLink href="#nosotros" onClick={() => setIsMobileMenuOpen(false)}>Nosotros</NavLink>
               <NavLink href="#proceso" onClick={() => setIsMobileMenuOpen(false)}>Proceso</NavLink>
               <NavLink href="#equipo" onClick={() => setIsMobileMenuOpen(false)}>Equipo</NavLink>
+              <NavLink href="#noticias" onClick={() => setIsMobileMenuOpen(false)}>Noticias</NavLink>
               <NavLink href="#testimonios" onClick={() => setIsMobileMenuOpen(false)}>Testimonios</NavLink>
               <NavLink href="#contacto" onClick={() => setIsMobileMenuOpen(false)}>Contacto</NavLink>
               <div className="flex flex-col w-full max-w-xs space-y-2 pt-4 border-t border-gray-200">
@@ -267,6 +321,34 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Blog Section */}
+      <section id="noticias" className="py-16 md:py-24">
+        <div className="container mx-auto px-4">
+          <h2 className="text-3xl md:text-4xl font-headline text-center mb-4 text-[#1B4D3E]">Últimas Noticias y Artículos</h2>
+          <p className="text-center text-gray-600 max-w-2xl mx-auto mb-12">Manténgase informado con nuestros análisis y noticias sobre el mundo pensional y laboral.</p>
+          {isLoadingArticles ? (
+            <div className="flex justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {articles.map((article) => (
+                <Card key={article.id} className="flex flex-col overflow-hidden group">
+                  <Image src={article.coverImageUrl} alt={article.title} width={400} height={250} className="w-full h-48 object-cover transition-transform group-hover:scale-105" />
+                  <CardHeader>
+                    <h3 className="font-headline text-xl text-[#1B4D3E]">{article.title}</h3>
+                  </CardHeader>
+                  <CardContent className="flex-grow">
+                    <p className="text-sm text-gray-600 line-clamp-3">{article.excerpt}</p>
+                  </CardContent>
+                  <div className="p-6 pt-0">
+                    <Button variant="link" className="p-0 text-[#B8860B]">Leer más &rarr;</Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
       {/* Testimonials Section */}
       <section id="testimonios" className="py-16 md:py-24">
         <div className="container mx-auto text-center px-4">
@@ -344,10 +426,20 @@ export default function LandingPage() {
           <div>
             <h3 className="font-headline text-lg text-white mb-4">Boletín</h3>
             <p className="text-sm mb-4">Reciba las últimas noticias y actualizaciones de su caso en su correo.</p>
-            <div className="flex">
-              <Input placeholder="Su correo" className="bg-gray-800 border-gray-600 rounded-r-none" />
-              <Button className="bg-[#D4AF37] text-black rounded-l-none hover:bg-[#B8860B]">OK</Button>
-            </div>
+            <form onSubmit={handleNewsletterSubmit} className="flex">
+              <Input 
+                placeholder="Su correo" 
+                className="bg-gray-800 border-gray-600 rounded-r-none"
+                type="email"
+                value={newsletterEmail}
+                onChange={(e) => setNewsletterEmail(e.target.value)}
+                disabled={isSubscribing}
+                required
+              />
+              <Button type="submit" className="bg-[#D4AF37] text-black rounded-l-none hover:bg-[#B8860B]" disabled={isSubscribing}>
+                {isSubscribing ? <Loader2 className="h-4 w-4 animate-spin" /> : 'OK'}
+              </Button>
+            </form>
           </div>
         </div>
         <div className="container mx-auto text-center border-t border-gray-800 mt-8 pt-6 text-xs">
