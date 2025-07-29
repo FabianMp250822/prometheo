@@ -15,9 +15,7 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { useToast } from '@/hooks/use-toast';
 import { getBlogArticles } from '@/services/blog-service';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-
-const functions = getFunctions();
-const submitPublicFormCallable = httpsCallable(functions, 'submitPublicForm');
+import { app } from '@/lib/firebase';
 
 const NavLink = ({ href, children, onClick }: { href: string; children: React.ReactNode; onClick?: () => void; }) => (
   <a href={href} onClick={onClick} className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
@@ -71,6 +69,8 @@ export default function LandingPage() {
     }
     setIsSubscribing(true);
     try {
+      const functions = getFunctions(app);
+      const submitPublicFormCallable = httpsCallable(functions, 'submitPublicForm');
       await submitPublicFormCallable({ formType: 'newsletter', data: { email: newsletterEmail } });
       toast({ title: '¡Suscrito!', description: 'Gracias por suscribirse a nuestro boletín.' });
       setNewsletterEmail('');
@@ -95,6 +95,8 @@ export default function LandingPage() {
     }
     setIsSendingContact(true);
     try {
+      const functions = getFunctions(app);
+      const submitPublicFormCallable = httpsCallable(functions, 'submitPublicForm');
       await submitPublicFormCallable({ formType: 'contact', data: contactForm });
       toast({ title: 'Mensaje Enviado', description: 'Gracias por contactarnos. Le responderemos pronto.' });
       setContactForm({ name: '', email: '', message: '' });
