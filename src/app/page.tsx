@@ -12,29 +12,42 @@ import { Card } from '@/components/ui/card';
 
 
 const NavLink = ({ href, children }: { href: string; children: React.ReactNode }) => (
-  <a href={href} className="text-sm font-medium text-gray-300 hover:text-white transition-colors">
+  <a href={href} className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
     {children}
   </a>
 );
 
 export default function LandingPage() {
   return (
-    <div className="bg-[#F9FAFB] text-gray-800 font-body">
+    <div className="bg-[#FCFBF8] text-gray-800 font-body">
       {/* Header */}
-      <header className="absolute top-0 left-0 right-0 z-10 p-4">
-        <div className="container mx-auto flex justify-between items-center">
-          <div className="text-white text-2xl font-headline flex items-center gap-2">
-            <Scale />
-            <span>Dajusticia</span>
-          </div>
-          <nav className="hidden md:flex items-center space-x-6">
+      <header className="sticky top-0 left-0 right-0 z-20 bg-[#FCFBF8]/80 backdrop-blur-sm border-b border-gray-200">
+        <div className="container mx-auto flex justify-between items-center p-4">
+          <Link href="/" className="flex items-center gap-2">
+            <Image 
+              src="https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2Flogo-removebg-preview.png?alt=media&token=9a935e08-66dd-4edc-83f8-31320b0b2680" 
+              alt="Dajusticia Logo" 
+              width={180} 
+              height={40}
+              priority
+            />
+          </Link>
+          <nav className="hidden lg:flex items-center space-x-6">
             <NavLink href="#servicios">Servicios</NavLink>
             <NavLink href="#nosotros">Nosotros</NavLink>
+            <NavLink href="#proceso">Proceso</NavLink>
+            <NavLink href="#equipo">Equipo</NavLink>
+            <NavLink href="#testimonios">Testimonios</NavLink>
             <NavLink href="#contacto">Contacto</NavLink>
           </nav>
-          <Button asChild variant="outline" className="bg-transparent text-white border-white hover:bg-white hover:text-black">
-            <Link href="/login">Acceder</Link>
-          </Button>
+          <div className="hidden lg:flex items-center space-x-2">
+             <Button asChild variant="outline" className="border-gray-300 hover:bg-gray-100">
+                <Link href="/login">Acceder</Link>
+            </Button>
+            <Button asChild className="bg-[#2E4B48] text-white hover:bg-[#2E4B48]/90">
+              <a href="#contacto">Consulta tu caso</a>
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -75,7 +88,7 @@ export default function LandingPage() {
       </section>
 
       {/* Process Section */}
-      <section className="py-16 md:py-24 bg-[#FFF8E7]">
+      <section id="proceso" className="py-16 md:py-24 bg-[#FFF8E7]">
         <div className="container mx-auto text-center px-4">
           <p className="text-[#B8860B] font-semibold uppercase text-sm">Análisis de Casos Pensionales</p>
           <h2 className="text-3xl md:text-4xl font-headline mt-2 mb-12 text-[#1B4D3E]">Recibimos Tu Caso Y Lo Analizamos</h2>
@@ -129,7 +142,7 @@ export default function LandingPage() {
       </section>
 
       {/* Team Section */}
-      <section className="py-16 md:py-24 bg-[#1B4D3E] text-white">
+      <section id="equipo" className="py-16 md:py-24 bg-[#1B4D3E] text-white">
         <div className="container mx-auto grid md:grid-cols-2 gap-12 items-center px-4">
           <div>
             <p className="text-[#D4AF37] font-semibold uppercase text-sm">Nuestro Equipo</p>
@@ -153,7 +166,7 @@ export default function LandingPage() {
       </section>
 
       {/* Testimonials Section */}
-      <section className="py-16 md:py-24">
+      <section id="testimonios" className="py-16 md:py-24">
         <div className="container mx-auto text-center px-4">
           <p className="text-[#1B4D3E] font-semibold uppercase text-sm">Confianza</p>
           <h2 className="text-3xl md:text-4xl font-headline mt-2 mb-12 text-[#1B4D3E]">Qué Dicen Nuestros Clientes</h2>
