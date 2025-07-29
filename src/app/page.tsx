@@ -238,7 +238,7 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="container mx-auto text-center border-t border-gray-800 mt-8 pt-6 text-xs">
-          <p>© {new Date().getFullYear()} Dajusticia. Todos los derechos reservados.</p>
+          <p>© {new Date().getFullYear()} Dajusticia. Todos los derechos reservados. | <Link href="/politica-privacidad" className="hover:text-white underline">Política de Tratamiento de Datos</Link></p>
         </div>
       </footer>
     </div>

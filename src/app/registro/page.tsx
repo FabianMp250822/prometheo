@@ -145,7 +145,7 @@ export default function RegistroPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.autoriza) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Debe autorizar el tratamiento de sus datos personales.' });
+            toast({ variant: 'destructive', title: 'Autorización Requerida', description: 'Debe autorizar el tratamiento de sus datos personales para continuar.' });
             return;
         }
         setIsLoading(true);
@@ -275,17 +275,18 @@ export default function RegistroPage() {
                             </Button>
                         </section>
 
-                        <div className="flex items-start space-x-2">
+                        <div className="flex items-start space-x-3">
                             <Checkbox id="autoriza" name="autoriza" checked={formData.autoriza} onCheckedChange={(checked) => setFormData(prev => ({...prev, autoriza: !!checked}))} />
                             <div className="grid gap-1.5 leading-none">
                                 <label htmlFor="autoriza" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                    Autorizo el tratamiento de mis datos personales
+                                    Autorización de Tratamiento de Datos Personales
                                 </label>
-                                <p className="text-xs text-muted-foreground">
-                                    He leído y acepto la Política de Tratamiento de Datos y autorizo a Dajusticia para el tratamiento de mis datos.
+                                <p className="text-sm text-muted-foreground">
+                                    He leído y acepto la <Link href="/politica-privacidad" target="_blank" className="text-primary underline hover:text-primary/80">Política de Tratamiento de Datos Personales</Link> y autorizo a DaJusticia para el tratamiento de mis datos conforme a la ley 1581 de 2012 y demás normas aplicables.
                                 </p>
                             </div>
                         </div>
+
 
                         <div className="text-center">
                             <Button type="submit" size="lg" disabled={isLoading}>
