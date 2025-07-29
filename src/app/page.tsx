@@ -3,23 +3,25 @@
 'use client';
 
 import Link from 'next/link';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle, Shield, Landmark, Briefcase, HeartHandshake, Building, Users, MessageCircle, Mail, Phone, MapPin, Facebook, Twitter, Instagram, FileText, Handshake, Gavel, ArrowLeft, ArrowRight } from 'lucide-react';
+import { CheckCircle, Shield, Landmark, Briefcase, HeartHandshake, Building, Users, MessageCircle, Mail, Phone, MapPin, Facebook, Twitter, Instagram, FileText, Handshake, Gavel, ArrowLeft, ArrowRight, Menu, X } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 
 
-const NavLink = ({ href, children }: { href: string; children: React.ReactNode }) => (
-  <a href={href} className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
+const NavLink = ({ href, children, onClick }: { href: string; children: React.ReactNode; onClick?: () => void; }) => (
+  <a href={href} onClick={onClick} className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
     {children}
   </a>
 );
 
 export default function LandingPage() {
+   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
    const teamMembers = [
     { name: 'Dr. Robinson Rada Gonzalez', role: 'Abogado Titular' },
@@ -59,7 +61,32 @@ export default function LandingPage() {
               <Link href="/registro">Consulta tu caso</Link>
             </Button>
           </div>
+          <div className="lg:hidden">
+            <Button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} variant="ghost" size="icon">
+              {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </Button>
+          </div>
         </div>
+        {isMobileMenuOpen && (
+          <div className="lg:hidden bg-[#FCFBF8]/95 backdrop-blur-sm absolute top-full left-0 w-full border-b border-gray-200">
+            <nav className="flex flex-col items-center space-y-4 p-4">
+              <NavLink href="#servicios" onClick={() => setIsMobileMenuOpen(false)}>Servicios</NavLink>
+              <NavLink href="#nosotros" onClick={() => setIsMobileMenuOpen(false)}>Nosotros</NavLink>
+              <NavLink href="#proceso" onClick={() => setIsMobileMenuOpen(false)}>Proceso</NavLink>
+              <NavLink href="#equipo" onClick={() => setIsMobileMenuOpen(false)}>Equipo</NavLink>
+              <NavLink href="#testimonios" onClick={() => setIsMobileMenuOpen(false)}>Testimonios</NavLink>
+              <NavLink href="#contacto" onClick={() => setIsMobileMenuOpen(false)}>Contacto</NavLink>
+              <div className="flex flex-col w-full max-w-xs space-y-2 pt-4 border-t border-gray-200">
+                <Button asChild variant="outline" className="w-full">
+                  <Link href="/login">Acceder</Link>
+                </Button>
+                <Button asChild className="w-full bg-[#2E4B48] text-white hover:bg-[#2E4B48]/90">
+                  <Link href="/registro">Consulta tu caso</Link>
+                </Button>
+              </div>
+            </nav>
+          </div>
+        )}
       </header>
 
       {/* Hero Section */}
