@@ -1,20 +1,19 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Allow public writes for the newsletter subscription form.
-    // Anyone can create a document, but no one can read, update, or delete.
+    // WARNING: Permissive rule for development. Anyone can write.
+    // For production, tighten this rule. e.g., allow create: if request.resource.data.size() < 1000;
     match /suscriptores_boletin/{subscriberId} {
-      allow create: if true;
+      allow write: if true; 
       allow read, update, delete: if request.auth != null; // Only authenticated users can manage
     }
 
-    // Allow public writes for the landing page contact form.
-    // Anyone can create a document, but no one can read, update, or delete.
+    // WARNING: Permissive rule for development. Anyone can write.
+    // For production, tighten this rule. e.g., allow create: if request.resource.data.size() < 2000;
     match /contactos_landing/{contactId} {
-      allow create: if true;
+      allow write: if true;
       allow read, update, delete: if request.auth != null; // Only authenticated users can manage
     }
 
@@ -74,6 +73,10 @@ service cloud.firestore {
     }
      match /documentTemplates/{templateId} {
         allow read, write: if request.auth != null;
+    }
+     match /prospectos/{prospectoId} {
+        allow write: if true;
+        allow read: if request.auth != null;
     }
 
   }
