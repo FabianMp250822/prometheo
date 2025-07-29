@@ -19,7 +19,12 @@ import {onSchedule} from "firebase-functions/v2/scheduler";
 import fetch from "node-fetch";
 import {getAuth} from "firebase-admin/auth";
 
-const ALLOWED_ORIGINS = ["https://9000-firebase-studio-1751988148835.cluster-joak5ukfbnbyqspg4tewa33d24.cloudworkstations.dev"];
+const ALLOWED_ORIGINS = [
+    "https://9000-firebase-studio-1751988148835.cluster-joak5ukfbnbyqspg4tewa33d24.cloudworkstations.dev",
+    "https://studio--prometeo-ffd3w.us-central1.hosted.app",
+    "https://www.dajusticia.com",
+    "https://www.dajusticia.com.co"
+];
 
 // Initialize admin SDK if not already initialized
 if (getApps().length === 0) {
