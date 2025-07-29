@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle, Scale, Shield, Landmark, Briefcase, HeartHandshake, Building, Users, MessageCircle, Mail, Phone, MapPin, Facebook, Twitter, Instagram, FileText } from 'lucide-react';
+import { CheckCircle, Scale, Shield, Landmark, Briefcase, HeartHandshake, Building, Users, MessageCircle, Mail, Phone, MapPin, Facebook, Twitter, Instagram, FileText, Handshake, Gavel } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
@@ -115,24 +115,42 @@ export default function LandingPage() {
 
       {/* Process Section */}
       <section id="proceso" className="py-16 md:py-24 bg-[#FFF8E7]">
-        <div className="container mx-auto text-center px-4">
-          <p className="text-[#B8860B] font-semibold uppercase text-sm">Análisis de Casos Pensionales</p>
-          <h2 className="text-3xl md:text-4xl font-headline mt-2 mb-12 text-[#1B4D3E]">Recibimos Tu Caso Y Lo Analizamos</h2>
-          <div className="grid md:grid-cols-3 gap-10">
-            <div className="text-center">
-              <div className="inline-block bg-[#D4AF37]/20 p-4 rounded-full mb-4"><FileText className="h-8 w-8 text-[#B8860B]" /></div>
-              <h3 className="font-headline text-xl text-[#1B4D3E]">Consulta Inicial Gratuita</h3>
-              <p className="text-gray-600 mt-2">Agendamos una cita inicial donde nos cuentas tu caso y analizamos los documentos para darte una opinión de nuestro equipo de expertos.</p>
-            </div>
-            <div className="text-center">
-              <div className="inline-block bg-[#D4AF37]/20 p-4 rounded-full mb-4"><CheckCircle className="h-8 w-8 text-[#B8860B]" /></div>
-              <h3 className="font-headline text-xl text-[#1B4D3E]">Evaluación de Viabilidad</h3>
-              <p className="text-gray-600 mt-2">Con un estudio detallado, nuestro equipo evalúa si es viable iniciar la reclamación, el potencial de la misma y los honorarios.</p>
-            </div>
-            <div className="text-center">
-              <div className="inline-block bg-[#D4AF37]/20 p-4 rounded-full mb-4"><Scale className="h-8 w-8 text-[#B8860B]" /></div>
-              <h3 className="font-headline text-xl text-[#1B4D3E]">Estrategia y Representación Legal</h3>
-              <p className="text-gray-600 mt-2">Desarrollamos un plan de acción y una representación legal exitosa para lograr el mejor resultado posible para tu pensión.</p>
+        <div className="container mx-auto grid md:grid-cols-2 gap-12 items-center px-4">
+          <div className="aspect-video">
+            <iframe 
+                className="w-full h-full rounded-lg shadow-lg" 
+                src="https://www.youtube.com/embed/PAkd58b5je4" 
+                title="Recuperación de mesada pensional" 
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                allowFullScreen>
+            </iframe>
+          </div>
+          <div>
+            <p className="text-[#B8860B] font-semibold uppercase text-sm">ANÁLISIS DE CASOS PENSIONALES</p>
+            <h2 className="text-3xl md:text-4xl font-headline mt-2 mb-8 text-[#1B4D3E]">Recibimos Tu Caso Y Lo Analizamos.</h2>
+            <div className="relative pl-8">
+              <div className="absolute left-[15px] top-4 bottom-4 w-px bg-gray-300 border-l border-dashed"></div>
+              <div className="relative mb-8">
+                <div className="absolute -left-[25px] top-0 bg-[#D4AF37]/20 p-2 rounded-full ring-8 ring-[#FFF8E7]">
+                    <Handshake className="h-5 w-5 text-[#B8860B]" />
+                </div>
+                <h3 className="font-headline text-xl text-[#1B4D3E] mb-1">Consulta Inicial Gratuita</h3>
+                <p className="text-gray-600 text-sm">Nuestros abogados expertos analizan tu caso y tus documentos pensionales para identificar oportunidades de reajuste o reclamación.</p>
+              </div>
+              <div className="relative mb-8">
+                <div className="absolute -left-[25px] top-0 bg-[#D4AF37]/20 p-2 rounded-full ring-8 ring-[#FFF8E7]">
+                    <FileText className="h-5 w-5 text-[#B8860B]" />
+                </div>
+                <h3 className="font-headline text-xl text-[#1B4D3E] mb-1">Evaluación de Viabilidad</h3>
+                <p className="text-gray-600 text-sm">Determinamos la viabilidad legal de tu caso y te explicamos de forma clara el potencial de tu reclamación pensional.</p>
+              </div>
+              <div className="relative">
+                <div className="absolute -left-[25px] top-0 bg-[#D4AF37]/20 p-2 rounded-full ring-8 ring-[#FFF8E7]">
+                    <Gavel className="h-5 w-5 text-[#B8860B]" />
+                </div>
+                <h3 className="font-headline text-xl text-[#1B4D3E] mb-1">Estrategia y Representación Legal</h3>
+                <p className="text-gray-600 text-sm">Desarrollamos un plan de acción y te representamos legalmente para lograr el mejor resultado posible para tu pensión.</p>
+              </div>
             </div>
           </div>
         </div>
