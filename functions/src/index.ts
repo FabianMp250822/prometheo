@@ -635,9 +635,13 @@ export const submitPublicForm = onCall({cors: ALLOWED_ORIGINS}, async (request) 
 });
 
 
-// =====================================
-// External Data Sync Proxy
-// =====================================
+/**
+ * Fetches data from an external URL and extracts JSON array from the response.
+ * Handles potential HTML wrapper content around JSON data.
+ * @param {string} url - The URL to fetch data from.
+ * @return {Promise<any>} - The parsed JSON data from the response.
+ * @throws {HttpsError} - Throws an error if the request fails or parsing fails.
+ */
 async function fetchExternalData(url: string): Promise<any> {
   try {
     const response = await fetch(url, {

@@ -17,7 +17,7 @@ import { DemandantesModal } from '@/components/dashboard/demandantes-modal';
 import { AnotacionesModal } from '@/components/dashboard/anotaciones-modal';
 import { AnexosModal } from '@/components/dashboard/anexos-modal';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { saveSyncedDataToFirebase } from '@/services/processes-service';
+import { saveSyncedDataToFirebase, getAndSyncExternalData } from '@/services/processes-service';
 
 
 const ITEMS_PER_PAGE = 20;
@@ -69,13 +69,13 @@ export default function GestionDemandasPage() {
   
   // --- Data Fetching from Firebase ---
   const fetchProcesosFromFirebase = useCallback(async (loadMore = false) => {
-    // If searching, this function should not run.
-    if (debouncedSearchTerm) return;
-
+    if (loadMore && !hasMore) return;
+    
     if (!loadMore) {
       setIsLoadingFirebase(true);
       setFirebaseProcesos([]);
       setLastDoc(null);
+      setHasMore(true);
     }
     
     try {
@@ -99,12 +99,12 @@ export default function GestionDemandasPage() {
     } finally {
       setIsLoadingFirebase(false);
     }
-  }, [lastDoc, toast, debouncedSearchTerm]);
+  }, [lastDoc, toast, hasMore]);
   
   // Initial fetch from Firebase (paginated)
   useEffect(() => {
     if (!debouncedSearchTerm) {
-      fetchProcesosFromFirebase();
+      fetchProcesosFromFirebase(false);
     }
   }, []); // Run only on initial mount when not searching
 
@@ -161,7 +161,7 @@ export default function GestionDemandasPage() {
           // If search term is cleared, fetch initial paginated data
           fetchProcesosFromFirebase(false);
       }
-  }, [debouncedSearchTerm, toast, fetchProcesosFromFirebase]);
+  }, [debouncedSearchTerm, toast]);
 
 
   // --- External API Data Fetching for Syncing ---
@@ -171,12 +171,8 @@ export default function GestionDemandasPage() {
       setExternalData(null);
       setLoadingMessage('Iniciando sincronización... Esto puede tomar varios minutos.');
       
-      const functions = getFunctions(app);
-      const syncExternalDataCallable = httpsCallable(functions, 'syncExternalData');
-
       try {
-        const result = (await syncExternalDataCallable()) as { data: { success: boolean; data?: any; error?: string } };
-        const { success, data, error: resultError } = result.data;
+        const { success, data, error: resultError } = await getAndSyncExternalData();
 
         if (success && data) {
           setExternalData(data);
@@ -204,11 +200,9 @@ export default function GestionDemandasPage() {
     }
 
     startSaving(async () => {
+      setLoadingMessage(`Iniciando guardado...`);
       try {
-        await saveSyncedDataToFirebase(externalData, (progress) => {
-            setSavingProgress(progress);
-            setLoadingMessage(`Guardando lote ${progress.current} de ${progress.total}`);
-        });
+        await saveSyncedDataToFirebase(externalData);
         toast({ title: 'Guardado Exitoso', description: `${externalData.procesos.length} procesos y sus datos asociados han sido guardados en Firebase.` });
         await fetchProcesosFromFirebase();
 
@@ -290,7 +284,7 @@ export default function GestionDemandasPage() {
               <CardTitle>Procesos en Firebase</CardTitle>
               <div className='flex flex-col md:flex-row justify-between md:items-center gap-4'>
                 <CardDescription>
-                  {debouncedSearchTerm ? `Resultados de búsqueda para "${debouncedSearchTerm}".` : `Mostrando ${firebaseProcesos.length} registros.`}
+                  {debouncedSearchTerm ? `Resultados de búsqueda para "${debouncedSearchTerm}".` : `Mostrando registros paginados.`}
                 </CardDescription>
                 <div className='flex items-center gap-2'>
                   <Button variant="outline" size="sm" onClick={() => fetchProcesosFromFirebase()}>
@@ -310,18 +304,18 @@ export default function GestionDemandasPage() {
               />
                {!debouncedSearchTerm && (
                 <div className="flex justify-center py-4">
-                  {hasMore && (
+                  {isLoadingFirebase && firebaseProcesos.length > 0 ? (
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : hasMore ? (
                       <Button onClick={() => fetchProcesosFromFirebase(true)} disabled={isLoadingFirebase}>
-                          {isLoadingFirebase && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                           Cargar más
                       </Button>
-                  )}
-                  {!hasMore && firebaseProcesos.length > 0 && (
+                  ) : firebaseProcesos.length > 0 && (
                       <p className="text-sm text-muted-foreground">Has llegado al final de la lista.</p>
                   )}
                 </div>
                )}
-                {isLoadingFirebase && (
+                {isLoadingFirebase && firebaseProcesos.length === 0 && (
                     <div className="flex justify-center items-center p-10">
                         <Loader2 className="h-10 w-10 animate-spin text-primary" />
                     </div>
