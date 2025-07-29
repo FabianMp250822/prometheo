@@ -52,16 +52,16 @@ export default function LandingPage() {
       </header>
 
       {/* Hero Section */}
-      <section className="relative bg-cover bg-center h-[70vh] md:h-screen flex items-center text-white" style={{ backgroundImage: "url('https://placehold.co/1920x1080/1b4d3e/000000.png?text=.')", backgroundColor: '#1B4D3E' }}>
-        <div className="absolute inset-0 bg-black/50"></div>
+      <section className="relative bg-cover bg-center h-[70vh] md:h-screen flex items-center text-white" style={{ backgroundImage: "url('https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2FF_2-1-1280x853.jpg?alt=media&token=316694c6-f680-4271-871f-3728d2326660')" }}>
+        <div className="absolute inset-0 bg-black/60"></div>
         <div className="container mx-auto text-center relative z-10 px-4">
-          <p className="font-semibold text-gold-400 text-sm uppercase tracking-widest">Asesoría Legal Experta en Pensiones</p>
+          <p className="font-semibold text-[#D4AF37] text-sm uppercase tracking-widest">ASESORÍA LEGAL EXPERTA EN PENSIONES</p>
           <h1 className="text-4xl md:text-6xl font-headline mt-2 mb-4">Expertos en derecho laboral y seguridad social</h1>
           <p className="max-w-2xl mx-auto text-gray-300 mb-8">
             Aseguramos el futuro que mereces. Analizamos tu caso pensional y laboral para garantizar que recibas lo justo. Consulta tu caso gratis.
           </p>
           <Button asChild size="lg" className="bg-[#D4AF37] text-black hover:bg-[#B8860B]">
-            <Link href="/registro">Mira tu caso ahora</Link>
+            <Link href="/registro">Inicia tu Reclamación</Link>
           </Button>
         </div>
       </section>
