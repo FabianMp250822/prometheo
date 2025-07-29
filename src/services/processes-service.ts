@@ -1,3 +1,4 @@
+
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin'; // Use the admin SDK for server-side operations
@@ -129,27 +130,32 @@ async function fetchExternalData(url: string): Promise<any[]> {
             cache: 'no-store',
         });
         if (!response.ok) {
-            console.error(`Network error for ${url}: ${response.statusText}`);
-            return []; // Return empty on error
+            throw new Error(`Error de red: ${response.status} ${response.statusText}`);
         }
         const textResponse = await response.text();
         const jsonStart = textResponse.indexOf('[');
         const jsonEnd = textResponse.lastIndexOf(']');
-        if (jsonStart === -1 || jsonEnd === -1) return [];
+        if (jsonStart === -1 || jsonEnd === -1) {
+            throw new Error("La respuesta de la API no contiene un JSON válido.");
+        };
         
         const jsonString = textResponse.substring(jsonStart, jsonEnd + 1);
         return JSON.parse(jsonString);
-    } catch (error) {
-        console.error(`Error fetching or parsing from ${url}:`, error);
-        return [];
+    } catch (error: any) {
+        console.error(`Error al obtener o procesar desde ${url}:`, error.message);
+        // Re-throw the error with a more specific message to be caught by the caller.
+        throw new Error(`Fallo la conexión con el servidor externo en ${url}. Detalles: ${error.message}`);
     }
 }
 
 export async function getAndSyncExternalData(): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
         const procesos = await fetchExternalData('https://appdajusticia.com/procesos.php?all=true');
+        
+        // This check is now more specific. The function will throw if connection fails.
+        // This block now specifically handles the case of a successful connection but an empty list.
         if (!Array.isArray(procesos) || procesos.length === 0) {
-            return { success: false, error: 'No se pudieron obtener los procesos iniciales o la lista está vacía.' };
+            return { success: false, error: 'La API externa no devolvió procesos. La lista puede estar vacía o el servicio no está disponible.' };
         }
         
         const uniqueIds = [...new Set(procesos.map(p => p.num_registro))];
