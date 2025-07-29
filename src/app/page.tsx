@@ -12,10 +12,12 @@ import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
-import { collection, doc, setDoc, serverTimestamp, addDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { getBlogArticles } from '@/services/blog-service';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+
+const functions = getFunctions();
+const submitPublicFormCallable = httpsCallable(functions, 'submitPublicForm');
 
 const NavLink = ({ href, children, onClick }: { href: string; children: React.ReactNode; onClick?: () => void; }) => (
   <a href={href} onClick={onClick} className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
@@ -31,7 +33,6 @@ export default function LandingPage() {
    const [articles, setArticles] = useState<any[]>([]);
    const [isLoadingArticles, setIsLoadingArticles] = useState(true);
 
-   // State for the contact form
    const [contactForm, setContactForm] = useState({ name: '', email: '', message: '' });
    const [isSendingContact, setIsSendingContact] = useState(false);
 
@@ -44,6 +45,7 @@ export default function LandingPage() {
 
   React.useEffect(() => {
     const fetchArticles = async () => {
+      setIsLoadingArticles(true);
       try {
         const blogArticles = await getBlogArticles();
         setArticles(blogArticles);
@@ -69,17 +71,12 @@ export default function LandingPage() {
     }
     setIsSubscribing(true);
     try {
-      // Use the email as the document ID to prevent duplicates
-      const subscriberRef = doc(db, 'suscriptores_boletin', newsletterEmail);
-      await setDoc(subscriberRef, {
-        email: newsletterEmail,
-        subscribedAt: serverTimestamp(),
-      });
+      await submitPublicFormCallable({ formType: 'newsletter', data: { email: newsletterEmail } });
       toast({ title: '¡Suscrito!', description: 'Gracias por suscribirse a nuestro boletín.' });
       setNewsletterEmail('');
-    } catch (error) {
-      console.error(error);
-      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo completar la suscripción.' });
+    } catch (error: any) {
+      console.error("Error subscribing to newsletter:", error);
+      toast({ variant: 'destructive', title: 'Error', description: error.message || 'No se pudo completar la suscripción.' });
     } finally {
       setIsSubscribing(false);
     }
@@ -98,15 +95,12 @@ export default function LandingPage() {
     }
     setIsSendingContact(true);
     try {
-      await addDoc(collection(db, 'contactos_landing'), {
-        ...contactForm,
-        sentAt: serverTimestamp(),
-      });
+      await submitPublicFormCallable({ formType: 'contact', data: contactForm });
       toast({ title: 'Mensaje Enviado', description: 'Gracias por contactarnos. Le responderemos pronto.' });
-      setContactForm({ name: '', email: '', message: '' }); // Clear form
-    } catch (error) {
+      setContactForm({ name: '', email: '', message: '' });
+    } catch (error: any) {
         console.error("Error sending contact message:", error);
-        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo enviar su mensaje. Inténtelo de nuevo.' });
+        toast({ variant: 'destructive', title: 'Error', description: error.message || 'No se pudo enviar su mensaje. Inténtelo de nuevo.' });
     } finally {
         setIsSendingContact(false);
     }
@@ -115,7 +109,6 @@ export default function LandingPage() {
 
   return (
     <div className="bg-[#FCFBF8] text-gray-800 font-body">
-      {/* Header */}
       <header className="sticky top-0 left-0 right-0 z-20 bg-[#FCFBF8]/80 backdrop-blur-sm border-b border-gray-200">
         <div className="container mx-auto flex justify-between items-center p-4">
           <Link href="/" className="flex items-center gap-2">
@@ -174,7 +167,6 @@ export default function LandingPage() {
         )}
       </header>
 
-      {/* Hero Section */}
       <section className="relative bg-cover bg-center h-[70vh] md:h-screen flex items-center text-white" style={{ backgroundImage: "url('https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2FF_2-1-1280x853.jpg?alt=media&token=316694c6-f680-4271-871f-3728d2326660')" }}>
         <div className="absolute inset-0 bg-black/60"></div>
         <div className="container mx-auto text-center relative z-10 px-4">
@@ -189,7 +181,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Trust Section */}
       <section id="nosotros" className="py-16 md:py-24">
         <div className="container mx-auto grid md:grid-cols-2 gap-12 items-center px-4">
           <div className="grid grid-cols-2 grid-rows-2 gap-4 h-[500px]">
@@ -236,7 +227,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Process Section */}
       <section id="proceso" className="py-16 md:py-24 bg-[#FFF8E7]">
         <div className="container mx-auto grid md:grid-cols-2 gap-12 items-center px-4">
           <div className="aspect-video">
@@ -279,7 +269,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Stats Section */}
       <section className="bg-[#BFA16A] text-[#1B4D3E]">
         <div className="container mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 py-12 text-center">
           <div><p className="text-4xl font-bold">20+</p><p className="text-sm">AÑOS DE EXPERIENCIA</p></div>
@@ -289,7 +278,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Services Section */}
       <section id="servicios" className="py-16 md:py-24">
         <div className="container mx-auto text-center px-4">
           <p className="text-[#1B4D3E] font-semibold uppercase text-sm">Nuestras Áreas</p>
@@ -308,7 +296,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Team Section */}
       <section id="equipo" className="py-16 md:py-24 bg-[#1B4D3E] text-white">
         <div className="container mx-auto grid md:grid-cols-2 gap-12 items-center px-4">
           <div>
@@ -352,7 +339,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Blog Section */}
       <section id="noticias" className="py-16 md:py-24">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl md:text-4xl font-headline text-center mb-4 text-[#1B4D3E]">Últimas Noticias y Artículos</h2>
@@ -380,7 +366,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Testimonials Section */}
       <section id="testimonios" className="py-16 md:py-24">
         <div className="container mx-auto text-center px-4">
           <p className="text-[#1B4D3E] font-semibold uppercase text-sm">Confianza</p>
@@ -392,7 +377,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Contact Section */}
       <section id="contacto" className="py-16 md:py-24 bg-[#1B4D3E]">
         <div className="container mx-auto">
           <div className="bg-[#FCFBF8] rounded-lg shadow-xl overflow-hidden grid md:grid-cols-2">
@@ -447,7 +431,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="bg-[#0A192F] text-gray-400 py-12">
         <div className="container mx-auto grid md:grid-cols-4 gap-8 px-4">
           <div>

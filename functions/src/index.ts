@@ -584,3 +584,53 @@ export const listUsers = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
     throw new HttpsError("internal", "Failed to list users.", error.message);
   }
 });
+
+
+// =====================================
+// Public Form Submission Handler
+// =====================================
+
+export const submitPublicForm = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
+    const { formType, data } = request.data;
+
+    if (!formType || !data) {
+        throw new HttpsError("invalid-argument", "Request must include formType and data.");
+    }
+
+    try {
+        if (formType === 'newsletter') {
+            if (!data.email) throw new HttpsError("invalid-argument", "Newsletter form requires an email.");
+            
+            // Use email as doc ID to prevent duplicates
+            const docRef = db.collection('suscriptores_boletin').doc(data.email);
+            await docRef.set({
+                email: data.email,
+                subscribedAt: Timestamp.now(),
+            });
+
+            logger.info(`New newsletter subscription: ${data.email}`);
+            return { success: true, message: "Subscription successful." };
+
+        } else if (formType === 'contact') {
+            if (!data.name || !data.email || !data.message) {
+                 throw new HttpsError("invalid-argument", "Contact form requires name, email, and message.");
+            }
+            
+            const collectionRef = db.collection('contactos_landing');
+            await collectionRef.add({
+                name: data.name,
+                email: data.email,
+                message: data.message,
+                sentAt: Timestamp.now(),
+            });
+
+            logger.info(`New contact message from: ${data.email}`);
+            return { success: true, message: "Contact message sent." };
+        } else {
+             throw new HttpsError("invalid-argument", `Unknown formType: ${formType}`);
+        }
+    } catch (error: any) {
+        logger.error(`Error processing form (${formType}):`, error);
+        throw new HttpsError("internal", "An error occurred while processing the form.", error.message);
+    }
+});
