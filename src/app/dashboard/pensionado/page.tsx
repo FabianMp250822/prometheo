@@ -49,23 +49,33 @@ export default function PensionadoPage() {
     const [isDajusticiaClient, setIsDajusticiaClient] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [userRole, setUserRole] = useState('');
+
+    useEffect(() => {
+        if (user) {
+            user.getIdTokenResult().then(idTokenResult => {
+                const role = idTokenResult.claims.role as string | undefined;
+                setUserRole(role || 'Usuario');
+            });
+        }
+    }, [user]);
 
     const fetchAllData = useCallback(async (pensionerId: string, document: string, name: string) => {
         setIsLoading(true);
         setError(null);
         setProfileData(null);
         try {
-            // Check if user is a DAJUSTICIA client
             const clientQuery = query(collection(db, "nuevosclientes"), where("cedula", "==", document), limit(1));
             const clientSnapshot = await getDocs(clientQuery);
             const isClient = !clientSnapshot.empty;
             setIsDajusticiaClient(isClient);
             
-            if (!isClient) {
-                return; // Stop fetching if not a client
+            // If the user is not an admin and not a client, stop here.
+            if (userRole !== 'Administrador' && !isClient) {
+                return;
             }
 
-            // 1. Fetch Payments
+            // Fetch all other data for admins or for clients
             const paymentsQuery = query(collection(db, 'pensionados', pensionerId, 'pagos'));
             const paymentsSnapshot = await getDocs(paymentsQuery);
             let payments = paymentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
@@ -75,7 +85,6 @@ export default function PensionadoPage() {
                 return dateB.getTime() - dateA.getTime();
             });
 
-            // 2. Fetch Historical Payment if no recent payments
             let historicalPayment: PagosHistoricoRecord | null = null;
             if (payments.length === 0) {
                 const historicalDocRef = doc(db, "pagosHistorico", document);
@@ -89,31 +98,31 @@ export default function PensionadoPage() {
                 }
             }
             
-            // 3. Fetch Legal Processes
             const processesQuery = query(collection(db, 'procesos'), where("identidad_clientes", "==", document));
             const processesSnapshot = await getDocs(processesQuery);
             const legalProcesses = processesSnapshot.docs.map(doc => ({
                 id: doc.id, ...doc.data()
             } as LegalProcess));
 
-            // 4. Fetch Parris1 Data
             const parris1DocRef = doc(db, "parris1", document);
             const parris1Doc = await getDoc(parris1DocRef);
             const parris1Data = parris1Doc.exists() ? { id: parris1Doc.id, ...parris1Doc.data() } as Parris1 : null;
             
-            // 5. Fetch Causante Data
             const causanteQuery = query(collection(db, "causante"), where("cedula_causante", "==", document));
             const causanteSnapshot = await getDocs(causanteQuery);
             const causanteData = !causanteSnapshot.empty ? { id: causanteSnapshot.docs[0].id, ...causanteSnapshot.docs[0].data() } as Causante : null;
             
-            // 6. Fetch DAJUSTICIA Client Data and Payments
-            const clientDoc = clientSnapshot.docs[0];
-            const dajusticiaClientData = { id: clientDoc.id, ...clientDoc.data() } as DajusticiaClient;
-            const clientPaymentsQuery = query(collection(db, "nuevosclientes", clientDoc.id, "pagos"));
-            const clientPaymentsSnapshot = await getDocs(clientPaymentsQuery);
-            const dajusticiaPayments = clientPaymentsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as DajusticiaPayment));
+            let dajusticiaClientData: DajusticiaClient | null = null;
+            let dajusticiaPayments: DajusticiaPayment[] = [];
+
+            if(isClient){
+                const clientDoc = clientSnapshot.docs[0];
+                dajusticiaClientData = { id: clientDoc.id, ...clientDoc.data() } as DajusticiaClient;
+                const clientPaymentsQuery = query(collection(db, "nuevosclientes", clientDoc.id, "pagos"));
+                const clientPaymentsSnapshot = await getDocs(clientPaymentsQuery);
+                dajusticiaPayments = clientPaymentsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as DajusticiaPayment));
+            }
             
-             // 7. Fetch Last Notification from Provired
             const nameToSearch = parseEmployeeName(name).toUpperCase();
             const notificationsQuery = query(
                 collection(db, 'provired_notifications'),
@@ -125,7 +134,6 @@ export default function PensionadoPage() {
             const lastNotification = !notificationsSnapshot.empty
                 ? { id: notificationsSnapshot.docs[0].id, ...notificationsSnapshot.docs[0].data() } as ProviredNotification
                 : null;
-
 
             setProfileData({
                 payments,
@@ -144,12 +152,9 @@ export default function PensionadoPage() {
         } finally {
             setIsLoading(false);
         }
-    }, []);
+    }, [userRole]);
 
     useEffect(() => {
-        // Determine the pensioner to fetch data for.
-        // If a specific one is selected (by admin), use that.
-        // Otherwise, if a user is logged in, use their own info.
         let targetPensioner: {id: string, documento: string, empleado: string} | null = null;
         if (selectedPensioner?.id) {
             targetPensioner = {
@@ -157,19 +162,14 @@ export default function PensionadoPage() {
                 documento: selectedPensioner.documento,
                 empleado: selectedPensioner.empleado
             };
-        } else if (user?.email) {
-            // Here we would typically get the document/cedula from the user's profile
-            // For now, let's assume we need to fetch it. This part might need refinement
-            // based on how user profiles are stored in 'users' collection.
-            // This is a placeholder for fetching user's own data.
         }
         
-        if (targetPensioner) {
+        if (targetPensioner && userRole) { // Ensure role is determined before fetching
             fetchAllData(targetPensioner.id, targetPensioner.documento, targetPensioner.empleado);
-        } else {
+        } else if (!targetPensioner) {
             setIsLoading(false);
         }
-    }, [selectedPensioner, user, fetchAllData]);
+    }, [selectedPensioner, userRole, fetchAllData]);
 
     const sentencePayments = React.useMemo((): SentencePayment[] => {
         if (!profileData?.payments.length) return [];
@@ -229,7 +229,7 @@ export default function PensionadoPage() {
         );
     }
     
-    if (!isDajusticiaClient) {
+    if (userRole !== 'Administrador' && !isDajusticiaClient) {
         return (
             <div className="p-8">
                  <Alert>
