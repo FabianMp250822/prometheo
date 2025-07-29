@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowLeft, Trash2, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '@/lib/firebase';
@@ -72,6 +72,8 @@ export default function RegistroPage() {
         autorizadoTelefonoFijo: '',
         autorizadoCelular: '',
         autorizadoCorreo: '',
+        // Section IV
+        nucleoFamiliar: [{ nombres: '', cedula: '', edad: '' }],
     });
 
     useEffect(() => {
@@ -121,6 +123,24 @@ export default function RegistroPage() {
     const handleRadioChange = (name: keyof typeof formData, value: string) => {
         setFormData(prev => ({ ...prev, [name]: value }));
     }
+
+    const handleNucleoFamiliarChange = (index: number, field: string, value: string) => {
+        const newNucleo = [...formData.nucleoFamiliar];
+        newNucleo[index] = { ...newNucleo[index], [field]: value };
+        setFormData(prev => ({ ...prev, nucleoFamiliar: newNucleo }));
+    };
+
+    const addMiembroFamiliar = () => {
+        setFormData(prev => ({
+            ...prev,
+            nucleoFamiliar: [...prev.nucleoFamiliar, { nombres: '', cedula: '', edad: '' }]
+        }));
+    };
+
+    const removeMiembroFamiliar = (index: number) => {
+        const newNucleo = formData.nucleoFamiliar.filter((_, i) => i !== index);
+        setFormData(prev => ({ ...prev, nucleoFamiliar: newNucleo }));
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -236,7 +256,24 @@ export default function RegistroPage() {
                             </div>
                         </section>
                         
-                        <section><h3 className="text-xl font-semibold mb-4 border-b pb-2 text-muted-foreground">IV. Núcleo Familiar (Opcional)</h3></section>
+                        <section>
+                            <h3 className="text-xl font-semibold mb-4 border-b pb-2">IV. Núcleo Familiar</h3>
+                            <div className="space-y-4">
+                                {formData.nucleoFamiliar.map((miembro, index) => (
+                                    <div key={index} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_0.5fr_auto] gap-4 items-end p-4 border rounded-md">
+                                        <div><Label htmlFor={`nf-nombres-${index}`}>Nombres</Label><Input id={`nf-nombres-${index}`} value={miembro.nombres} onChange={(e) => handleNucleoFamiliarChange(index, 'nombres', e.target.value)} /></div>
+                                        <div><Label htmlFor={`nf-cedula-${index}`}>Cédula</Label><Input id={`nf-cedula-${index}`} value={miembro.cedula} onChange={(e) => handleNucleoFamiliarChange(index, 'cedula', e.target.value)} /></div>
+                                        <div><Label htmlFor={`nf-edad-${index}`}>Edad</Label><Input id={`nf-edad-${index}`} type="number" value={miembro.edad} onChange={(e) => handleNucleoFamiliarChange(index, 'edad', e.target.value)} /></div>
+                                        <Button type="button" variant="destructive" onClick={() => removeMiembroFamiliar(index)} disabled={formData.nucleoFamiliar.length <= 1}>
+                                            <Trash2 className="mr-2 h-4 w-4" /> Eliminar
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+                            <Button type="button" variant="outline" onClick={addMiembroFamiliar} className="mt-4">
+                                <PlusCircle className="mr-2 h-4 w-4" /> Añadir Miembro Familiar
+                            </Button>
+                        </section>
 
                         <div className="flex items-start space-x-2">
                             <Checkbox id="autoriza" name="autoriza" checked={formData.autoriza} onCheckedChange={(checked) => setFormData(prev => ({...prev, autoriza: !!checked}))} />
