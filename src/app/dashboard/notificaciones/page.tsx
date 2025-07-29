@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, Search, FileDown, BellRing, AlertTriangle, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { DocumentViewerModal } from '@/components/dashboard/document-viewer-modal';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { collection, getDocs, query, where, or, limit, orderBy, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -51,8 +50,6 @@ export default function NotificacionesPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-    const [documentUrl, setDocumentUrl] = useState<string | null>(null);
-    const [documentTitle, setDocumentTitle] = useState<string | null>(null);
     const { toast } = useToast();
 
     // Sync state
@@ -163,11 +160,6 @@ export default function NotificacionesPage() {
         }
     }, [debouncedSearchTerm, fetchPaginatedNotifications, searchNotificationsInFirebase]);
 
-    const handleViewDocument = (url: string, title: string) => {
-        setDocumentUrl(url);
-        setDocumentTitle(title);
-    };
-
     const handleSync = () => {
         startSyncTransition(async () => {
             setSyncMessage('Iniciando sincronización, por favor espere...');
@@ -269,12 +261,10 @@ export default function NotificacionesPage() {
                                                     <TableCell className="text-xs text-muted-foreground max-w-sm">{n.descripcion}</TableCell>
                                                     <TableCell className="text-right">
                                                         {n.rutaAuto && (
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={() => handleViewDocument(n.rutaAuto, `PDF Proceso ${n.radicacion}`)}
-                                                            >
-                                                                <FileDown className="mr-2 h-4 w-4" /> Ver
+                                                            <Button asChild variant="outline" size="sm">
+                                                                <a href={n.rutaAuto} target="_blank" rel="noopener noreferrer">
+                                                                    <FileDown className="mr-2 h-4 w-4" /> Ver
+                                                                </a>
                                                             </Button>
                                                         )}
                                                     </TableCell>
@@ -303,13 +293,6 @@ export default function NotificacionesPage() {
                     </CardContent>
                 </Card>
             </div>
-            {documentUrl && (
-                <DocumentViewerModal
-                    url={documentUrl}
-                    title={documentTitle || "Visor de Documento"}
-                    onClose={() => setDocumentUrl(null)}
-                />
-            )}
         </>
     );
 }

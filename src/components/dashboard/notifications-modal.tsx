@@ -7,7 +7,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Loader2, BellOff, FileDown } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
-import { DocumentViewerModal } from './document-viewer-modal';
 
 interface Office {
     IdDes: string;
@@ -32,7 +31,6 @@ interface NotificationsModalProps {
 }
 
 export function NotificationsModal({ isOpen, onClose, office, notifications, isLoading }: NotificationsModalProps) {
-    const [documentUrl, setDocumentUrl] = React.useState<string | null>(null);
 
     if (!office) return null;
 
@@ -72,8 +70,10 @@ export function NotificationsModal({ isOpen, onClose, office, notifications, isL
                                                 <TableCell className="text-xs text-muted-foreground align-top">{notif.descripcion}</TableCell>
                                                 <TableCell className="text-right align-top">
                                                     {notif.rutaAuto && (
-                                                        <Button variant="ghost" size="icon" onClick={() => setDocumentUrl(notif.rutaAuto)}>
+                                                        <Button asChild variant="ghost" size="icon">
+                                                          <a href={notif.rutaAuto} target="_blank" rel="noopener noreferrer">
                                                             <FileDown className="h-4 w-4 text-primary" />
+                                                          </a>
                                                         </Button>
                                                     )}
                                                 </TableCell>
@@ -95,14 +95,6 @@ export function NotificationsModal({ isOpen, onClose, office, notifications, isL
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-
-            {documentUrl && (
-                <DocumentViewerModal 
-                    url={documentUrl} 
-                    title="Visor de Documento de Notificación" 
-                    onClose={() => setDocumentUrl(null)} 
-                />
-            )}
         </>
     );
 }
