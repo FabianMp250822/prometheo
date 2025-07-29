@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { CheckCircle, Scale, Shield, Landmark, Briefcase, HeartHandshake, Building, Users, MessageCircle, Mail, Phone, MapPin, Facebook, Twitter, Instagram, FileText, Handshake, Gavel, ArrowLeft, ArrowRight } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 
 
@@ -252,23 +252,28 @@ export default function LandingPage() {
 
       {/* Contact Section */}
       <section id="contacto" className="py-16 md:py-24 bg-[#1B4D3E]">
-        <div className="container mx-auto px-4">
-          <Card className="max-w-4xl mx-auto p-8">
-            <div className="text-center">
-              <p className="text-[#B8860B] font-semibold uppercase text-sm">Haga su caso</p>
+        <div className="container mx-auto">
+          <div className="bg-[#FCFBF8] rounded-lg shadow-xl overflow-hidden grid md:grid-cols-2">
+            <div className="p-8 md:p-12">
+              <p className="text-[#B8860B] font-semibold uppercase text-sm">INICIE SU CASO</p>
               <h2 className="text-3xl md:text-4xl font-headline mt-2 mb-6 text-[#1B4D3E]">Ingrese Sus Datos Y Te Contactaremos</h2>
+              <form className="space-y-4">
+                <Input placeholder="Nombre Completo" className="bg-white border-gray-300" />
+                <Input placeholder="Correo Electrónico" type="email" className="bg-white border-gray-300" />
+                <Textarea placeholder="Describa brevemente su caso" className="bg-white border-gray-300" rows={4} />
+                <Button size="lg" className="w-full bg-[#1B4D3E] text-white hover:bg-[#0F766E]">Enviar Mensaje</Button>
+              </form>
             </div>
-            <form className="grid md:grid-cols-2 gap-6 mt-8">
-              <Input placeholder="Nombre Completo" className="bg-gray-100" />
-              <Input placeholder="Correo Electrónico" type="email" className="bg-gray-100" />
-              <Input placeholder="Teléfono / Celular" className="bg-gray-100" />
-              <Input placeholder="Asunto" className="bg-gray-100" />
-              <Textarea placeholder="Describa su caso" className="md:col-span-2 bg-gray-100" rows={5} />
-              <div className="md:col-span-2 text-center">
-                <Button size="lg" className="bg-[#1B4D3E] text-white hover:bg-[#0F766E]">Enviar Mensaje</Button>
-              </div>
-            </form>
-          </Card>
+            <div className="relative hidden md:block">
+              <Image 
+                src="https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2Ffoto4.webp?alt=media&token=babdd134-b9ad-4ce3-ba29-8c03236cc4b3"
+                alt="Persona trabajando en un portátil"
+                layout="fill"
+                objectFit="cover"
+                data-ai-hint="person working"
+              />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -329,7 +334,10 @@ const ServiceCard = ({ icon, title, description }: { icon: React.ReactNode; titl
 
 const TestimonialCard = ({ name, quote }: { name: string; quote: string }) => (
     <Card className="p-6 text-left">
+      <CardHeader className="p-0">
         <MessageCircle className="h-8 w-8 text-[#D4AF37] mb-4" />
+      </CardHeader>
+      <CardContent className="p-0">
         <p className="text-gray-600 mb-4">"{quote}"</p>
         <div className="flex items-center">
             <Avatar>
@@ -338,5 +346,6 @@ const TestimonialCard = ({ name, quote }: { name: string; quote: string }) => (
             </Avatar>
             <p className="ml-4 font-semibold text-[#1B4D3E]">{name}</p>
         </div>
+      </CardContent>
     </Card>
 );
