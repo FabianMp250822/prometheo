@@ -6,8 +6,10 @@ import { PensionerProvider } from '@/context/pensioner-provider';
 import { RecaptchaProvider } from '@/context/recaptcha-provider';
 
 export const metadata: Metadata = {
-  title: 'Prometeo',
-  description: 'Análisis de Pagos Judiciales',
+  title: 'Prometeo - Asesoría Experta para Mejorar tu Pensión',
+  description: 'Expertos en derecho pensional y laboral. Te ayudamos a aumentar y mejorar tu pensión. Consulta tus derechos como pensionado y obtén la asesoría que mereces.',
+  keywords: ['aumentar pensión', 'mejorar mi pensión', 'derechos del pensionado', 'consultoría para pensionados', 'reajuste pensional', 'abogados de pensiones'],
+  authors: [{ name: 'Fabian Muñoz Puello' }, { name: 'Leidy Vega Anaya' }],
 };
 
 export default function RootLayout({
