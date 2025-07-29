@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,7 +59,54 @@ export default function RegistroPage() {
         conyugeCelular: '',
         conyugeCorreo: '',
         conyugeSustituta: 'No',
+        // Section III
+        autorizadoEsConyuge: false,
+        autorizadoTipoPariente: '',
+        autorizadoNombre: '',
+        autorizadoCedula: '',
+        autorizadoProfesion: '',
+        autorizadoLugar: '',
+        autorizadoEdad: '',
+        autorizadoDireccion: '',
+        autorizadoMunicipio: '',
+        autorizadoTelefonoFijo: '',
+        autorizadoCelular: '',
+        autorizadoCorreo: '',
     });
+
+    useEffect(() => {
+        if (formData.autorizadoEsConyuge) {
+            setFormData(prev => ({
+                ...prev,
+                autorizadoTipoPariente: 'Cónyuge',
+                autorizadoNombre: prev.conyugeNombre,
+                autorizadoCedula: prev.conyugeCedula,
+                autorizadoLugar: prev.conyugeLugar,
+                autorizadoEdad: prev.conyugeEdad,
+                autorizadoDireccion: prev.conyugeDireccion,
+                autorizadoMunicipio: prev.conyugeMunicipio,
+                autorizadoTelefonoFijo: prev.conyugeTelefonoFijo,
+                autorizadoCelular: prev.conyugeCelular,
+                autorizadoCorreo: prev.conyugeCorreo,
+                autorizadoProfesion: '', // This field is not in the spouse section
+            }));
+        } else {
+             setFormData(prev => ({
+                ...prev,
+                autorizadoTipoPariente: '',
+                autorizadoNombre: '',
+                autorizadoCedula: '',
+                autorizadoLugar: '',
+                autorizadoEdad: '',
+                autorizadoDireccion: '',
+                autorizadoMunicipio: '',
+                autorizadoTelefonoFijo: '',
+                autorizadoCelular: '',
+                autorizadoCorreo: '',
+                autorizadoProfesion: '',
+            }));
+        }
+    }, [formData.autorizadoEsConyuge, formData.conyugeNombre, formData.conyugeCedula, formData.conyugeLugar, formData.conyugeEdad, formData.conyugeDireccion, formData.conyugeMunicipio, formData.conyugeTelefonoFijo, formData.conyugeCelular, formData.conyugeCorreo]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
@@ -168,7 +215,27 @@ export default function RegistroPage() {
                             </div>
                         </section>
                         
-                        <section><h3 className="text-xl font-semibold mb-4 border-b pb-2 text-muted-foreground">III. Persona Autorizada para Recibir Información (Opcional)</h3></section>
+                        <section>
+                            <h3 className="text-xl font-semibold mb-4 border-b pb-2">III. Persona Autorizada para Recibir Información</h3>
+                            <div className="flex items-center space-x-2 mb-4">
+                                <Checkbox id="autorizadoEsConyuge" name="autorizadoEsConyuge" checked={formData.autorizadoEsConyuge} onCheckedChange={(checked) => setFormData(prev => ({...prev, autorizadoEsConyuge: !!checked}))} />
+                                <Label htmlFor="autorizadoEsConyuge">Es el mismo cónyuge</Label>
+                            </div>
+                            <div className="grid md:grid-cols-3 gap-4">
+                                <div><Label htmlFor="autorizadoTipoPariente">Tipo de Pariente</Label><Input id="autorizadoTipoPariente" name="autorizadoTipoPariente" value={formData.autorizadoTipoPariente} onChange={handleChange} /></div>
+                                <div><Label htmlFor="autorizadoNombre">Nombre Completo</Label><Input id="autorizadoNombre" name="autorizadoNombre" value={formData.autorizadoNombre} onChange={handleChange} /></div>
+                                <div><Label htmlFor="autorizadoCedula">Cédula Nº</Label><Input id="autorizadoCedula" name="autorizadoCedula" value={formData.autorizadoCedula} onChange={handleChange} /></div>
+                                <div><Label htmlFor="autorizadoProfesion">Profesión u oficio</Label><Input id="autorizadoProfesion" name="autorizadoProfesion" value={formData.autorizadoProfesion} onChange={handleChange} /></div>
+                                <div><Label htmlFor="autorizadoLugar">Lugar</Label><Input id="autorizadoLugar" name="autorizadoLugar" value={formData.autorizadoLugar} onChange={handleChange} /></div>
+                                <div><Label htmlFor="autorizadoEdad">Edad Actual Cumplida</Label><Input id="autorizadoEdad" name="autorizadoEdad" type="number" value={formData.autorizadoEdad} onChange={handleChange} /></div>
+                                <div className="md:col-span-2"><Label htmlFor="autorizadoDireccion">Dirección Residencia</Label><Input id="autorizadoDireccion" name="autorizadoDireccion" value={formData.autorizadoDireccion} onChange={handleChange} /></div>
+                                <div><Label htmlFor="autorizadoMunicipio">Municipio</Label><Input id="autorizadoMunicipio" name="autorizadoMunicipio" value={formData.autorizadoMunicipio} onChange={handleChange} /></div>
+                                <div><Label htmlFor="autorizadoTelefonoFijo">Teléfono Fijo</Label><Input id="autorizadoTelefonoFijo" name="autorizadoTelefonoFijo" value={formData.autorizadoTelefonoFijo} onChange={handleChange} /></div>
+                                <div><Label htmlFor="autorizadoCelular">Celular(es)</Label><Input id="autorizadoCelular" name="autorizadoCelular" value={formData.autorizadoCelular} onChange={handleChange} /></div>
+                                <div className="md:col-span-3"><Label htmlFor="autorizadoCorreo">Correo Electrónico</Label><Input id="autorizadoCorreo" name="autorizadoCorreo" type="email" value={formData.autorizadoCorreo} onChange={handleChange} /></div>
+                            </div>
+                        </section>
+                        
                         <section><h3 className="text-xl font-semibold mb-4 border-b pb-2 text-muted-foreground">IV. Núcleo Familiar (Opcional)</h3></section>
 
                         <div className="flex items-start space-x-2">
