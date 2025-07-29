@@ -1,5 +1,6 @@
 import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 
 // This function ensures we initialize the app only once.
 function initializeAdminApp(): App {
@@ -22,5 +23,6 @@ function initializeAdminApp(): App {
 
 const adminApp = initializeAdminApp();
 const adminDb = getFirestore(adminApp);
+const adminStorage = getStorage(adminApp);
 
-export { adminDb };
+export { adminDb, adminStorage };

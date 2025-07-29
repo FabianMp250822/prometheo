@@ -1,4 +1,4 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
+import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
@@ -13,10 +13,22 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || ""
 };
 
-// Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app);
-const auth = getAuth(app);
-const storage = getStorage(app);
+// This function ensures we only initialize the app once on the client-side.
+const getClientApp = (): FirebaseApp => {
+    if (getApps().length) {
+        return getApp();
+    }
+    return initializeApp(firebaseConfig);
+};
 
-export { app, db, auth, storage };
+const clientApp = getClientApp();
+const clientDb = getFirestore(clientApp);
+const clientAuth = getAuth(clientApp);
+const clientStorage = getStorage(clientApp);
+
+// Re-exporting with 'app' for backward compatibility in some files if needed,
+// but using more descriptive names is better.
+export { clientApp as app, clientDb as db, clientAuth as auth, clientStorage as storage };
+
+// Also exporting the named client versions for clarity in new code.
+export { clientApp, clientDb, clientAuth, clientStorage };

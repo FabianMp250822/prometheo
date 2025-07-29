@@ -1,6 +1,8 @@
 'use server';
 
-import { db, storage } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebase-admin'; // Use the admin SDK for server-side operations
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { clientDb, clientStorage } from '@/lib/firebase'; // Keep client SDK for specific needs if any, or remove
 import { 
     collection, 
     getDocs, 
@@ -12,7 +14,6 @@ import {
     query,
     writeBatch
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { Anotacion } from '@/lib/data';
 
 const PROCESOS_COLLECTION = 'procesos';
@@ -20,7 +21,7 @@ const PROCESOS_COLLECTION = 'procesos';
 // --- Anotaciones Management ---
 
 export async function getAnotaciones(procesoId: string): Promise<Anotacion[]> {
-    const q = query(collection(db, PROCESOS_COLLECTION, procesoId, 'anotaciones'));
+    const q = query(collection(adminDb, PROCESOS_COLLECTION, procesoId, 'anotaciones'));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Anotacion));
 }
@@ -30,7 +31,9 @@ export async function saveAnotacion(procesoId: string, anotacion: Partial<Anotac
     let fileName = anotacion.nombre_documento || '';
 
     if (file) {
-        const storageRef = ref(storage, `anotaciones/${procesoId}/${Date.now()}_${file.name}`);
+        // For file uploads from server actions, you might still use the client storage SDK instance
+        // if the action is triggered from a client component that provides the file.
+        const storageRef = ref(clientStorage, `anotaciones/${procesoId}/${Date.now()}_${file.name}`);
         const uploadResult = await uploadBytes(storageRef, file);
         fileUrl = await getDownloadURL(uploadResult.ref);
         fileName = file.name;
@@ -43,7 +46,7 @@ export async function saveAnotacion(procesoId: string, anotacion: Partial<Anotac
         nombre_documento: fileName,
     };
 
-    const anotacionesCollectionRef = collection(db, PROCESOS_COLLECTION, procesoId, 'anotaciones');
+    const anotacionesCollectionRef = collection(adminDb, PROCESOS_COLLECTION, procesoId, 'anotaciones');
 
     if (anotacion.id) {
         const docRef = doc(anotacionesCollectionRef, anotacion.id);
@@ -54,20 +57,20 @@ export async function saveAnotacion(procesoId: string, anotacion: Partial<Anotac
 }
 
 export async function deleteAnotacion(procesoId: string, anotacionId: string): Promise<void> {
-    const docRef = doc(db, PROCESOS_COLLECTION, procesoId, 'anotaciones', anotacionId);
+    const docRef = doc(adminDb, PROCESOS_COLLECTION, procesoId, 'anotaciones', anotacionId);
     await deleteDoc(docRef);
 }
 
 // --- Anexos Management ---
 
 export async function getAnexos(procesoId: string) {
-    const anexosCollectionRef = collection(db, PROCESOS_COLLECTION, procesoId, 'anexos');
+    const anexosCollectionRef = collection(adminDb, PROCESOS_COLLECTION, procesoId, 'anexos');
     const querySnapshot = await getDocs(anexosCollectionRef);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
 
 export async function addAnexo(procesoId: string, description: string, file: File): Promise<void> {
-    const storageRef = ref(storage, `anexos/${procesoId}/${Date.now()}_${file.name}`);
+    const storageRef = ref(clientStorage, `anexos/${procesoId}/${Date.now()}_${file.name}`);
     const uploadResult = await uploadBytes(storageRef, file);
     const downloadURL = await getDownloadURL(uploadResult.ref);
 
@@ -80,37 +83,37 @@ export async function addAnexo(procesoId: string, description: string, file: Fil
         fecha_subida: new Date().toISOString(),
     };
 
-    const anexosCollectionRef = collection(db, PROCESOS_COLLECTION, procesoId, 'anexos');
+    const anexosCollectionRef = collection(adminDb, PROCESOS_COLLECTION, procesoId, 'anexos');
     await addDoc(anexosCollectionRef, anexoData);
 }
 
 export async function deleteAnexo(procesoId: string, anexoId: string): Promise<void> {
     // Note: This only deletes the Firestore record, not the file in Storage.
     // Implementing file deletion would require a Firebase Function.
-    const anexoDocRef = doc(db, PROCESOS_COLLECTION, procesoId, 'anexos', anexoId);
+    const anexoDocRef = doc(adminDb, PROCESOS_COLLECTION, procesoId, 'anexos', anexoId);
     await deleteDoc(anexoDocRef);
 }
 
 // --- Demandantes Management ---
 
 export async function getDemandantes(procesoId: string) {
-    const collectionRef = collection(db, PROCESOS_COLLECTION, procesoId, 'demandantes');
+    const collectionRef = collection(adminDb, PROCESOS_COLLECTION, procesoId, 'demandantes');
     const snapshot = await getDocs(collectionRef);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
 
 export async function updateDemandante(procesoId: string, demandanteId: string, data: any): Promise<void> {
-    const docRef = doc(db, PROCESOS_COLLECTION, procesoId, 'demandantes', demandanteId);
+    const docRef = doc(adminDb, PROCESOS_COLLECTION, procesoId, 'demandantes', demandanteId);
     await updateDoc(docRef, data);
 }
 
 export async function addDemandante(procesoId: string, data: any): Promise<void> {
-    const collectionRef = collection(db, PROCESOS_COLLECTION, procesoId, 'demandantes');
+    const collectionRef = collection(adminDb, PROCESOS_COLLECTION, procesoId, 'demandantes');
     await addDoc(collectionRef, { num_registro: procesoId, ...data });
 }
 
 export async function deleteDemandante(procesoId: string, demandanteId: string): Promise<void> {
-    const docRef = doc(db, PROCESOS_COLLECTION, procesoId, 'demandantes', demandanteId);
+    const docRef = doc(adminDb, PROCESOS_COLLECTION, procesoId, 'demandantes', demandanteId);
     await deleteDoc(docRef);
 }
 
@@ -183,12 +186,12 @@ export async function saveSyncedDataToFirebase(data: any, progressCallback: (pro
     const totalBatches = Math.ceil(procesos.length / BATCH_SIZE);
 
     for (let i = 0; i < procesos.length; i += BATCH_SIZE) {
-        const batch = writeBatch(db);
+        const batch = writeBatch(adminDb);
         const chunk = procesos.slice(i, i + BATCH_SIZE);
 
         for (const proceso of chunk) {
             if (!proceso.num_registro) continue; // Skip if no ID
-            const procesoDocRef = doc(db, PROCESOS_COLLECTION, proceso.num_registro);
+            const procesoDocRef = doc(adminDb, PROCESOS_COLLECTION, proceso.num_registro);
             batch.set(procesoDocRef, Object.fromEntries(Object.entries(proceso).filter(([_, v]) => v != null)));
 
             // Add subcollections
