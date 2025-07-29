@@ -650,19 +650,36 @@ async function fetchExternalData(url: string): Promise<any> {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
       },
     });
+
     if (!response.ok) {
+        if (response.status === 403) {
+             throw new Error("Error de red: 403 Forbidden. El servidor externo está bloqueando la solicitud. Esto puede deberse a medidas de seguridad. Intente contactar al administrador del servidor externo.");
+        }
       throw new Error(`Error de red: ${response.status} ${response.statusText}`);
     }
+    
     const textResponse = await response.text();
+    // Find the start and end of the JSON array
     const jsonStart = textResponse.indexOf("[");
     const jsonEnd = textResponse.lastIndexOf("]");
+
     if (jsonStart === -1 || jsonEnd === -1) {
-      return []; // Return empty array if no JSON array is found
+        // Return an empty array if no JSON array is found, which can be a valid case
+        return [];
     }
+    
     const jsonString = textResponse.substring(jsonStart, jsonEnd + 1);
-    return JSON.parse(jsonString);
+    
+    try {
+        return JSON.parse(jsonString);
+    } catch (parseError: any) {
+        logger.error(`JSON parsing error for URL ${url}:`, parseError.message);
+        // Throw a specific error if JSON is malformed
+        throw new Error("La respuesta del servidor externo no es un JSON válido.");
+    }
   } catch (error: any) {
     logger.error(`Error fetching from ${url}:`, error.message);
+    // Rethrow the error to be caught by the calling function
     throw new HttpsError("internal", `Fallo la conexión con el servidor externo en ${url}. Detalles: ${error.message}`);
   }
 }
