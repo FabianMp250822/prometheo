@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle, Scale, Shield, Landmark, Briefcase, HeartHandshake, Building, Users, MessageCircle, Mail, Phone, MapPin, Facebook, Twitter, Instagram, FileText, Handshake, Gavel } from 'lucide-react';
+import { CheckCircle, Scale, Shield, Landmark, Briefcase, HeartHandshake, Building, Users, MessageCircle, Mail, Phone, MapPin, Facebook, Twitter, Instagram, FileText, Handshake, Gavel, ArrowLeft, ArrowRight } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 
 
 const NavLink = ({ href, children }: { href: string; children: React.ReactNode }) => (
@@ -18,6 +19,14 @@ const NavLink = ({ href, children }: { href: string; children: React.ReactNode }
 );
 
 export default function LandingPage() {
+
+   const teamMembers = [
+    { name: 'Dr. Robinson Rada Gonzalez', role: 'Abogado Titular' },
+    { name: 'Marcela Sanches Rodriguez', role: 'Abogada' },
+    { name: 'Fernando Alonso Hernadez', role: 'Abogado' },
+    { name: 'Luis Carlos Arzuza', role: 'Analista de Pensiones' },
+  ];
+
   return (
     <div className="bg-[#FCFBF8] text-gray-800 font-body">
       {/* Header */}
@@ -192,19 +201,39 @@ export default function LandingPage() {
             <p className="text-[#D4AF37] font-semibold uppercase text-sm">Nuestro Equipo</p>
             <h2 className="text-3xl md:text-4xl font-headline mt-2 mb-6">Abogados Dedicados. Resultados Comprobados</h2>
             <p className="text-gray-300 mb-8">Conoce a los profesionales que lucharán por tus derechos.</p>
-            <Button variant="outline" className="bg-transparent border-white text-white hover:bg-white hover:text-[#1B4D3E]">
-              Conócenos
+            <Button asChild variant="outline" className="bg-transparent border-[#D4AF37] text-[#D4AF37] hover:bg-[#D4AF37] hover:text-[#1B4D3E]">
+              <Link href="#contacto">Contáctanos &rarr;</Link>
             </Button>
           </div>
-          <div className="flex justify-center md:justify-end space-x-6">
-            <div className="text-center">
-              <Image src="https://placehold.co/280x320.png" alt="Abogado 1" width={280} height={320} className="rounded-lg shadow-lg mb-2" data-ai-hint="lawyer portrait" />
-              <p className="font-semibold">Dr. Robinson Rada Gonzalez</p>
-            </div>
-            <div className="text-center hidden sm:block">
-              <Image src="https://placehold.co/280x320.png" alt="Abogado 2" width={280} height={320} className="rounded-lg shadow-lg mb-2" data-ai-hint="lawyer portrait" />
-              <p className="font-semibold">Fabian Muñoz Puello</p>
-            </div>
+          <div className="w-full">
+            <Carousel opts={{ align: "start", loop: true }} className="w-full max-w-sm md:max-w-md lg:max-w-lg mx-auto">
+              <CarouselContent>
+                {teamMembers.map((member, index) => (
+                  <CarouselItem key={index} className="md:basis-1/2">
+                    <div className="p-1">
+                      <Card className="bg-transparent border-0 shadow-none">
+                        <CardContent className="flex flex-col items-center justify-center p-0 text-center">
+                          <Image
+                            src={`https://placehold.co/280x320.png`}
+                            alt={`Foto de ${member.name}`}
+                            width={280}
+                            height={320}
+                            className="rounded-lg object-cover"
+                            data-ai-hint="lawyer portrait"
+                          />
+                          <div className="mt-[-60px] relative z-10 bg-[#1B4D3E]/80 backdrop-blur-sm p-4 rounded-lg w-10/12">
+                            <p className="font-semibold text-sm">{member.name}</p>
+                            <p className="text-xs text-gray-300">{member.role}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+              <CarouselPrevious className="text-white bg-white/20 hover:bg-white/30 border-none -left-4" />
+              <CarouselNext className="text-white bg-white/20 hover:bg-white/30 border-none -right-4" />
+            </Carousel>
           </div>
         </div>
       </section>
