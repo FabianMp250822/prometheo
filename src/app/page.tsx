@@ -69,19 +69,45 @@ export default function LandingPage() {
       {/* Trust Section */}
       <section id="nosotros" className="py-16 md:py-24">
         <div className="container mx-auto grid md:grid-cols-2 gap-12 items-center px-4">
-          <div className="grid grid-cols-2 gap-4">
-            <Image src="https://placehold.co/300x450.png" alt="Ancianos felices" width={300} height={450} className="rounded-lg shadow-lg object-cover w-full h-full col-span-2" data-ai-hint="happy elderly couple" />
-            <Image src="https://placehold.co/300x220.png" alt="Apretón de manos" width={300} height={220} className="rounded-lg shadow-lg object-cover w-full h-full" data-ai-hint="handshake business" />
-            <Image src="https://placehold.co/300x220.png" alt="Reunión de abogados" width={300} height={220} className="rounded-lg shadow-lg object-cover w-full h-full" data-ai-hint="lawyers meeting" />
+          <div className="grid grid-cols-2 grid-rows-2 gap-4 h-[500px]">
+            <div className="row-span-2">
+                <Image src="https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2Ffoto3.webp?alt=media&token=e3d57600-a893-4113-8b6a-180a4c420889" alt="Ancianos felices" width={300} height={500} className="rounded-lg shadow-lg object-cover w-full h-full" data-ai-hint="happy elderly couple" />
+            </div>
+            <div className="row-span-1">
+                <Image src="https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2Ffoto1.webp?alt=media&token=128d6b70-4a09-4449-906f-f7ab0c0ce747" alt="Apretón de manos" width={300} height={242} className="rounded-lg shadow-lg object-cover w-full h-full" data-ai-hint="handshake business" />
+            </div>
+            <div className="row-span-1">
+                 <Image src="https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2Ffoto2.webp?alt=media&token=8c0f7c3c-d7b0-42b6-9612-7ad186ebc5bf" alt="Reunión de abogados" width={300} height={242} className="rounded-lg shadow-lg object-cover w-full h-full" data-ai-hint="lawyers meeting" />
+            </div>
           </div>
           <div>
-            <p className="text-[#1B4D3E] font-semibold uppercase text-sm">Nuestra Firma</p>
+            <p className="text-[#B8860B] font-semibold uppercase text-sm">NUESTRA FIRMA</p>
             <h2 className="text-3xl md:text-4xl font-headline mt-2 mb-6 text-[#1B4D3E]">¿Por Qué Confiar en Dajusticia?</h2>
-            <ul className="space-y-4 text-gray-600">
-              <li className="flex items-start"><CheckCircle className="h-5 w-5 text-[#D4AF37] mr-3 mt-1 shrink-0" /><span>Más de 20 años de experiencia en casos pensionales.</span></li>
-              <li className="flex items-start"><CheckCircle className="h-5 w-5 text-[#D4AF37] mr-3 mt-1 shrink-0" /><span>Acompañamiento personalizado para cada uno de nuestros clientes.</span></li>
-              <li className="flex items-start"><CheckCircle className="h-5 w-5 text-[#D4AF37] mr-3 mt-1 shrink-0" /><span>Somos líderes en demandas a Colpensiones y fondos privados.</span></li>
-              <li className="flex items-start"><CheckCircle className="h-5 w-5 text-[#D4AF37] mr-3 mt-1 shrink-0" /><span>Contamos con un alto porcentaje de casos de éxito para nuestros clientes.</span></li>
+            <ul className="space-y-4 text-gray-700">
+                <li className="flex items-start">
+                    <CheckCircle className="h-5 w-5 text-[#BFA16A] mr-3 mt-1 shrink-0" />
+                    <span>Más de 20 años de experiencia en derecho pensional.</span>
+                </li>
+                <li className="flex items-start">
+                    <CheckCircle className="h-5 w-5 text-[#BFA16A] mr-3 mt-1 shrink-0" />
+                    <span>Atención personalizada y comunicación constante sobre tu caso.</span>
+                </li>
+                <li className="flex items-start">
+                    <CheckCircle className="h-5 w-5 text-[#BFA16A] mr-3 mt-1 shrink-0" />
+                    <span>Especialistas en procesos contra Colpensiones y fondos privados.</span>
+                </li>
+                <li className="flex items-start">
+                    <CheckCircle className="h-5 w-5 text-[#BFA16A] mr-3 mt-1 shrink-0" />
+                    <span>Compromiso total con la defensa de tus derechos pensionales.</span>
+                </li>
+                <li className="flex items-start">
+                    <CheckCircle className="h-5 w-5 text-[#BFA16A] mr-3 mt-1 shrink-0" />
+                    <span>Altas tasas de éxito en casos de reajuste pensional.</span>
+                </li>
+                 <li className="flex items-start">
+                    <CheckCircle className="h-5 w-5 text-[#BFA16A] mr-3 mt-1 shrink-0" />
+                    <span>Confidencialidad y ética profesional garantizadas.</span>
+                </li>
             </ul>
           </div>
         </div>
