@@ -5,13 +5,15 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight, Briefcase, FileDown, TrendingDown, BellRing } from 'lucide-react';
+import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight, Briefcase, FileDown, TrendingDown, BellRing, Info, Handshake } from 'lucide-react';
 import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parsePaymentDetailName, formatFirebaseTimestamp, parsePeriodoPago, parseDepartmentName } from '@/lib/helpers';
 import type { Payment, Parris1, LegalProcess, Causante, PagosHistoricoRecord, PensionerProfileData, DajusticiaClient, DajusticiaPayment, ProviredNotification } from '@/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { collection, doc, getDoc, getDocs, query, where, limit, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { useAuth } from '@/context/auth-provider';
 
 function InfoField({ icon, label, value }: { icon: React.ReactNode, label: string, value: React.ReactNode }) {
     return (
@@ -41,9 +43,11 @@ interface SentencePayment {
 
 
 export default function PensionadoPage() {
+    const { user } = useAuth();
     const { selectedPensioner } = usePensioner();
     const [profileData, setProfileData] = useState<PensionerProfileData | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isDajusticiaClient, setIsDajusticiaClient] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     const fetchAllData = useCallback(async (pensionerId: string, document: string, name: string) => {
@@ -51,6 +55,16 @@ export default function PensionadoPage() {
         setError(null);
         setProfileData(null);
         try {
+            // Check if user is a DAJUSTICIA client
+            const clientQuery = query(collection(db, "nuevosclientes"), where("cedula", "==", document), limit(1));
+            const clientSnapshot = await getDocs(clientQuery);
+            const isClient = !clientSnapshot.empty;
+            setIsDajusticiaClient(isClient);
+            
+            if (!isClient) {
+                return; // Stop fetching if not a client
+            }
+
             // 1. Fetch Payments
             const paymentsQuery = query(collection(db, 'pensionados', pensionerId, 'pagos'));
             const paymentsSnapshot = await getDocs(paymentsQuery);
@@ -92,23 +106,14 @@ export default function PensionadoPage() {
             const causanteSnapshot = await getDocs(causanteQuery);
             const causanteData = !causanteSnapshot.empty ? { id: causanteSnapshot.docs[0].id, ...causanteSnapshot.docs[0].data() } as Causante : null;
             
-            // 6. Fetch DAJUSTICIA Client Data
-            const clientQuery = query(collection(db, "nuevosclientes"), where("cedula", "==", document), limit(1));
-            const clientSnapshot = await getDocs(clientQuery);
-            let dajusticiaClientData: DajusticiaClient | null = null;
-            let dajusticiaPayments: DajusticiaPayment[] = [];
-
-            if (!clientSnapshot.empty) {
-                const clientDoc = clientSnapshot.docs[0];
-                dajusticiaClientData = { id: clientDoc.id, ...clientDoc.data() } as DajusticiaClient;
-                
-                // 7. Fetch DAJUSTICIA Payments Subcollection
-                const clientPaymentsQuery = query(collection(db, "nuevosclientes", clientDoc.id, "pagos"));
-                const clientPaymentsSnapshot = await getDocs(clientPaymentsQuery);
-                dajusticiaPayments = clientPaymentsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as DajusticiaPayment));
-            }
+            // 6. Fetch DAJUSTICIA Client Data and Payments
+            const clientDoc = clientSnapshot.docs[0];
+            const dajusticiaClientData = { id: clientDoc.id, ...clientDoc.data() } as DajusticiaClient;
+            const clientPaymentsQuery = query(collection(db, "nuevosclientes", clientDoc.id, "pagos"));
+            const clientPaymentsSnapshot = await getDocs(clientPaymentsQuery);
+            const dajusticiaPayments = clientPaymentsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as DajusticiaPayment));
             
-             // 8. Fetch Last Notification from Provired
+             // 7. Fetch Last Notification from Provired
             const nameToSearch = parseEmployeeName(name).toUpperCase();
             const notificationsQuery = query(
                 collection(db, 'provired_notifications'),
@@ -142,13 +147,29 @@ export default function PensionadoPage() {
     }, []);
 
     useEffect(() => {
+        // Determine the pensioner to fetch data for.
+        // If a specific one is selected (by admin), use that.
+        // Otherwise, if a user is logged in, use their own info.
+        let targetPensioner: {id: string, documento: string, empleado: string} | null = null;
         if (selectedPensioner?.id) {
-            fetchAllData(selectedPensioner.id, selectedPensioner.documento, selectedPensioner.empleado);
+            targetPensioner = {
+                id: selectedPensioner.id,
+                documento: selectedPensioner.documento,
+                empleado: selectedPensioner.empleado
+            };
+        } else if (user?.email) {
+            // Here we would typically get the document/cedula from the user's profile
+            // For now, let's assume we need to fetch it. This part might need refinement
+            // based on how user profiles are stored in 'users' collection.
+            // This is a placeholder for fetching user's own data.
+        }
+        
+        if (targetPensioner) {
+            fetchAllData(targetPensioner.id, targetPensioner.documento, targetPensioner.empleado);
         } else {
-            setProfileData(null);
             setIsLoading(false);
         }
-    }, [selectedPensioner, fetchAllData]);
+    }, [selectedPensioner, user, fetchAllData]);
 
     const sentencePayments = React.useMemo((): SentencePayment[] => {
         if (!profileData?.payments.length) return [];
@@ -202,8 +223,27 @@ export default function PensionadoPage() {
                 <Loader2 className="h-16 w-16 text-primary animate-spin mb-4" />
                 <h2 className="text-2xl font-bold">Cargando Hoja de Vida...</h2>
                 <p className="text-muted-foreground max-w-md">
-                    Estamos consolidando toda la información del pensionado seleccionado.
+                    Estamos consolidando toda la información. Esto puede tardar un momento.
                 </p>
+            </div>
+        );
+    }
+    
+    if (!isDajusticiaClient) {
+        return (
+            <div className="p-8">
+                 <Alert>
+                    <Handshake className="h-4 w-4" />
+                    <AlertTitle className="font-bold">¡Bienvenido a DAJUSTICIA!</AlertTitle>
+                    <AlertDescription>
+                        Aún no eres un cliente formal. Para ver el estado de tus procesos y acceder a tu hoja de vida completa, necesitamos que formalices tu caso con nosotros.
+                        <div className="mt-4">
+                            <Button asChild>
+                                <Link href="/registro">Inscribirme ahora</Link>
+                            </Button>
+                        </div>
+                    </AlertDescription>
+                </Alert>
             </div>
         );
     }
@@ -287,6 +327,8 @@ export default function PensionadoPage() {
                             </CardContent>
                         </Card>
                     )}
+                    
+                     <InfoField icon={<Handshake className="text-primary" />} label="Abogado Asignado" value="Dr. Robinson Rada Gonzalez" />
 
                     <Card>
                         <CardHeader>

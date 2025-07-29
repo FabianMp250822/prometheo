@@ -45,7 +45,7 @@ export default function LandingPage() {
                 <Link href="/login">Acceder</Link>
             </Button>
             <Button asChild className="bg-[#2E4B48] text-white hover:bg-[#2E4B48]/90">
-              <a href="#contacto">Consulta tu caso</a>
+              <Link href="/registro">Consulta tu caso</Link>
             </Button>
           </div>
         </div>
@@ -60,8 +60,8 @@ export default function LandingPage() {
           <p className="max-w-2xl mx-auto text-gray-300 mb-8">
             Aseguramos el futuro que mereces. Analizamos tu caso pensional y laboral para garantizar que recibas lo justo. Consulta tu caso gratis.
           </p>
-          <Button size="lg" className="bg-[#D4AF37] text-black hover:bg-[#B8860B]">
-            Mira tu caso ahora
+          <Button asChild size="lg" className="bg-[#D4AF37] text-black hover:bg-[#B8860B]">
+            <Link href="/registro">Mira tu caso ahora</Link>
           </Button>
         </div>
       </section>
