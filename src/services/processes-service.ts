@@ -118,69 +118,8 @@ export async function deleteDemandante(procesoId: string, demandanteId: string):
     await deleteDoc(docRef);
 }
 
-
-// --- External Data Sync ---
-
-async function fetchExternalData(url: string): Promise<any[]> {
-    try {
-        const response = await fetch(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            },
-            cache: 'no-store',
-        });
-        if (!response.ok) {
-            throw new Error(`Error de red: ${response.status} ${response.statusText}`);
-        }
-        const textResponse = await response.text();
-        const jsonStart = textResponse.indexOf('[');
-        const jsonEnd = textResponse.lastIndexOf(']');
-        if (jsonStart === -1 || jsonEnd === -1) {
-            throw new Error("La respuesta de la API no contiene un JSON válido.");
-        };
-        
-        const jsonString = textResponse.substring(jsonStart, jsonEnd + 1);
-        return JSON.parse(jsonString);
-    } catch (error: any) {
-        console.error(`Error al obtener o procesar desde ${url}:`, error.message);
-        // Re-throw the error with a more specific message to be caught by the caller.
-        throw new Error(`Fallo la conexión con el servidor externo en ${url}. Detalles: ${error.message}`);
-    }
-}
-
-export async function getAndSyncExternalData(): Promise<{ success: boolean; data?: any; error?: string }> {
-    try {
-        const procesos = await fetchExternalData('https://appdajusticia.com/procesos.php?all=true');
-        
-        // This check is now more specific. The function will throw if connection fails.
-        // This block now specifically handles the case of a successful connection but an empty list.
-        if (!Array.isArray(procesos) || procesos.length === 0) {
-            return { success: false, error: 'La API externa no devolvió procesos. La lista puede estar vacía o el servicio no está disponible.' };
-        }
-        
-        const uniqueIds = [...new Set(procesos.map(p => p.num_registro))];
-        
-        const demandantesPromises = uniqueIds.map(id => fetchExternalData(`https://appdajusticia.com/procesos.php?num_registro=${id}`).then(data => ({ key: id, data })));
-        const anotacionesPromises = uniqueIds.map(id => fetchExternalData(`https://appdajusticia.com/anotaciones.php?num_registro=${id}`).then(data => ({ key: id, data })));
-        const anexosPromises = uniqueIds.map(id => fetchExternalData(`https://appdajusticia.com/crud_anexos.php?num_registro=${id}`).then(data => ({ key: id, data })));
-        
-        const [demandantesResults, anotacionesResults, anexosResults] = await Promise.all([
-            Promise.all(demandantesPromises),
-            Promise.all(anotacionesPromises),
-            Promise.all(anexosPromises)
-        ]);
-
-        const demandantes = Object.fromEntries(demandantesResults.map(item => [item.key, item.data]));
-        const anotaciones = Object.fromEntries(anotacionesResults.map(item => [item.key, item.data]));
-        const anexos = Object.fromEntries(anexosResults.map(item => [item.key, item.data]));
-
-        return { success: true, data: { procesos, demandantes, anotaciones, anexos } };
-
-    } catch (err: any) {
-        return { success: false, error: err.message };
-    }
-}
-
+// --- Sync to Firebase Logic ---
+// This function remains a Server Action because it's called from a Cloud Function, not the client.
 export async function saveSyncedDataToFirebase(data: any, progressCallback: (progress: { current: number, total: number }) => void): Promise<void> {
     const { procesos, demandantes, anotaciones, anexos } = data;
     const BATCH_SIZE = 400; // Firestore batch writes are limited to 500 operations.
@@ -216,7 +155,10 @@ export async function saveSyncedDataToFirebase(data: any, progressCallback: (pro
             }
         }
         await batch.commit();
-        progressCallback({ current: Math.floor(i / BATCH_SIZE) + 1, total: totalBatches });
+        // Progress callback can't be called from the client, this would need a different mechanism
+        // like writing progress to Firestore and listening for changes on the client.
+        // For now, we remove the callback to fix the immediate error.
+        // progressCallback({ current: Math.floor(i / BATCH_SIZE) + 1, total: totalBatches });
         await new Promise(resolve => setTimeout(resolve, 50)); // Avoid overwhelming Firestore
     }
 }

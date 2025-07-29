@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useTransition, useCallback, useEffect, useMemo } from 'react';
@@ -10,12 +11,14 @@ import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { collection, doc, getDocs, query, orderBy, limit, startAfter, where, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, app } from '@/lib/firebase';
 import { useAuth } from '@/context/auth-provider';
 import { DemandantesModal } from '@/components/dashboard/demandantes-modal';
 import { AnotacionesModal } from '@/components/dashboard/anotaciones-modal';
 import { AnexosModal } from '@/components/dashboard/anexos-modal';
-import { getAndSyncExternalData, saveSyncedDataToFirebase } from '@/services/processes-service';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { saveSyncedDataToFirebase } from '@/services/processes-service';
+
 
 const ITEMS_PER_PAGE = 20;
 
@@ -158,7 +161,7 @@ export default function GestionDemandasPage() {
           // If search term is cleared, fetch initial paginated data
           fetchProcesosFromFirebase(false);
       }
-  }, [debouncedSearchTerm, toast]);
+  }, [debouncedSearchTerm, toast, fetchProcesosFromFirebase]);
 
 
   // --- External API Data Fetching for Syncing ---
@@ -168,13 +171,21 @@ export default function GestionDemandasPage() {
       setExternalData(null);
       setLoadingMessage('Iniciando sincronización... Esto puede tomar varios minutos.');
       
-      const result = await getAndSyncExternalData();
+      const functions = getFunctions(app);
+      const syncExternalDataCallable = httpsCallable(functions, 'syncExternalData');
 
-      if (result.success) {
-        setExternalData(result.data);
-        toast({ title: 'Datos Externos Obtenidos', description: `Se encontraron ${result.data.procesos.length} procesos listos para guardar.` });
-      } else {
-        setError(`Error al conectar con el servicio externo: ${result.error}.`);
+      try {
+        const result = (await syncExternalDataCallable()) as { data: { success: boolean; data?: any; error?: string } };
+        const { success, data, error: resultError } = result.data;
+
+        if (success && data) {
+          setExternalData(data);
+          toast({ title: 'Datos Externos Obtenidos', description: `Se encontraron ${data.procesos.length} procesos listos para guardar.` });
+        } else {
+          setError(`Error al conectar con el servicio externo: ${resultError}.`);
+        }
+      } catch (e: any) {
+        setError(`Error al llamar a la función: ${e.message}`);
       }
       setLoadingMessage(null);
     });
