@@ -13,7 +13,7 @@ import { Loader2, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '@/lib/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -25,6 +25,7 @@ export default function RegistroPage() {
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(false);
     const [formData, setFormData] = useState({
+        // Section I
         nombre: '',
         apellidos: '',
         cedula: '',
@@ -36,7 +37,7 @@ export default function RegistroPage() {
         telefonoFijo: '',
         celular: '',
         correo: '',
-        password: '', // Add password field to state
+        password: '',
         pensionado: 'No',
         tipoPension: '',
         ultimoCargo: '',
@@ -46,6 +47,18 @@ export default function RegistroPage() {
         compartido: 'No',
         motivo: '',
         autoriza: false,
+        // Section II
+        conyugeNombre: '',
+        conyugeCedula: '',
+        conyugeFechaNacimiento: '',
+        conyugeLugar: '',
+        conyugeEdad: '',
+        conyugeDireccion: '',
+        conyugeMunicipio: '',
+        conyugeTelefonoFijo: '',
+        conyugeCelular: '',
+        conyugeCorreo: '',
+        conyugeSustituta: 'No',
     });
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -58,7 +71,7 @@ export default function RegistroPage() {
         }
     };
     
-    const handleRadioChange = (name: string, value: string) => {
+    const handleRadioChange = (name: keyof typeof formData, value: string) => {
         setFormData(prev => ({ ...prev, [name]: value }));
     }
 
@@ -79,7 +92,7 @@ export default function RegistroPage() {
             });
 
             // 2. Save form data to 'prospectos' collection
-            const prospectoData = { ...formData };
+            const prospectoData = { ...formData, fechaRegistro: serverTimestamp() };
             delete prospectoData.password; // Do not save password in Firestore
             await addDoc(collection(db, 'prospectos'), prospectoData);
 
@@ -132,16 +145,31 @@ export default function RegistroPage() {
                                   <div><Label htmlFor="mesadaEmpresa">Mesada Actual empresa</Label><Input id="mesadaEmpresa" name="mesadaEmpresa" value={formData.mesadaEmpresa} onChange={handleChange} /></div>
                                   <div><Label htmlFor="mesadaColpensiones">Mesada Actual Colpensiones</Label><Input id="mesadaColpensiones" name="mesadaColpensiones" value={formData.mesadaColpensiones} onChange={handleChange} /></div>
                                 </div>
-                                <div><Label htmlFor="empresaPension">Empresa de la cual se pensionó</Label><Input id="empresaPension" name="empresaPension" placeholder="Ejemplo: Electricaribe" value={formData.empresaPension} onChange={handleChange} /></div>
+                                <div><Label htmlFor="empresaPension">Empresa de la cual se pensionó</Label><Input id="empresaPension" placeholder="Ejemplo: Electricaribe" value={formData.empresaPension} onChange={handleChange} /></div>
                                 <div className="flex flex-col gap-2"><Label>¿Está Compartido?</Label><RadioGroup name="compartido" value={formData.compartido} onValueChange={(v) => handleRadioChange('compartido', v)} className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Si" id="c-si" /><Label htmlFor="c-si">Si</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="c-no" /><Label htmlFor="c-no">No</Label></div></RadioGroup></div>
                                 <div className="md:col-span-3"><Label htmlFor="motivo">¿Qué lo motiva o interesa acudir a nuestros servicios?</Label><Textarea id="motivo" name="motivo" value={formData.motivo} onChange={handleChange} /></div>
                             </div>
                         </section>
                         
-                        {/* Placeholder for other sections */}
-                        <section><h3 className="text-xl font-semibold mb-4 border-b pb-2 text-muted-foreground">II. Datos del Cónyuge (Opcional)</h3></section>
-                        <section><h3 className="text-xl font-semibold mb-4 border-b pb-2 text-muted-foreground">III. Persona Autorizada para Recibir Información</h3></section>
-                        <section><h3 className="text-xl font-semibold mb-4 border-b pb-2 text-muted-foreground">IV. Núcleo Familiar</h3></section>
+                        <section>
+                            <h3 className="text-xl font-semibold mb-4 border-b pb-2">II. Datos del Cónyuge (Opcional)</h3>
+                             <div className="grid md:grid-cols-3 gap-4">
+                                <div><Label htmlFor="conyugeNombre">Nombre Completo</Label><Input id="conyugeNombre" name="conyugeNombre" value={formData.conyugeNombre} onChange={handleChange} /></div>
+                                <div><Label htmlFor="conyugeCedula">Cédula Nº</Label><Input id="conyugeCedula" name="conyugeCedula" value={formData.conyugeCedula} onChange={handleChange} /></div>
+                                <div><Label htmlFor="conyugeFechaNacimiento">Fecha Nacimiento</Label><Input id="conyugeFechaNacimiento" name="conyugeFechaNacimiento" type="date" value={formData.conyugeFechaNacimiento} onChange={handleChange} /></div>
+                                <div><Label htmlFor="conyugeLugar">Lugar</Label><Input id="conyugeLugar" name="conyugeLugar" value={formData.conyugeLugar} onChange={handleChange} /></div>
+                                <div><Label htmlFor="conyugeEdad">Edad Actual Cumplida</Label><Input id="conyugeEdad" name="conyugeEdad" type="number" value={formData.conyugeEdad} onChange={handleChange} /></div>
+                                <div><Label htmlFor="conyugeDireccion">Dirección Residencia</Label><Input id="conyugeDireccion" name="conyugeDireccion" value={formData.conyugeDireccion} onChange={handleChange} /></div>
+                                <div><Label htmlFor="conyugeMunicipio">Municipio</Label><Input id="conyugeMunicipio" name="conyugeMunicipio" value={formData.conyugeMunicipio} onChange={handleChange} /></div>
+                                <div><Label htmlFor="conyugeTelefonoFijo">Teléfono Fijo</Label><Input id="conyugeTelefonoFijo" name="conyugeTelefonoFijo" value={formData.conyugeTelefonoFijo} onChange={handleChange} /></div>
+                                <div><Label htmlFor="conyugeCelular">Celular(es)</Label><Input id="conyugeCelular" name="conyugeCelular" value={formData.conyugeCelular} onChange={handleChange} /></div>
+                                <div className="md:col-span-2"><Label htmlFor="conyugeCorreo">Correo Electrónico</Label><Input id="conyugeCorreo" name="conyugeCorreo" type="email" value={formData.conyugeCorreo} onChange={handleChange} /></div>
+                                <div className="flex flex-col gap-2"><Label>Sustituta</Label><RadioGroup name="conyugeSustituta" value={formData.conyugeSustituta} onValueChange={(v) => handleRadioChange('conyugeSustituta', v)} className="flex gap-4"><div className="flex items-center space-x-2"><RadioGroupItem value="Si" id="s-si" /><Label htmlFor="s-si">Si</Label></div><div className="flex items-center space-x-2"><RadioGroupItem value="No" id="s-no" /><Label htmlFor="s-no">No</Label></div></RadioGroup></div>
+                            </div>
+                        </section>
+                        
+                        <section><h3 className="text-xl font-semibold mb-4 border-b pb-2 text-muted-foreground">III. Persona Autorizada para Recibir Información (Opcional)</h3></section>
+                        <section><h3 className="text-xl font-semibold mb-4 border-b pb-2 text-muted-foreground">IV. Núcleo Familiar (Opcional)</h3></section>
 
                         <div className="flex items-start space-x-2">
                             <Checkbox id="autoriza" name="autoriza" checked={formData.autoriza} onCheckedChange={(checked) => setFormData(prev => ({...prev, autoriza: !!checked}))} />
