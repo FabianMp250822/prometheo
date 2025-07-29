@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { CheckCircle, Scale, Shield, Landmark, Briefcase, HeartHandshake, Building, Users, MessageCircle, Mail, Phone, MapPin, Facebook, Twitter, Instagram, FileText, Handshake, Gavel, ArrowLeft, ArrowRight } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 
 
