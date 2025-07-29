@@ -6,9 +6,21 @@ import { PensionerProvider } from '@/context/pensioner-provider';
 import { RecaptchaProvider } from '@/context/recaptcha-provider';
 
 export const metadata: Metadata = {
-  title: 'Prometeo - Asesoría Experta para Mejorar tu Pensión',
-  description: 'Expertos en derecho pensional y laboral. Te ayudamos a aumentar y mejorar tu pensión. Consulta tus derechos como pensionado y obtén la asesoría que mereces.',
-  keywords: ['aumentar pensión', 'mejorar mi pensión', 'derechos del pensionado', 'consultoría para pensionados', 'reajuste pensional', 'abogados de pensiones'],
+  title: 'DAJUSTICIA | Abogados Expertos en Pensiones - Aumenta tu Pensión',
+  description: 'Abogados especialistas en derecho pensional y laboral en Colombia. Te ayudamos a aumentar y mejorar tu pensión, realizar la reliquidación, y reclamar semanas no cotizadas. Consulta gratis tu caso con expertos.',
+  keywords: [
+    'aumentar mi pensión', 
+    'abogados de pensiones', 
+    'mejorar mi pensión en Colombia', 
+    'tengo derecho a una mejor pensión', 
+    'asesoría legal para pensionados', 
+    'reliquidación de pensión', 
+    'revisión de historia laboral Colpensiones', 
+    'reclamar semanas no cotizadas', 
+    'pensión mínima en Colombia 2025', 
+    'derechos del pensionado en Colombia',
+    'abogados de pensiones en Colombia'
+  ],
   authors: [{ name: 'Fabian Muñoz Puello' }, { name: 'Leidy Vega Anaya' }],
 };
 
@@ -18,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="es" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
