@@ -188,7 +188,7 @@ export default function LandingPage() {
                 <Image src="https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2Ffoto3.webp?alt=media&token=e3d57600-a893-4113-8b6a-180a4c420889" alt="Ancianos felices" width={300} height={500} className="rounded-lg shadow-lg object-cover w-full h-full" data-ai-hint="happy elderly couple" />
             </div>
             <div className="row-span-1">
-                <Image src="https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2Ffoto1.webp?alt=media&token=128d6b70-4a09-4449-906f-f7ab0c0ce747" alt="Apretón de manos" width={300} height={242} className="rounded-lg shadow-lg object-cover w-full h-full" data-ai-hint="handshake business" />
+                <Image src="https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2Ffoto1.webp?alt=media&token=128d6b70-a409-4449-906f-f7ab0c0ce747" alt="Apretón de manos" width={300} height={242} className="rounded-lg shadow-lg object-cover w-full h-full" data-ai-hint="handshake business" />
             </div>
             <div className="row-span-1">
                  <Image src="https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2Ffoto2.webp?alt=media&token=8c0f7c3c-d7b0-42b6-9612-7ad186ebc5bf" alt="Reunión de abogados" width={300} height={242} className="rounded-lg shadow-lg object-cover w-full h-full" data-ai-hint="lawyers meeting" />
