@@ -10,9 +10,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { CheckCircle, Shield, Landmark, Briefcase, HeartHandshake, Building, Users, MessageCircle, Mail, Phone, MapPin, Facebook, Twitter, Instagram, FileText, Handshake, Gavel, ArrowLeft, ArrowRight, Menu, X, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
-import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, setDoc, serverTimestamp, addDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { getBlogArticles } from '@/services/blog-service';
@@ -30,6 +30,10 @@ export default function LandingPage() {
    const [isSubscribing, setIsSubscribing] = useState(false);
    const [articles, setArticles] = useState<any[]>([]);
    const [isLoadingArticles, setIsLoadingArticles] = useState(true);
+
+   // State for the contact form
+   const [contactForm, setContactForm] = useState({ name: '', email: '', message: '' });
+   const [isSendingContact, setIsSendingContact] = useState(false);
 
    const teamMembers = [
     { name: 'Dr. Robinson Rada Gonzalez', role: 'Abogado Titular' },
@@ -78,6 +82,33 @@ export default function LandingPage() {
       toast({ variant: 'destructive', title: 'Error', description: 'No se pudo completar la suscripción.' });
     } finally {
       setIsSubscribing(false);
+    }
+  };
+
+  const handleContactFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setContactForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleContactSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contactForm.name || !contactForm.email || !contactForm.message) {
+      toast({ variant: 'destructive', title: 'Campos incompletos', description: 'Por favor, rellene todos los campos del formulario.' });
+      return;
+    }
+    setIsSendingContact(true);
+    try {
+      await addDoc(collection(db, 'contactos_landing'), {
+        ...contactForm,
+        sentAt: serverTimestamp(),
+      });
+      toast({ title: 'Mensaje Enviado', description: 'Gracias por contactarnos. Le responderemos pronto.' });
+      setContactForm({ name: '', email: '', message: '' }); // Clear form
+    } catch (error) {
+        console.error("Error sending contact message:", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo enviar su mensaje. Inténtelo de nuevo.' });
+    } finally {
+        setIsSendingContact(false);
     }
   };
 
@@ -368,11 +399,39 @@ export default function LandingPage() {
             <div className="p-8 md:p-12">
               <p className="text-[#B8860B] font-semibold uppercase text-sm">INICIE SU CASO</p>
               <h2 className="text-3xl md:text-4xl font-headline mt-2 mb-6 text-[#1B4D3E]">Ingrese Sus Datos Y Te Contactaremos</h2>
-              <form className="space-y-4">
-                <Input placeholder="Nombre Completo" className="bg-white border-gray-300" />
-                <Input placeholder="Correo Electrónico" type="email" className="bg-white border-gray-300" />
-                <Textarea placeholder="Describa brevemente su caso" className="bg-white border-gray-300" rows={4} />
-                <Button size="lg" className="w-full bg-[#1B4D3E] text-white hover:bg-[#0F766E]">Enviar Mensaje</Button>
+              <form onSubmit={handleContactSubmit} className="space-y-4">
+                <Input 
+                  name="name" 
+                  placeholder="Nombre Completo" 
+                  className="bg-white border-gray-300"
+                  value={contactForm.name}
+                  onChange={handleContactFormChange}
+                  disabled={isSendingContact}
+                  required
+                />
+                <Input 
+                  name="email" 
+                  placeholder="Correo Electrónico" 
+                  type="email" 
+                  className="bg-white border-gray-300"
+                  value={contactForm.email}
+                  onChange={handleContactFormChange}
+                  disabled={isSendingContact}
+                  required
+                />
+                <Textarea 
+                  name="message" 
+                  placeholder="Describa brevemente su caso" 
+                  className="bg-white border-gray-300" 
+                  rows={4}
+                  value={contactForm.message}
+                  onChange={handleContactFormChange}
+                  disabled={isSendingContact}
+                  required
+                />
+                <Button type="submit" size="lg" className="w-full bg-[#1B4D3E] text-white hover:bg-[#0F766E]" disabled={isSendingContact}>
+                  {isSendingContact ? <Loader2 className="h-5 w-5 animate-spin" /> : "Enviar Mensaje"}
+                </Button>
               </form>
             </div>
             <div className="relative hidden md:block">
