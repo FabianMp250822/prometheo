@@ -17,7 +17,7 @@ export async function saveSyncedDataToFirebase(data: any): Promise<any> {
     }
 
     try {
-        const idToken = await user.getIdToken(true);
+        const idToken = await user.getIdToken();
 
         const response = await fetch('/api/save-data', {
             method: 'POST',
@@ -36,7 +36,7 @@ export async function saveSyncedDataToFirebase(data: any): Promise<any> {
 
         return result;
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error in saveSyncedDataToFirebase service:", error);
         // Re-throw the error to be caught by the component
         throw error;
