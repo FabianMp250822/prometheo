@@ -4,7 +4,6 @@
 import { getAuth } from 'firebase/auth';
 import { app } from '@/lib/firebase';
 
-// This function now expects the user object to be passed in.
 export async function saveSyncedDataToFirebase(data: any): Promise<any> {
     const auth = getAuth(app);
     const user = auth.currentUser;
