@@ -104,10 +104,11 @@ export const onNewPaymentCreate = onDocumentCreated(
     }
 
     logger.info(
-      `Found ${sentenceConcepts.length} concepts in pmt ${pagoId}.`,
+      `Found ${sentenceConcepts.length} concepts in pmt ${pagoId}. Creating one document.`,
     );
 
-    const newProcessDocRef = db.collection("procesoscancelados").doc();
+    // Use the pagoId as the document ID in procesoscancelados to prevent duplicates
+    const newProcessDocRef = db.collection("procesoscancelados").doc(pagoId);
 
     const fechaLiquidacionDate = paymentData.fechaProcesado?.toDate ?
       paymentData.fechaProcesado.toDate() : new Date();
@@ -122,18 +123,19 @@ export const onNewPaymentCreate = onDocumentCreated(
       })),
       creadoEn: Timestamp.now(),
       fechaLiquidacion: fechaLiquidacionDate.toISOString(),
-      pagoId: paymentData.pagoId || pagoId,
+      pagoId: pagoId,
       pensionadoId: pensionadoId,
       periodoPago: paymentData.periodoPago,
     };
 
     try {
-      await newProcessDocRef.set(newProcessData);
+      // Use set() with the specific doc ID to either create or overwrite.
+      await newProcessDocRef.set(newProcessData, {merge: true});
       logger.info(
-        `Created proc doc ${newProcessDocRef.id} for pmt ${pagoId}.`,
+        `Created/Updated procesoscancelados doc ${pagoId}.`,
       );
     } catch (error) {
-      logger.error(`Error creating proc doc for pmt ${pagoId}:`, error);
+      logger.error(`Error creating/updating doc for pmt ${pagoId}:`, error);
       // Let the function fail to indicate an error, which can trigger retries.
       throw error;
     }
@@ -293,9 +295,15 @@ let proviredJwtToken: string | null = null;
 let proviredTokenExpiresAt: number | null = null;
 
 /**
- * Retrieves a JWT token for the Provired API, caching it for 5 hours.
- * If the token is expired or doesn't exist, it fetches a new one.
- * @return {Promise<string>} The valid JWT token.
+ * @fileOverview This function connects directly to an external MySQL database
+ * to sync legal process data. It replaces the previous method of calling
+ * intermediary PHP scripts.
+ *
+ * It is triggered by a user action in the frontend and returns a comprehensive
+ * dataset containing processes and their related sub-collections.
+ * @param {object} request - The request object from the client. Must be authenticated.
+ * @return {Promise<{success: boolean, data?: object, error?: string}>}
+ * An object indicating success and containing the fetched data or an error message.
  */
 async function getProviredJwtToken(): Promise<string> {
   if (proviredJwtToken && proviredTokenExpiresAt && Date.now() < proviredTokenExpiresAt) {
@@ -320,11 +328,15 @@ async function getProviredJwtToken(): Promise<string> {
 }
 
 /**
- * Makes an authenticated request to a specific endpoint of the Provired API.
- * It ensures a valid JWT is used for the request.
- * @param {string} endpoint The API endpoint to call (e.g., "notification").
- * @param {string} method The method to include in the request body.
- * @return {Promise<any[]>} The data array from the API response.
+ * @fileOverview This function connects directly to an external MySQL database
+ * to sync legal process data. It replaces the previous method of calling
+ * intermediary PHP scripts.
+ *
+ * It is triggered by a user action in the frontend and returns a comprehensive
+ * dataset containing processes and their related sub-collections.
+ * @param {object} request - The request object from the client. Must be authenticated.
+ * @return {Promise<{success: boolean, data?: object, error?: string}>}
+ * An object indicating success and containing the fetched data or an error message.
  */
 async function makeProviredApiRequest(endpoint: string, method: string): Promise<any[]> {
   const jwt = await getProviredJwtToken();
