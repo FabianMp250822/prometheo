@@ -640,13 +640,12 @@ export const submitPublicForm = onCall({cors: ALLOWED_ORIGINS}, async (request) 
  * Handles potential HTML wrapper content around JSON data.
  * @param {string} url - The URL to fetch data from.
  * @return {Promise<any>} - The parsed JSON data from the response.
- * @throws {HttpsError} - Throws an error if the request fails or parsing fails.
+ * @throws {Error} - Throws a custom error if the request or parsing fails.
  */
 async function fetchExternalData(url: string): Promise<any> {
   try {
     const response = await fetch(url, {
       headers: {
-        // Simulate a browser User-Agent to avoid simple bot blockers
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
       },
     });
@@ -659,39 +658,38 @@ async function fetchExternalData(url: string): Promise<any> {
     }
 
     const textResponse = await response.text();
-    // Find the start and end of the JSON array
     const jsonStart = textResponse.indexOf("[");
     const jsonEnd = textResponse.lastIndexOf("]");
 
     if (jsonStart === -1 || jsonEnd === -1) {
-      // Return an empty array if no JSON array is found, which can be a valid case
       return [];
     }
 
     const jsonString = textResponse.substring(jsonStart, jsonEnd + 1);
 
     try {
-      return JSON.parse(jsonString);
+      const parsedData = JSON.parse(jsonString);
+      // Check if the external API itself returned an error message.
+      if (parsedData.error) {
+        throw new Error(`Error de la API externa: ${parsedData.error}`);
+      }
+      return parsedData;
     } catch (parseError: any) {
       logger.error(`JSON parsing error for URL ${url}:`, parseError.message);
-      // Throw a specific error if JSON is malformed
       throw new Error("La respuesta del servidor externo no es un JSON válido.");
     }
   } catch (error: any) {
     logger.error(`Error fetching from ${url}:`, error.message);
     // Rethrow the error to be caught by the calling function
-    throw new HttpsError("internal", `Fallo la conexión con el servidor externo en ${url}. Detalles: ${error.message}`);
+    throw new Error(`Fallo la conexión con el servidor externo en ${url}. Detalles: ${error.message}`);
   }
 }
 
 /**
- * A callable function that acts as a proxy to fetch data from an external,
- * potentially unreliable or CORS-restricted API. This allows the client-side
- * application to securely request this data without directly exposing API keys
- * or handling CORS issues. It's triggered by a user action in the frontend.
+ * A callable function that acts as a proxy to fetch data from an external API.
+ * This allows the client-side app to securely request this data.
  * @param {object} request - The request object from the client.
  * @return {Promise<{success: boolean, data?: object, error?: string}>}
- * An object indicating success and containing the fetched data or an error.
  */
 export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
   if (!request.auth) {
@@ -729,7 +727,7 @@ export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) 
     if (error instanceof HttpsError) {
       throw error;
     }
-    throw new HttpsError("internal", "An unexpected error occurred during data synchronization.", error.message);
+    // Encapsulate the detailed error message to send back to the client.
+    throw new HttpsError("internal", error.message || "An unexpected error occurred during data synchronization.");
   }
 });
-
