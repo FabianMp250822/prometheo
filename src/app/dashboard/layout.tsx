@@ -165,38 +165,29 @@ export default function DashboardLayout({
                     </CollapsibleTrigger>
                     <CollapsibleContent>
                        <SidebarMenuSub>
-                          <SidebarMenuSubItem>
+                           <SidebarMenuSubItem>
                              <SidebarMenuSubButton asChild>
-                              <Link href="/dashboard/agenda/calendario">
-                                <CalendarSearch />
-                                <span>Calendario</span>
+                              <Link href="/dashboard/agenda/agregar-tareas">
+                                <CalendarPlus />
+                                <span>Agregar Tareas</span>
                               </Link>
                             </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                            <SidebarMenuSubItem>
-                             <Collapsible>
-                                <CollapsibleTrigger asChild>
-                                   <SidebarMenuSubButton className="w-full justify-between">
-                                      <div className="flex items-center gap-2">
-                                        <ListTodo />
-                                        <span>Tareas</span>
-                                      </div>
-                                      <ChevronDown className="h-4 w-4 group-data-[state=open]:rotate-180 transition-transform" />
-                                    </SidebarMenuSubButton>
-                                </CollapsibleTrigger>
-                                <CollapsibleContent className="pl-4">
-                                   <SidebarMenuSub>
-                                      <SidebarMenuSubItem>
-                                        <SidebarMenuSubButton asChild size="sm">
-                                          <Link href="/dashboard/agenda/agregar-tareas">
-                                            <CalendarPlus />
-                                            <span>Agregar Tareas</span>
-                                          </Link>
-                                        </SidebarMenuSubButton>
-                                      </SidebarMenuSubItem>
-                                    </SidebarMenuSub>
-                                </CollapsibleContent>
-                              </Collapsible>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/agenda/ver-tareas">
+                                <ListTodo />
+                                <span>Ver Tareas</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                          <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/agenda/por-fecha">
+                                <CalendarSearch />
+                                <span>Búsqueda por Fecha</span>
+                              </Link>
+                            </SidebarMenuSubButton>
                           </SidebarMenuSubItem>
                        </SidebarMenuSub>
                     </CollapsibleContent>
@@ -492,3 +483,5 @@ export default function DashboardLayout({
     </SidebarProvider>
   )
 }
+
+    
