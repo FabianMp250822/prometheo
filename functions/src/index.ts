@@ -103,10 +103,6 @@ export const onNewPaymentCreate = onDocumentCreated(
       return;
     }
 
-    logger.info(
-      `Found ${sentenceConcepts.length} concepts in pmt ${pagoId}. Creating one document.`,
-    );
-
     // Use the pagoId as the document ID in procesoscancelados to prevent duplicates
     const newProcessDocRef = db.collection("procesoscancelados").doc(pagoId);
 
@@ -876,5 +872,3 @@ export const scheduledSync = onSchedule(
     }
   },
 );
-
-    
