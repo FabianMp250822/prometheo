@@ -5,20 +5,17 @@
 import { useState, useTransition, useCallback, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileClock, Loader2, ServerCrash, Download, Save, RefreshCw } from 'lucide-react';
+import { FileClock, Loader2, ServerCrash, RefreshCw } from 'lucide-react';
 import { ExternalDemandsTable } from '@/components/dashboard/external-demands-table';
 import { ProcessDetailsSheet } from '@/components/dashboard/process-details-sheet';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { collection, doc, getDocs, query, orderBy, limit, startAfter, where, type QueryDocumentSnapshot, type DocumentData } from 'firebase/firestore';
-import { db, app } from '@/lib/firebase';
-import { useAuth } from '@/context/auth-provider';
+import { db } from '@/lib/firebase';
 import { DemandantesModal } from '@/components/dashboard/demandantes-modal';
 import { AnotacionesModal } from '@/components/dashboard/anotaciones-modal';
 import { AnexosModal } from '@/components/dashboard/anexos-modal';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { saveSyncedDataToFirebase } from '@/services/processes-service';
 
 
 const ITEMS_PER_PAGE = 20;
@@ -39,9 +36,7 @@ function useDebounce<T>(value: T, delay: number): T {
 
 
 export default function GestionDemandasPage() {
-  const [externalData, setExternalData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
 
   // State for data displayed from Firebase
   const [firebaseProcesos, setFirebaseProcesos] = useState<any[]>([]);
@@ -61,12 +56,7 @@ export default function GestionDemandasPage() {
   const [isAnotacionesModalOpen, setIsAnotacionesModalOpen] = useState(false);
   const [isAnexosModalOpen, setIsAnexosModalOpen] = useState(false);
 
-  // Transitions for async operations
-  const [isFetching, startFetching] = useTransition();
-  const [isSaving, startSaving] = useTransition();
-  const [savingProgress, setSavingProgress] = useState<{current: number, total: number} | null>(null);
   const { toast } = useToast();
-  const { user } = useAuth();
   
   const fetchProcesos = useCallback(async (cursor?: QueryDocumentSnapshot<DocumentData> | null) => {
       const isLoadMore = !!cursor;
@@ -101,7 +91,7 @@ export default function GestionDemandasPage() {
   // Effect for initial data load
   useEffect(() => {
     fetchProcesos(null);
-  }, []);
+  }, [fetchProcesos]);
 
   // Effect for handling search queries
   useEffect(() => {
@@ -148,56 +138,8 @@ export default function GestionDemandasPage() {
       };
 
       search();
-  }, [debouncedSearchTerm, toast, searchTerm]);
+  }, [debouncedSearchTerm, toast, searchTerm, fetchProcesos]);
 
-  // --- External API Data Fetching for Syncing ---
-  const handleFetchData = useCallback(() => {
-    startFetching(async () => {
-      setError(null);
-      setExternalData(null);
-      setLoadingMessage('Iniciando sincronización... Esto puede tomar varios minutos.');
-      
-      try {
-        const functions = getFunctions(app);
-        const syncExternalDataCallable = httpsCallable(functions, 'syncExternalData');
-        const result = await syncExternalDataCallable();
-        const { success, data, error: resultError } = result.data as { success: boolean; data?: any; error?: string };
-        
-        if (success && data) {
-          setExternalData(data);
-          toast({ title: 'Datos Externos Obtenidos', description: `Se encontraron ${data.procesos.length} procesos listos para guardar.` });
-        } else {
-          setError(`Error al conectar con el servicio externo: ${resultError}.`);
-        }
-      } catch (e: any) {
-        setError(`Error al llamar a la función: ${e.message}`);
-      }
-      setLoadingMessage(null);
-    });
-  }, [toast]);
-
-  // --- Data Saving to Firebase ---
-  const handleSaveData = useCallback(() => {
-    if (!externalData || externalData.procesos.length === 0) {
-      toast({ variant: 'destructive', title: 'No hay datos para guardar', description: 'Primero debes obtener los datos del servidor externo.' });
-      return;
-    }
-
-    startSaving(async () => {
-      setLoadingMessage(`Iniciando guardado...`);
-      try {
-        const result = await saveSyncedDataToFirebase(externalData);
-        toast({ title: 'Guardado Exitoso', description: result.message || `${externalData.procesos.length} procesos guardados.` });
-        await fetchProcesos(null);
-
-      } catch (error: any) {
-         toast({ variant: 'destructive', title: 'Error al Guardar', description: `Error: ${error.message}` });
-      } finally {
-        setSavingProgress(null);
-        setExternalData(null); // Clear memory
-      }
-    });
-  }, [externalData, toast]);
 
   // --- UI Handlers ---
   const handleViewDetails = (process: any) => {
@@ -221,44 +163,12 @@ export default function GestionDemandasPage() {
                 Gestión de Demandas
               </CardTitle>
               <CardDescription>
-                Visualice datos desde Firebase o sincronice desde el sistema externo.
+                Visualice datos desde Firebase. La información se sincroniza automáticamente desde el sistema externo dos veces al día.
               </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button onClick={handleFetchData} disabled={isFetching || isSaving}>
-                {isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                Obtener Datos Externos
-              </Button>
-              {externalData && (
-                 <Button onClick={handleSaveData} disabled={isFetching || isSaving}>
-                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                  Guardar en Firebase
-                </Button>
-              )}
             </div>
           </div>
         </CardHeader>
       </Card>
-      
-      {(isFetching || isSaving) && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex justify-center items-center p-4 gap-4">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <div>
-                <p className="font-semibold">{isSaving ? 'Guardando datos en Firebase...' : 'Obteniendo datos externos...'}</p>
-                <p className="text-sm text-muted-foreground">{loadingMessage}</p>
-                {savingProgress && (
-                  <div className='mt-2'>
-                    <p className='text-sm text-muted-foreground'>Guardando lote {savingProgress.current} de {savingProgress.total}</p>
-                    <Progress value={(savingProgress.current / savingProgress.total) * 100} className="w-full mt-1" />
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {error && (
          <Alert variant="destructive">

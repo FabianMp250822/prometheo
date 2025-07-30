@@ -1,8 +1,14 @@
 
+
 'use client';
 
 import { getAuth } from 'firebase/auth';
 import { app } from '@/lib/firebase';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+
+const functions = getFunctions(app);
+const saveSyncedDataCallable = httpsCallable(functions, 'saveSyncedData');
+
 
 export async function saveSyncedDataToFirebase(data: any): Promise<any> {
     const auth = getAuth(app);
@@ -17,24 +23,8 @@ export async function saveSyncedDataToFirebase(data: any): Promise<any> {
     }
 
     try {
-        const idToken = await user.getIdToken();
-
-        const response = await fetch('/api/save-data', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${idToken}`
-            },
-            body: JSON.stringify(data)
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.error || 'Failed to save data via API.');
-        }
-
-        return result;
+        const result = await saveSyncedDataCallable(data);
+        return result.data;
 
     } catch (error: any) {
         console.error("Error in saveSyncedDataToFirebase service:", error);
