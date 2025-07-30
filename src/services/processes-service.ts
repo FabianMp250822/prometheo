@@ -5,7 +5,7 @@ import { getFunctions, httpsCallable, type HttpsCallableResult } from 'firebase/
 import { app } from '@/lib/firebase';
 import type { Anotacion } from '@/lib/data';
 
-const functions = getFunctions(app);
+const functions = getFunctions(app); // Pass the app instance here
 
 // Callable function references
 const saveSyncedDataCallable = httpsCallable(functions, 'saveSyncedData');
