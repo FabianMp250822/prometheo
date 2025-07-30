@@ -141,12 +141,13 @@ export default function PagoSentenciasPage() {
         const dateStr = `Generado el: ${format(new Date(), "d 'de' LLLL, yyyy", { locale: es })}`;
         doc.text(dateStr, 14, 30);
 
-        const tableColumn = ["Pensionado", "Periodo", "Concepto", "Ingresos", "Egresos", "Año Liquid."];
+        const tableColumn = ["#", "Pensionado", "Periodo", "Concepto", "Ingresos", "Egresos", "Año Liquid."];
         const tableRows: any[][] = [];
 
-        filteredProcesos.forEach(p => {
+        filteredProcesos.forEach((p, index) => {
             p.conceptos.forEach(c => {
                  const row = [
+                    index + 1,
                     p.pensionerInfo ? parseEmployeeName(p.pensionerInfo.name) : p.pensionadoId,
                     formatPeriodoToMonthYear(p.periodoPago),
                     parsePaymentDetailName(c.nombre),
@@ -248,6 +249,7 @@ export default function PagoSentenciasPage() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
+                                        <TableHead>#</TableHead>
                                         <TableHead>Pensionado</TableHead>
                                         <TableHead>Periodo de Pago</TableHead>
                                         <TableHead>Conceptos</TableHead>
@@ -257,10 +259,11 @@ export default function PagoSentenciasPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {paginatedProcesos.map((p) => {
+                                    {paginatedProcesos.map((p, index) => {
                                         const totalProceso = p.conceptos.reduce((acc, c) => acc + c.ingresos, 0);
                                         return (
                                             <TableRow key={p.id}>
+                                                <TableCell>{(currentPage - 1) * ITEMS_PER_PAGE + index + 1}</TableCell>
                                                 <TableCell className="align-top font-medium py-3">
                                                     <div>{p.pensionerInfo ? parseEmployeeName(p.pensionerInfo.name) : 'N/A'}</div>
                                                     <div className="text-xs text-muted-foreground">{p.pensionadoId}</div>
@@ -289,7 +292,7 @@ export default function PagoSentenciasPage() {
                                     })}
                                     {paginatedProcesos.length === 0 && !isLoading && (
                                         <TableRow>
-                                            <TableCell colSpan={6} className="text-center text-muted-foreground h-24">
+                                            <TableCell colSpan={7} className="text-center text-muted-foreground h-24">
                                                 No se encontraron datos con los filtros aplicados.
                                             </TableCell>
                                         </TableRow>

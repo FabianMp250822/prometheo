@@ -46,7 +46,21 @@ export async function getProcesosCancelados(): Promise<ProcesoCancelado[]> {
 export async function getProcesosCanceladosConPensionados(): Promise<ProcesoCancelado[]> {
     try {
         const procesosSnapshot = await getDocs(query(collection(db, PROCESOS_CANCELADOS_COLLECTION)));
-        let data = procesosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcesoCancelado));
+        const procesosData = procesosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcesoCancelado));
+
+        // Deduplicate and group by pagoId
+        const groupedByPago = new Map<string, ProcesoCancelado>();
+
+        for (const proceso of procesosData) {
+            if (groupedByPago.has(proceso.pagoId)) {
+                const existing = groupedByPago.get(proceso.pagoId)!;
+                existing.conceptos.push(...proceso.conceptos);
+            } else {
+                groupedByPago.set(proceso.pagoId, { ...proceso });
+            }
+        }
+        
+        let data = Array.from(groupedByPago.values());
 
         if (data.length > 0) {
             const pensionerIds = [...new Set(data.map(p => p.pensionadoId).filter(Boolean))];
