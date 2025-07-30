@@ -191,7 +191,7 @@ export default function GestionDemandasPage() {
     startSaving(async () => {
       setLoadingMessage(`Iniciando guardado...`);
       try {
-        const result = await saveSyncedDataToFirebase(externalData);
+        const result = await saveSyncedDataToFirebase(user, externalData);
         toast({ title: 'Guardado Exitoso', description: result.message || `${externalData.procesos.length} procesos guardados.` });
         await fetchProcesos(null);
 

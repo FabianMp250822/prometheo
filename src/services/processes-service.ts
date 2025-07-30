@@ -1,12 +1,8 @@
 
 'use server';
 
-import { getAuth } from 'firebase/auth';
-import { app } from '@/lib/firebase';
-
-export async function saveSyncedDataToFirebase(data: any): Promise<any> {
-    const auth = getAuth(app);
-    const user = auth.currentUser;
+// This function now expects the user object to be passed in.
+export async function saveSyncedDataToFirebase(user: any, data: any): Promise<any> {
 
     if (!user) {
         throw new Error("Must be authenticated to save data.");
