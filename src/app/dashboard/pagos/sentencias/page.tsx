@@ -6,18 +6,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Gavel, Loader2, Download, Search, Filter, Printer } from 'lucide-react';
+import { Gavel, Loader2, Download, Search, Filter, Printer, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency, formatPeriodoToMonthYear, parsePaymentDetailName, parseEmployeeName } from '@/lib/helpers';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { Button } from '@/components/ui/button';
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { getProcesosCanceladosConPensionados } from '@/services/pensioner-service';
 import { DataTableSkeleton } from '@/components/dashboard/data-table-skeleton';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { SentenciaDetailsSheet } from '@/components/dashboard/sentencia-details-sheet';
 
 
 // Extend the jsPDF type to include the autoTable method
@@ -38,52 +38,15 @@ export default function PagoSentenciasPage() {
     const [selectedYear, setSelectedYear] = useState('all');
     const [uniqueYears, setUniqueYears] = useState<string[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
+    
+    const [selectedProceso, setSelectedProceso] = useState<ProcesoCancelado | null>(null);
 
     useEffect(() => {
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                const q = query(collection(db, "procesoscancelados"));
-                const querySnapshot = await getDocs(q);
-                let data = querySnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                } as ProcesoCancelado));
-
-                if (data.length > 0) {
-                    const pensionerIds = [...new Set(data.map(p => p.pensionadoId))];
-                    const pensionersData: { [key: string]: { name: string, document: string } } = {};
-                    
-                    const chunks = [];
-                    for (let i = 0; i < pensionerIds.length; i += 30) {
-                        chunks.push(pensionerIds.slice(i, i + 30));
-                    }
-                    
-                    for (const chunk of chunks) {
-                        const pensionersQuery = query(collection(db, 'pensionados'), where('documento', 'in', chunk));
-                        const pensionersSnapshot = await getDocs(pensionersQuery);
-                        pensionersSnapshot.forEach(doc => {
-                            const pData = doc.data();
-                            pensionersData[pData.documento] = {
-                                name: pData.empleado,
-                                document: pData.documento
-                            };
-                        });
-                    }
-
-                    data = data.map(p => ({
-                        ...p,
-                        pensionerInfo: pensionersData[p.pensionadoId]
-                    }));
-                }
-
-                const sortedData = data.sort((a, b) => {
-                    const dateA = a.creadoEn ? new Date((a.creadoEn as any).seconds * 1000) : new Date(0);
-                    const dateB = b.creadoEn ? new Date((b.creadoEn as any).seconds * 1000) : new Date(0);
-                    return dateB.getTime() - dateA.getTime();
-                });
-
-                setProcesos(sortedData);
+                const data = await getProcesosCanceladosConPensionados();
+                setProcesos(data);
                 
                 const years = [...new Set(data.map(p => p.año).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
                 setUniqueYears(years);
@@ -191,6 +154,7 @@ export default function PagoSentenciasPage() {
     };
 
     return (
+        <>
         <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
             <Card>
                 <CardHeader>
@@ -272,6 +236,7 @@ export default function PagoSentenciasPage() {
                                         <TableHead>Conceptos</TableHead>
                                         <TableHead className="text-right">Valores</TableHead>
                                         <TableHead className="text-right">Total Proceso</TableHead>
+                                        <TableHead className="text-right">Acciones</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -297,12 +262,17 @@ export default function PagoSentenciasPage() {
                                                 <TableCell className="text-right font-bold align-top py-3">
                                                     {formatCurrency(totalProceso)}
                                                 </TableCell>
+                                                <TableCell className="text-right align-top py-3">
+                                                    <Button variant="outline" size="sm" onClick={() => setSelectedProceso(p)}>
+                                                        <Eye className="mr-2 h-4 w-4" /> Ver Detalles
+                                                    </Button>
+                                                </TableCell>
                                             </TableRow>
                                         );
                                     })}
                                     {paginatedProcesos.length === 0 && !isLoading && (
                                         <TableRow>
-                                            <TableCell colSpan={5} className="text-center text-muted-foreground h-24">
+                                            <TableCell colSpan={6} className="text-center text-muted-foreground h-24">
                                                 No se encontraron datos con los filtros aplicados.
                                             </TableCell>
                                         </TableRow>
@@ -335,5 +305,11 @@ export default function PagoSentenciasPage() {
                 </CardContent>
             </Card>
         </div>
+        <SentenciaDetailsSheet 
+            proceso={selectedProceso}
+            isOpen={!!selectedProceso}
+            onOpenChange={(isOpen) => !isOpen && setSelectedProceso(null)}
+        />
+        </>
     );
 }

@@ -1,6 +1,6 @@
-import { collection, query, getDocs, where, documentId } from 'firebase/firestore';
+import { collection, query, getDocs, where, documentId, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { ProcesoCancelado } from '@/lib/data';
+import type { ProcesoCancelado, Payment } from '@/lib/data';
 
 const PROCESOS_CANCELADOS_COLLECTION = "procesoscancelados";
 
@@ -39,7 +39,7 @@ export async function getProcesosCancelados(): Promise<ProcesoCancelado[]> {
 
 
 /**
- * Fetches all processed sentence payments and enriches them with pensioner details.
+ * Fetches all processed sentence payments and enriches them with pensioner and original payment details.
  * This is optimized to reduce Firestore reads.
  * @returns A promise that resolves to the enriched data.
  */
@@ -49,13 +49,9 @@ export async function getProcesosCanceladosConPensionados(): Promise<ProcesoCanc
         let data = procesosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcesoCancelado));
 
         if (data.length > 0) {
-            // Get unique pensioner IDs from the processes
             const pensionerIds = [...new Set(data.map(p => p.pensionadoId).filter(Boolean))];
-            
-            // This will hold the fetched pensioner data, keyed by their ID.
             const pensionersData: { [key: string]: { name: string, document: string, department: string } } = {};
             
-            // Firestore 'in' queries are limited to 30 values. We must process in chunks.
             const chunks = [];
             for (let i = 0; i < pensionerIds.length; i += 30) {
                 chunks.push(pensionerIds.slice(i, i + 30));
@@ -63,27 +59,30 @@ export async function getProcesosCanceladosConPensionados(): Promise<ProcesoCanc
             
             for (const chunk of chunks) {
                 if (chunk.length === 0) continue;
-
-                // **OPTIMIZED QUERY**: Instead of querying a field, query by document ID.
-                // This is faster and more reliable. The document ID in 'pensionados' is the pensioner's document number.
-                const pensionersQuery = query(collection(db, 'pensionados'), where(documentId(), 'in', chunk));
+                const pensionersQuery = query(collection(db, 'pensionados'), where('documento', 'in', chunk));
                 const pensionersSnapshot = await getDocs(pensionersQuery);
                 
                 pensionersSnapshot.forEach(doc => {
                     const pData = doc.data();
-                    // Use the document ID as the key, as it's guaranteed to be the pensioner's ID.
-                    pensionersData[doc.id] = {
+                    pensionersData[pData.documento] = {
                         name: pData.empleado,
-                        document: pData.documento || doc.id, // Fallback to doc.id if field is missing
+                        document: pData.documento,
                         department: pData.dependencia1
                     };
                 });
             }
 
-            // Enrich the original process data with the fetched pensioner info.
-            data = data.map(p => ({
-                ...p,
-                pensionerInfo: pensionersData[p.pensionadoId]
+            // Enrich with pensioner info and fetch original payment
+            data = await Promise.all(data.map(async (p) => {
+                const pagoDocRef = doc(db, 'pensionados', p.pensionadoId, 'pagos', p.pagoId);
+                const pagoSnap = await getDoc(pagoDocRef);
+                const pagoOriginal = pagoSnap.exists() ? pagoSnap.data() as Payment : null;
+
+                return {
+                    ...p,
+                    pensionerInfo: pensionersData[p.pensionadoId],
+                    pagoOriginal: pagoOriginal
+                };
             }));
         }
 
@@ -97,7 +96,6 @@ export async function getProcesosCanceladosConPensionados(): Promise<ProcesoCanc
 
     } catch (error: any) {
         console.error("Error fetching data:", error);
-        // Throw a more specific error to help with debugging.
         throw new Error(`Failed to fetch processed sentences with pensioner details: ${error.message}`);
     }
 }
