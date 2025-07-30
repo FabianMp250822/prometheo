@@ -2,12 +2,15 @@
 import mysql from "mysql2/promise";
 import * as functions from "firebase-functions";
 
+// Get the mysql config object, which might be undefined during cold starts or deployment analysis.
+const mysqlConfig = functions.config().mysql;
+
 // Configuration for the MySQL connection pool
 const config = {
-  host: functions.config().mysql.host || "193.203.175.34", // IP from your Hostinger panel
-  user: functions.config().mysql.user || "u965232645_dajusticia",
-  password: functions.config().mysql.password || "D@justicia162804",
-  database: functions.config().mysql.database || "u965232645_dajusticia",
+  host: mysqlConfig?.host || "193.203.175.34", // IP from your Hostinger panel
+  user: mysqlConfig?.user || "u965232645_dajusticia",
+  password: mysqlConfig?.password || "D@justicia162804",
+  database: mysqlConfig?.database || "u965232645_dajusticia",
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
