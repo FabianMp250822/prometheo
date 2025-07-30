@@ -11,14 +11,21 @@ function initializeAdminApp(): App {
     return apps[0];
   }
 
-  // In a Google Cloud environment like App Hosting, initializeApp() with no arguments
-  // will automatically use the service account credentials of the environment.
-  // This is the recommended approach over using environment variables for credentials.
+  const credentialString = process.env.FIREBASE_ADMIN_CREDENTIALS;
+  if (!credentialString) {
+      throw new Error('La variable de entorno FIREBASE_ADMIN_CREDENTIALS no está definida.');
+  }
+
   try {
-    return initializeApp();
+    const serviceAccount: ServiceAccount = JSON.parse(credentialString);
+    
+    return initializeApp({
+      credential: cert(serviceAccount)
+    });
+
   } catch (error) {
-    console.error('Firebase admin initialization error:', error);
-    throw new Error('Failed to initialize Firebase Admin SDK. Ensure you are in a supported Google Cloud environment or that Application Default Credentials are set up.');
+    console.error('Error al parsear las credenciales de Firebase o al inicializar la app:', error);
+    throw new Error('Las credenciales de Firebase Admin no tienen un formato JSON válido.');
   }
 }
 
