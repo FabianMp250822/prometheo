@@ -421,7 +421,7 @@ export const scheduledProviredSync = onSchedule(
 // User Management Functions
 // =====================================
 const defaultPermissionsByRole: { [key: string]: { [key: string]: boolean } } = {
-  Administrador: {
+  "Administrador": {
     canViewDashboard: true, canViewBuscador: true, canViewHojaDeVida: true,
     canViewAgenda: true, canViewLiquidaciones: true, canViewPagosSentencias: true,
     canViewContabilidad: true, canViewProcesosEnLinea: true, canViewReportes: true,
@@ -439,7 +439,7 @@ const defaultPermissionsByRole: { [key: string]: { [key: string]: boolean } } = 
     canViewContabilidad: false, canViewProcesosEnLinea: true, canViewReportes: false,
     canViewGestionDemandas: true, canManageUsers: false, canAccessConfiguracion: false,
   },
-  Contador: {
+  "Contador": {
     canViewDashboard: true, canViewBuscador: true, canViewHojaDeVida: false,
     canViewAgenda: false, canViewLiquidaciones: true, canViewPagosSentencias: true,
     canViewContabilidad: true, canViewProcesosEnLinea: false, canViewReportes: true,
@@ -660,7 +660,7 @@ export const submitPublicForm = onCall({cors: ALLOWED_ORIGINS}, async (request) 
  * It is triggered by a user action in the frontend and returns a comprehensive
  * dataset containing processes and their related sub-collections.
  * @param {object} request - The request object from the client. Must be authenticated.
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
+ * @return {Promise<{success: boolean, data?: object, error?: string}>}
  * An object indicating success and containing the fetched data or an error message.
  */
 export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
@@ -720,7 +720,7 @@ export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) 
 /**
  * Saves synced data from the external source to Firestore.
  * This function is callable from the client.
- * @returns {Promise<{success: boolean, message: string}>} A confirmation object.
+ * @return {Promise<{success: boolean, message: string}>} A confirmation object.
  */
 export const saveSyncedData = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
   if (!request.auth) {
