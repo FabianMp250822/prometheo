@@ -48,19 +48,25 @@ export async function getProcesosCanceladosConPensionados(): Promise<ProcesoCanc
         const procesosSnapshot = await getDocs(query(collection(db, PROCESOS_CANCELADOS_COLLECTION)));
         const procesosData = procesosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcesoCancelado));
 
-        // Deduplicate and group by pagoId
-        const groupedByPago = new Map<string, ProcesoCancelado>();
+        if (procesosData.length === 0) return [];
+        
+        // --- START FIX: Group by a composite key of pensionerId and pagoId to handle duplicates ---
+        const groupedByPayment = new Map<string, ProcesoCancelado>();
 
         for (const proceso of procesosData) {
-            if (groupedByPago.has(proceso.pagoId)) {
-                const existing = groupedByPago.get(proceso.pagoId)!;
+            const key = `${proceso.pensionadoId}-${proceso.pagoId}`;
+            if (groupedByPayment.has(key)) {
+                // If this payment is already in our map, merge the concepts
+                const existing = groupedByPayment.get(key)!;
                 existing.conceptos.push(...proceso.conceptos);
             } else {
-                groupedByPago.set(proceso.pagoId, { ...proceso });
+                // Otherwise, add it to the map
+                groupedByPayment.set(key, { ...proceso, conceptos: [...proceso.conceptos] });
             }
         }
         
-        let data = Array.from(groupedByPago.values());
+        let data = Array.from(groupedByPayment.values());
+        // --- END FIX ---
 
         if (data.length > 0) {
             const pensionerIds = [...new Set(data.map(p => p.pensionadoId).filter(Boolean))];
