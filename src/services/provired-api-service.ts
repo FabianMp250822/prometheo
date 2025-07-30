@@ -3,7 +3,6 @@
 
 import { unstable_cache as cache } from 'next/cache';
 import { adminDb } from '@/lib/firebase-admin';
-import { collection, writeBatch, doc } from "firebase/firestore";
 
 const API_BASE_URL = 'https://apiclient.proviredcolombia.com';
 const STATIC_TOKEN = 'iYmMqGfKb057z8ImmAm82ULmMgd26lelgs5BcYkOkQJgkacDljdbBbyb4Dh2pPP8';
@@ -76,7 +75,7 @@ async function syncCollection(
             // For notifications, we must generate a unique ID because 'notificacion' is not unique globally.
             // For other collections, we use their specific IDs.
             if (collectionName === 'provired_notifications') {
-                 docId = doc(collection(adminDb, collectionName)).id;
+                 docId = adminDb.collection(collectionName).doc().id;
             } else if (item.IdDes) {
                  docId = String(item.IdDes);
             } else if (item.IdCorp) {
@@ -87,10 +86,10 @@ async function syncCollection(
                 docId = String(item.IdDep);
             } else {
                 // Fallback to auto-generated ID if no other ID is present.
-                docId = doc(collection(adminDb, collectionName)).id;
+                docId = adminDb.collection(collectionName).doc().id;
             }
 
-            const docRef = doc(adminDb, collectionName, docId);
+            const docRef = adminDb.collection(collectionName).doc(docId);
 
             if (collectionName === 'provired_notifications') {
                 item.demandante_lower = item.demandante?.toLowerCase() || '';
