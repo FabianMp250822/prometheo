@@ -292,6 +292,11 @@ const PROVIRED_STATIC_TOKEN = "iYmMqGfKb057z8ImmAm82ULmMgd26lelgs5BcYkOkQJgkacDl
 let proviredJwtToken: string | null = null;
 let proviredTokenExpiresAt: number | null = null;
 
+/**
+ * Retrieves a JWT token for the Provired API, caching it for 5 hours.
+ * If the token is expired or doesn't exist, it fetches a new one.
+ * @returns {Promise<string>} The valid JWT token.
+ */
 async function getProviredJwtToken(): Promise<string> {
   if (proviredJwtToken && proviredTokenExpiresAt && Date.now() < proviredTokenExpiresAt) {
     return proviredJwtToken;
@@ -314,6 +319,13 @@ async function getProviredJwtToken(): Promise<string> {
   return proviredJwtToken;
 }
 
+/**
+ * Makes an authenticated request to a specific endpoint of the Provired API.
+ * It ensures a valid JWT is used for the request.
+ * @param {string} endpoint The API endpoint to call (e.g., "notification").
+ * @param {string} method The method to include in the request body.
+ * @returns {Promise<any[]>} The data array from the API response.
+ */
 async function makeProviredApiRequest(endpoint: string, method: string): Promise<any[]> {
   const jwt = await getProviredJwtToken();
   const body = JSON.stringify({method, params: {}});
