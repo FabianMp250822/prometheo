@@ -295,7 +295,7 @@ let proviredTokenExpiresAt: number | null = null;
 /**
  * Retrieves a JWT token for the Provired API, caching it for 5 hours.
  * If the token is expired or doesn't exist, it fetches a new one.
- * @returns {Promise<string>} The valid JWT token.
+ * @return {Promise<string>} The valid JWT token.
  */
 async function getProviredJwtToken(): Promise<string> {
   if (proviredJwtToken && proviredTokenExpiresAt && Date.now() < proviredTokenExpiresAt) {
@@ -324,7 +324,7 @@ async function getProviredJwtToken(): Promise<string> {
  * It ensures a valid JWT is used for the request.
  * @param {string} endpoint The API endpoint to call (e.g., "notification").
  * @param {string} method The method to include in the request body.
- * @returns {Promise<any[]>} The data array from the API response.
+ * @return {Promise<any[]>} The data array from the API response.
  */
 async function makeProviredApiRequest(endpoint: string, method: string): Promise<any[]> {
   const jwt = await getProviredJwtToken();
