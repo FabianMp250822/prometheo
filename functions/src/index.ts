@@ -436,6 +436,69 @@ export const scheduledProviredSync = onSchedule(
 // =====================================
 // User Management Functions
 // =====================================
+const defaultPermissions = {
+  // Admin has all permissions
+  Administrador: {
+    canViewDashboard: true,
+    canViewBuscador: true,
+    canViewHojaDeVida: true,
+    canViewAgenda: true,
+    canViewLiquidaciones: true,
+    canViewPagosSentencias: true,
+    canViewContabilidad: true,
+    canViewProcesosEnLinea: true,
+    canViewReportes: true,
+    canViewGestionDemandas: true,
+    canManageUsers: true,
+    canAccessConfiguracion: true,
+  },
+  // Default for a lawyer
+  "Abogado Titular": {
+    canViewDashboard: true,
+    canViewBuscador: true,
+    canViewHojaDeVida: true,
+    canViewAgenda: true,
+    canViewLiquidaciones: true,
+    canViewPagosSentencias: true,
+    canViewContabilidad: false,
+    canViewProcesosEnLinea: true,
+    canViewReportes: false,
+    canViewGestionDemandas: true,
+    canManageUsers: false,
+    canAccessConfiguracion: false,
+  },
+  // Default for an external lawyer
+  "Abogado Externo": {
+    canViewDashboard: true,
+    canViewBuscador: true,
+    canViewHojaDeVida: true,
+    canViewAgenda: true,
+    canViewLiquidaciones: false,
+    canViewPagosSentencias: false,
+    canViewContabilidad: false,
+    canViewProcesosEnLinea: true,
+    canViewReportes: false,
+    canViewGestionDemandas: true,
+    canManageUsers: false,
+    canAccessConfiguracion: false,
+  },
+  // Default for an accountant
+  Contador: {
+    canViewDashboard: true,
+    canViewBuscador: true,
+    canViewHojaDeVida: false,
+    canViewAgenda: false,
+    canViewLiquidaciones: true,
+    canViewPagosSentencias: true,
+    canViewContabilidad: true,
+    canViewProcesosEnLinea: false,
+    canViewReportes: true,
+    canViewGestionDemandas: false,
+    canManageUsers: false,
+    canAccessConfiguracion: true,
+  },
+};
+
 
 export const createUser = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
   // 1. Authentication Check: Ensure the caller is an authenticated admin.
@@ -461,6 +524,9 @@ export const createUser = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
     );
   }
 
+  // Get default permissions for the role
+  const permissions = defaultPermissions[role as keyof typeof defaultPermissions] || {};
+
   try {
     // 3. Create user in Firebase Authentication
     const userRecord = await auth.createUser({
@@ -478,6 +544,7 @@ export const createUser = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
       nombre: displayName,
       email: email,
       rol: role,
+      permissions: permissions, // Add permissions object
       // Store associated pensioners for lawyers
       associatedPensioners: associatedPensioners || [],
       createdAt: Timestamp.now(),
