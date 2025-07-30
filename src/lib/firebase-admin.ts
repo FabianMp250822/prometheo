@@ -11,22 +11,9 @@ function initializeAdminApp(): App {
     return apps[0];
   }
 
-  const credentialString = process.env.FIREBASE_ADMIN_CREDENTIALS;
-  if (!credentialString) {
-      throw new Error('La variable de entorno FIREBASE_ADMIN_CREDENTIALS no está definida.');
-  }
-
-  try {
-    const serviceAccount: ServiceAccount = JSON.parse(credentialString);
-    
-    return initializeApp({
-      credential: cert(serviceAccount)
-    });
-
-  } catch (error) {
-    console.error('Error al parsear las credenciales de Firebase o al inicializar la app:', error);
-    throw new Error('Las credenciales de Firebase Admin no tienen un formato JSON válido.');
-  }
+  // When deployed to a Google environment like App Hosting or Cloud Functions,
+  // initializeApp() automatically uses the environment's service account credentials.
+  return initializeApp();
 }
 
 const adminApp = initializeAdminApp();
