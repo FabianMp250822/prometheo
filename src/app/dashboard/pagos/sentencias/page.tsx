@@ -31,6 +31,13 @@ declare module 'jspdf' {
 
 const ITEMS_PER_PAGE = 20;
 
+const meses = [
+    { value: '1', label: 'Enero' }, { value: '2', label: 'Febrero' }, { value: '3', label: 'Marzo' },
+    { value: '4', label: 'Abril' }, { value: '5', label: 'Mayo' }, { value: '6', label: 'Junio' },
+    { value: '7', label: 'Julio' }, { value: '8', label: 'Agosto' }, { value: '9', label: 'Septiembre' },
+    { value: '10', label: 'Octubre' }, { value: '11', label: 'Noviembre' }, { value: '12', label: 'Diciembre' },
+];
+
 export default function PagoSentenciasPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [procesos, setProcesos] = useState<ProcesoCancelado[]>([]);
@@ -39,6 +46,7 @@ export default function PagoSentenciasPage() {
 
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedYear, setSelectedYear] = useState('all');
+    const [selectedMonth, setSelectedMonth] = useState('all');
     const [uniqueYears, setUniqueYears] = useState<string[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     
@@ -75,9 +83,11 @@ export default function PagoSentenciasPage() {
             
             const yearMatch = selectedYear === 'all' || p.año === selectedYear;
 
-            return searchMatch && yearMatch;
+            const monthMatch = selectedMonth === 'all' || formatPeriodoToMonthYear(p.periodoPago, true) === selectedMonth;
+
+            return searchMatch && yearMatch && monthMatch;
         });
-    }, [procesos, searchTerm, selectedYear]);
+    }, [procesos, searchTerm, selectedYear, selectedMonth]);
 
     const paginatedProcesos = useMemo(() => {
         const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -210,7 +220,7 @@ export default function PagoSentenciasPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
@@ -221,6 +231,15 @@ export default function PagoSentenciasPage() {
                                 disabled={isLoading}
                             />
                         </div>
+                         <Select value={selectedMonth} onValueChange={setSelectedMonth} disabled={isLoading}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Filtrar por Mes" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Todos los Meses</SelectItem>
+                                {meses.map(mes => <SelectItem key={mes.value} value={mes.value}>{mes.label}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
                          <Select value={selectedYear} onValueChange={setSelectedYear} disabled={isLoading || uniqueYears.length === 0}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Filtrar por Año Fiscal" />

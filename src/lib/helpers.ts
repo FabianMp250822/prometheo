@@ -1,4 +1,5 @@
 
+
 import { Sentence } from "./data";
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -56,7 +57,7 @@ export const getLatestPeriod = (sentencias: Sentence[]): string => {
     const sorted = [...sentencias].sort((a, b) => {
         const dateA = parsePeriodoPago(a.paymentPeriod)?.endDate || new Date(0);
         const dateB = parsePeriodoPago(b.paymentPeriod)?.endDate || new Date(0);
-        return dateB.getTime() - dateA.getTime();
+        return dateB.getTime() - dateB.getTime();
     });
 
     return sorted[0].paymentPeriod;
@@ -101,7 +102,7 @@ export const parseDepartmentName = (departmentName: string): string => {
     .trim();
 };
 
-export const formatPeriodoToMonthYear = (periodoPago: string): string => {
+export const formatPeriodoToMonthYear = (periodoPago: string, getMonthNumber = false): string => {
     if (!periodoPago) return 'N/A';
 
     const fullMonthMap: { [key: string]: string } = {
@@ -109,27 +110,23 @@ export const formatPeriodoToMonthYear = (periodoPago: string): string => {
         'may': 'Mayo', 'jun': 'Junio', 'jul': 'Julio', 'ago': 'Agosto', 
         'sep': 'Septiembre', 'oct': 'Octubre', 'nov': 'Noviembre', 'dic': 'Diciembre'
     };
+     const monthNumberMap: { [key: string]: string } = {
+        'ene': '1', 'feb': '2', 'mar': '3', 'abr': '4', 'may': '5', 'jun': '6',
+        'jul': '7', 'ago': '8', 'sep': '9', 'oct': '10', 'nov': '11', 'dic': '12'
+    };
     
     const cleanedPeriodo = periodoPago.toLowerCase().replace(/\./g, '');
-    const parts = cleanedPeriodo.split(' a ');
+    const parts = cleanedPeriodo.split(' ');
 
-    // Try to match "mes año" format first
-    const monthYearMatch = cleanedPeriodo.match(/(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\s(\d{4})/);
-    if (monthYearMatch) {
-      const monthStr = monthYearMatch[1];
-      const year = monthYearMatch[2];
-      return `${fullMonthMap[monthStr] || monthStr} ${year}`;
-    }
-
-    // Fallback to parsing start date of period
-    if (parts.length > 0) {
-        const dateParts = parts[0].trim().split(' ');
-        if (dateParts.length === 3) {
-            const [, monthStr, year] = dateParts;
-            const month = fullMonthMap[monthStr as keyof typeof fullMonthMap];
-            if (month) {
-                return `${month} ${year}`;
-            }
+    if (parts.length >= 2) {
+        const monthStr = parts[1];
+        const year = parts[2];
+        if (getMonthNumber) {
+            return monthNumberMap[monthStr];
+        }
+        const month = fullMonthMap[monthStr as keyof typeof fullMonthMap];
+        if (month) {
+            return `${month} ${year}`;
         }
     }
 
