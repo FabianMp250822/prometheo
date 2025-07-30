@@ -11,29 +11,14 @@ function initializeAdminApp(): App {
     return apps[0];
   }
 
-  // Check if service account environment variables are set
-  if (
-    process.env.FIREBASE_PROJECT_ID &&
-    process.env.FIREBASE_PRIVATE_KEY &&
-    process.env.FIREBASE_CLIENT_EMAIL
-  ) {
-    const serviceAccount: ServiceAccount = {
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-    };
-    
-    return initializeApp({
-      credential: cert(serviceAccount),
-    });
-  }
-  
-  // Fallback for environments with Application Default Credentials (like App Hosting)
+  // In a Google Cloud environment like App Hosting, initializeApp() with no arguments
+  // will automatically use the service account credentials of the environment.
+  // This is the recommended approach over using environment variables for credentials.
   try {
     return initializeApp();
   } catch (error) {
-    console.error('Firebase admin initialization error', error);
-    throw new Error('Failed to initialize Firebase Admin SDK. Ensure service account credentials are set or you are in a supported environment.');
+    console.error('Firebase admin initialization error:', error);
+    throw new Error('Failed to initialize Firebase Admin SDK. Ensure you are in a supported Google Cloud environment or that Application Default Credentials are set up.');
   }
 }
 
