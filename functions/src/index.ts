@@ -15,7 +15,6 @@ import {initializeApp, getApps} from "firebase-admin/app";
 import {getFirestore, Timestamp} from "firebase-admin/firestore";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import * as nodemailer from "nodemailer";
-import {onSchedule} from "firebase-functions/v2/scheduler";
 import fetch from "node-fetch";
 import {getAuth} from "firebase-admin/auth";
 import {queryDatabase} from "./mysql.js";
@@ -358,7 +357,7 @@ export const syncDailyNotifications = onCall(
   async (request) => {
     // Authentication check
     if (!request.auth) {
-        throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+      throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
     }
     logger.info("Starting daily notification sync, triggered by user:", request.auth.uid);
     try {
@@ -381,7 +380,7 @@ export const syncDailyNotifications = onCall(
       }[];
       if (!Array.isArray(newNotifications) || newNotifications.length === 0) {
         logger.info("No new notifications to sync from API.");
-        return { success: true, count: 0, message: "No hay notificaciones nuevas para sincronizar." };
+        return {success: true, count: 0, message: "No hay notificaciones nuevas para sincronizar."};
       }
       logger.info(`Fetched ${newNotifications.length} notifs from API.`);
 
@@ -394,7 +393,7 @@ export const syncDailyNotifications = onCall(
 
       if (notificationsToSave.length === 0) {
         logger.info("No new notifications to save after filtering.");
-        return { success: true, count: 0, message: "La base de datos ya está actualizada." };
+        return {success: true, count: 0, message: "La base de datos ya está actualizada."};
       }
       logger.info(
         `Found ${notificationsToSave.length} new notifications to save.`,
@@ -428,7 +427,7 @@ export const syncDailyNotifications = onCall(
       }
 
       logger.info("Daily notification sync completed successfully.");
-      return { success: true, count: notificationsToSave.length, message: `${notificationsToSave.length} notificaciones nuevas guardadas.` };
+      return {success: true, count: notificationsToSave.length, message: `${notificationsToSave.length} notificaciones nuevas guardadas.`};
     } catch (error) {
       logger.error("Error during daily notification sync:", error);
       // Throw error to indicate failure for potential retries
@@ -731,7 +730,7 @@ export const saveSyncedData = onCall({cors: ALLOWED_ORIGINS}, async (request) =>
       for (const proceso of chunk) {
         if (!proceso.num_registro) continue; // Skip if no ID
         const procesoDocRef = db.collection("procesos").doc(proceso.num_registro);
-        batch.set(procesoDocRef, Object.fromEntries(Object.entries(proceso).filter(([_key, value]) => value != null)));
+        batch.set(procesoDocRef, Object.fromEntries(Object.entries(proceso).filter(([, value]) => value != null)));
 
         // Add subcollections
         const subCollections = {
@@ -749,7 +748,7 @@ export const saveSyncedData = onCall({cors: ALLOWED_ORIGINS}, async (request) =>
               const itemId = item.auto || item.id_anexo || item.identidad_demandante;
               if (itemId) {
                 const itemDocRef = subCollectionRef.doc(itemId.toString());
-                batch.set(itemDocRef, Object.fromEntries(Object.entries(item).filter(([_key, value]) => value != null)));
+                batch.set(itemDocRef, Object.fromEntries(Object.entries(item).filter(([, value]) => value != null)));
               }
             });
           }
