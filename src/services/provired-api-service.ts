@@ -5,7 +5,7 @@ import { unstable_cache as cache } from 'next/cache';
 import { adminDb } from '@/lib/firebase-admin';
 
 const API_BASE_URL = 'https://apiclient.proviredcolombia.com';
-const STATIC_TOKEN = 'iYmMqGfKb057z8ImmAm82ULmMgd26lelgs5BcYkOkQJgkacDljdbBbyb4Dh2pPP8';
+const STATIC_TOKEN = "iYmMqGfKb057z8ImmAm82ULmMgd26lelgs5BcYkOkQJgkacDljdbBbyb4Dh2pPP8";
 
 const getJwtToken = cache(
   async () => {
