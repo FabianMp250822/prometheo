@@ -652,30 +652,30 @@ async function fetchExternalData(url: string): Promise<any> {
     });
 
     if (!response.ok) {
-        if (response.status === 403) {
-             throw new Error("Error de red: 403 Forbidden. El servidor externo está bloqueando la solicitud. Esto puede deberse a medidas de seguridad. Intente contactar al administrador del servidor externo.");
-        }
+      if (response.status === 403) {
+        throw new Error("Error de red: 403 Forbidden. El servidor externo está bloqueando la solicitud. Esto puede deberse a medidas de seguridad. Intente contactar al administrador del servidor externo.");
+      }
       throw new Error(`Error de red: ${response.status} ${response.statusText}`);
     }
-    
+
     const textResponse = await response.text();
     // Find the start and end of the JSON array
     const jsonStart = textResponse.indexOf("[");
     const jsonEnd = textResponse.lastIndexOf("]");
 
     if (jsonStart === -1 || jsonEnd === -1) {
-        // Return an empty array if no JSON array is found, which can be a valid case
-        return [];
+      // Return an empty array if no JSON array is found, which can be a valid case
+      return [];
     }
-    
+
     const jsonString = textResponse.substring(jsonStart, jsonEnd + 1);
-    
+
     try {
-        return JSON.parse(jsonString);
+      return JSON.parse(jsonString);
     } catch (parseError: any) {
-        logger.error(`JSON parsing error for URL ${url}:`, parseError.message);
-        // Throw a specific error if JSON is malformed
-        throw new Error("La respuesta del servidor externo no es un JSON válido.");
+      logger.error(`JSON parsing error for URL ${url}:`, parseError.message);
+      // Throw a specific error if JSON is malformed
+      throw new Error("La respuesta del servidor externo no es un JSON válido.");
     }
   } catch (error: any) {
     logger.error(`Error fetching from ${url}:`, error.message);
@@ -732,3 +732,5 @@ export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) 
     throw new HttpsError("internal", "An unexpected error occurred during data synchronization.", error.message);
   }
 });
+
+    
