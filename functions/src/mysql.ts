@@ -1,6 +1,7 @@
 
 import mysql from "mysql2/promise";
 import * as functions from "firebase-functions";
+import type { Pool } from "mysql2/promise";
 
 // Get the mysql config object, which might be undefined during cold starts or deployment analysis.
 const mysqlConfig = functions.config().mysql;
@@ -16,8 +17,18 @@ const config = {
   queueLimit: 0,
 };
 
-// Create the connection pool. The pool-specific settings are the defaults
-export const pool = mysql.createPool(config);
+let pool: Pool | null = null;
+
+/**
+ * Creates and returns a singleton MySQL connection pool.
+ * @return {Pool} The MySQL connection pool.
+ */
+function getPool(): Pool {
+  if (!pool) {
+    pool = mysql.createPool(config);
+  }
+  return pool;
+}
 
 /**
  * Executes a SQL query and returns the results.
@@ -28,7 +39,8 @@ export const pool = mysql.createPool(config);
  */
 export async function queryDatabase(sql: string, params?: any[]): Promise<any> {
   try {
-    const [results] = await pool.execute(sql, params);
+    const connectionPool = getPool();
+    const [results] = await connectionPool.execute(sql, params);
     return results;
   } catch (error) {
     console.error("Database query failed:", error);
