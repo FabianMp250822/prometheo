@@ -57,11 +57,13 @@ async function syncCollection(
     collectionName: string, 
     fetchFunction: () => Promise<{ success: boolean; data: any; message: string | undefined; }>
 ): Promise<{ success: boolean; count: number; message?: string; }> {
-    const { success, data, message } = await fetchFunction();
-    if (!success || !Array.isArray(data)) {
-        throw new Error(`Failed to fetch ${collectionName}: ${message}`);
+    const apiResponse = await fetchFunction();
+    
+    if (!apiResponse.success || !Array.isArray(apiResponse.data)) {
+        throw new Error(`Failed to fetch ${collectionName}: ${apiResponse.message}`);
     }
 
+    const data = apiResponse.data;
     const BATCH_SIZE = 400; // Firestore batch writes are limited to 500 operations.
     
     for (let i = 0; i < data.length; i += BATCH_SIZE) {
