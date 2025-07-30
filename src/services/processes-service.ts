@@ -1,5 +1,4 @@
 
-'use server';
 
 // This function now expects the user object to be passed in.
 export async function saveSyncedDataToFirebase(user: any, data: any): Promise<any> {
