@@ -1,7 +1,8 @@
+
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { ProcesoCancelado } from '@/lib/data';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { ProcesoCancelado, Pensioner } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
@@ -18,6 +19,7 @@ import { DataTableSkeleton } from '@/components/dashboard/data-table-skeleton';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { SentenciaDetailsSheet } from '@/components/dashboard/sentencia-details-sheet';
+import { usePensioner } from '@/context/pensioner-provider';
 
 
 // Extend the jsPDF type to include the autoTable method
@@ -33,6 +35,7 @@ export default function PagoSentenciasPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [procesos, setProcesos] = useState<ProcesoCancelado[]>([]);
     const { toast } = useToast();
+    const { setSelectedPensioner } = usePensioner();
 
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedYear, setSelectedYear] = useState('all');
@@ -82,6 +85,20 @@ export default function PagoSentenciasPage() {
     }, [filteredProcesos, currentPage]);
 
     const totalPages = Math.ceil(filteredProcesos.length / ITEMS_PER_PAGE);
+    
+    const handleViewDetails = (proceso: ProcesoCancelado) => {
+        setSelectedProceso(proceso);
+        if (proceso.pensionerInfo) {
+            const pensionerForContext: Pensioner = {
+                id: proceso.pensionadoId, // The Firestore document ID for a pensioner is their document number
+                documento: proceso.pensionadoId,
+                empleado: proceso.pensionerInfo.name,
+                dependencia1: proceso.pensionerInfo.department,
+                centroCosto: 'N/A' // Not available in this context
+            };
+            setSelectedPensioner(pensionerForContext);
+        }
+    };
 
     const exportToExcel = () => {
         if (filteredProcesos.length === 0) {
@@ -263,7 +280,7 @@ export default function PagoSentenciasPage() {
                                                     {formatCurrency(totalProceso)}
                                                 </TableCell>
                                                 <TableCell className="text-right align-top py-3">
-                                                    <Button variant="outline" size="sm" onClick={() => setSelectedProceso(p)}>
+                                                    <Button variant="outline" size="sm" onClick={() => handleViewDetails(p)}>
                                                         <Eye className="mr-2 h-4 w-4" /> Ver Detalles
                                                     </Button>
                                                 </TableCell>
