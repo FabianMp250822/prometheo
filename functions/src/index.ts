@@ -335,77 +335,77 @@ async function makeProviredApiRequest(endpoint: string, method: string): Promise
 // =====================================
 
 export const scheduledProviredSync = onSchedule(
-    {
-      schedule: "0 7,15,23 * * *", // Runs at 7 AM, 3 PM, and 11 PM every day.
-      timeZone: "America/Bogota",
-    },
-    async () => {
-        logger.info("Starting scheduled Provired notification sync.");
-        try {
-            // 1. Fetch existing notification identifiers from Firestore to avoid duplicates
-            const existingNotifsSnapshot = await db
-                .collection("provired_notifications").select("uniqueId").get();
-            const existingNotifIds = new Set(
-                existingNotifsSnapshot.docs.map((doc) => doc.data().uniqueId),
-            );
-            logger.info(`Found ${existingNotifIds.size} existing Provired notifications in DB.`);
+  {
+    schedule: "0 7,15,23 * * *", // Runs at 7 AM, 3 PM, and 11 PM every day.
+    timeZone: "America/Bogota",
+  },
+  async () => {
+    logger.info("Starting scheduled Provired notification sync.");
+    try {
+      // 1. Fetch existing notification identifiers from Firestore to avoid duplicates
+      const existingNotifsSnapshot = await db
+        .collection("provired_notifications").select("uniqueId").get();
+      const existingNotifIds = new Set(
+        existingNotifsSnapshot.docs.map((doc) => doc.data().uniqueId),
+      );
+      logger.info(`Found ${existingNotifIds.size} existing Provired notifications in DB.`);
 
-            // 2. Fetch all notifications from the external API
-            const newNotifications = (await makeProviredApiRequest("notification", "getData")) as {
+      // 2. Fetch all notifications from the external API
+      const newNotifications = (await makeProviredApiRequest("notification", "getData")) as {
                 fechaPublicacion: string,
                 radicacion: string,
                 demandante?: string,
                 demandado?: string
             }[];
-            if (!Array.isArray(newNotifications) || newNotifications.length === 0) {
-                logger.info("No new notifications to sync from Provired API.");
-                return;
-            }
-            logger.info(`Fetched ${newNotifications.length} notifications from Provired API.`);
+      if (!Array.isArray(newNotifications) || newNotifications.length === 0) {
+        logger.info("No new notifications to sync from Provired API.");
+        return;
+      }
+      logger.info(`Fetched ${newNotifications.length} notifications from Provired API.`);
 
-            // 3. Filter out notifications that already exist in the database
-            const notificationsToSave = newNotifications.filter((item) => {
-                const uniqueId = `${item.fechaPublicacion}-${item.radicacion}`.replace(/\s+/g, "");
-                return !existingNotifIds.has(uniqueId);
-            });
+      // 3. Filter out notifications that already exist in the database
+      const notificationsToSave = newNotifications.filter((item) => {
+        const uniqueId = `${item.fechaPublicacion}-${item.radicacion}`.replace(/\s+/g, "");
+        return !existingNotifIds.has(uniqueId);
+      });
 
-            if (notificationsToSave.length === 0) {
-                logger.info("No new Provired notifications to save after filtering.");
-                return;
-            }
-            logger.info(`Found ${notificationsToSave.length} new Provired notifications to save.`);
+      if (notificationsToSave.length === 0) {
+        logger.info("No new Provired notifications to save after filtering.");
+        return;
+      }
+      logger.info(`Found ${notificationsToSave.length} new Provired notifications to save.`);
 
-            // 4. Save the new notifications in batches
-            const BATCH_SIZE = 400; // Firestore batch limit is 500
-            for (let i = 0; i < notificationsToSave.length; i += BATCH_SIZE) {
-                const batch = db.batch();
-                const chunk = notificationsToSave.slice(i, i + BATCH_SIZE);
-                chunk.forEach((item) => {
-                    const uniqueId = `${item.fechaPublicacion}-${item.radicacion}`.replace(/\s+/g, "");
-                    const docRef = db.collection("provired_notifications").doc(); // Auto-generate ID
-                    const dataToSet = {
-                        ...item,
-                        uniqueId: uniqueId,
-                        demandante_lower: (item.demandante || "").toLowerCase(),
-                        demandado_lower: (item.demandado || "").toLowerCase(),
-                        syncedAt: Timestamp.now(),
-                    };
-                    batch.set(docRef, dataToSet);
-                });
-                await batch.commit();
-                logger.info(
-                    `Committed Provired batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(
-                        notificationsToSave.length / BATCH_SIZE,
-                    )}.`,
-                );
-            }
+      // 4. Save the new notifications in batches
+      const BATCH_SIZE = 400; // Firestore batch limit is 500
+      for (let i = 0; i < notificationsToSave.length; i += BATCH_SIZE) {
+        const batch = db.batch();
+        const chunk = notificationsToSave.slice(i, i + BATCH_SIZE);
+        chunk.forEach((item) => {
+          const uniqueId = `${item.fechaPublicacion}-${item.radicacion}`.replace(/\s+/g, "");
+          const docRef = db.collection("provired_notifications").doc(); // Auto-generate ID
+          const dataToSet = {
+            ...item,
+            uniqueId: uniqueId,
+            demandante_lower: (item.demandante || "").toLowerCase(),
+            demandado_lower: (item.demandado || "").toLowerCase(),
+            syncedAt: Timestamp.now(),
+          };
+          batch.set(docRef, dataToSet);
+        });
+        await batch.commit();
+        logger.info(
+          `Committed Provired batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(
+            notificationsToSave.length / BATCH_SIZE,
+          )}.`,
+        );
+      }
 
-            logger.info("Scheduled Provired notification sync completed successfully.");
-        } catch (error) {
-            logger.error("Error during scheduled Provired notification sync:", error);
-            throw error; // Re-throw to indicate failure for potential retries
-        }
-    },
+      logger.info("Scheduled Provired notification sync completed successfully.");
+    } catch (error) {
+      logger.error("Error during scheduled Provired notification sync:", error);
+      throw error; // Re-throw to indicate failure for potential retries
+    }
+  },
 );
 
 
@@ -754,6 +754,10 @@ const groupById = (rows: any[], key: string) => {
   }, {});
 };
 
+/**
+ * A scheduled function that runs twice daily to sync data from an external
+ * MySQL database to Firestore. This replaces the manual sync process.
+ */
 export const scheduledSync = onSchedule(
   {
     schedule: "0 9,21 * * *", // Runs at 9:00 AM and 9:00 PM every day.
