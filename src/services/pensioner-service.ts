@@ -1,3 +1,4 @@
+
 import { collection, query, getDocs, where, documentId, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { ProcesoCancelado, Payment } from '@/lib/data';
@@ -46,12 +47,27 @@ export async function getProcesosCancelados(): Promise<ProcesoCancelado[]> {
 export async function getProcesosCanceladosConPensionados(): Promise<ProcesoCancelado[]> {
     try {
         const procesosSnapshot = await getDocs(query(collection(db, PROCESOS_CANCELADOS_COLLECTION)));
-        let data = procesosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcesoCancelado));
+        const data = procesosSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProcesoCancelado));
 
         if (data.length === 0) return [];
+        
+        // Group by pagoId to consolidate duplicated entries
+        const groupedByPagoId = new Map<string, ProcesoCancelado>();
+        data.forEach(p => {
+            const existing = groupedByPagoId.get(p.pagoId);
+            if(existing) {
+                // Merge concepts from duplicate entry
+                existing.conceptos.push(...p.conceptos);
+            } else {
+                groupedByPagoId.set(p.pagoId, { ...p, conceptos: [...p.conceptos] }); // Ensure concepts is a new array
+            }
+        });
 
-        if (data.length > 0) {
-            const pensionerIds = [...new Set(data.map(p => p.pensionadoId).filter(Boolean))];
+        let consolidatedData = Array.from(groupedByPagoId.values());
+
+
+        if (consolidatedData.length > 0) {
+            const pensionerIds = [...new Set(consolidatedData.map(p => p.pensionadoId).filter(Boolean))];
             const pensionersData: { [key: string]: { name: string, document: string, department: string } } = {};
             
             const chunks = [];
@@ -75,7 +91,7 @@ export async function getProcesosCanceladosConPensionados(): Promise<ProcesoCanc
             }
 
             // Enrich with pensioner info and fetch original payment
-            data = await Promise.all(data.map(async (p) => {
+            consolidatedData = await Promise.all(consolidatedData.map(async (p) => {
                 const pagoDocRef = doc(db, 'pensionados', p.pensionadoId, 'pagos', p.pagoId);
                 const pagoSnap = await getDoc(pagoDocRef);
                 const pagoOriginal = pagoSnap.exists() ? pagoSnap.data() as Payment : null;
@@ -88,7 +104,7 @@ export async function getProcesosCanceladosConPensionados(): Promise<ProcesoCanc
             }));
         }
 
-        const sortedData = data.sort((a, b) => {
+        const sortedData = consolidatedData.sort((a, b) => {
             const dateA = a.creadoEn ? new Date((a.creadoEn as any).seconds * 1000) : new Date(0);
             const dateB = b.creadoEn ? new Date((b.creadoEn as any).seconds * 1000) : new Date(0);
             return dateB.getTime() - dateA.getTime();
