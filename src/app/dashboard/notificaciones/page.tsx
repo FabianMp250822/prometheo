@@ -5,12 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Search, FileDown, BellRing, AlertTriangle, Download } from 'lucide-react';
+import { Loader2, Search, FileDown, BellRing, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { collection, getDocs, query, where, or, limit, orderBy, startAfter, QueryDocumentSnapshot, DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { syncProviredNotifications } from '@/services/provired-api-service';
 
 interface Notification {
     id: string;
@@ -51,11 +50,6 @@ export default function NotificacionesPage() {
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
     const { toast } = useToast();
-
-    // Sync state
-    const [isSyncing, startSyncTransition] = useTransition();
-    const [syncMessage, setSyncMessage] = useState('');
-
 
     const fetchPaginatedNotifications = useCallback(async (cursor?: QueryDocumentSnapshot<DocumentData> | null) => {
         const loadMore = !!cursor;
@@ -160,26 +154,6 @@ export default function NotificacionesPage() {
         }
     }, [debouncedSearchTerm, fetchPaginatedNotifications, searchNotificationsInFirebase]);
 
-    const handleSync = () => {
-        startSyncTransition(async () => {
-            setSyncMessage('Iniciando sincronización, por favor espere...');
-            toast({ title: 'Sincronización Iniciada', description: 'Obteniendo todas las notificaciones. Este proceso puede tardar varios minutos.' });
-
-            const result = await syncProviredNotifications();
-
-            if (result.success) {
-                toast({ title: 'Sincronización Completa', description: `${result.count} notificaciones fueron procesadas.` });
-                fetchPaginatedNotifications();
-            } else {
-                toast({ variant: 'destructive', title: 'Error de Sincronización', description: result.message });
-                setError(result.message || 'Ocurrió un error desconocido.');
-            }
-             setTimeout(() => {
-                setSyncMessage('');
-            }, 5000);
-        });
-    };
-
     return (
         <>
             <div className="p-4 md:p-8 space-y-6">
@@ -191,22 +165,14 @@ export default function NotificacionesPage() {
                                 Archivo de Notificaciones
                             </CardTitle>
                             <CardDescription>
-                                Explore el historial de notificaciones o busque por demandante, demandado o radicación.
+                                Explore el historial de notificaciones. La sincronización es automática.
                             </CardDescription>
                         </div>
-                        <Button onClick={handleSync} disabled={isSyncing}>
-                            {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                            Sincronizar Notificaciones
+                         <Button onClick={() => fetchPaginatedNotifications()} disabled={isLoading}>
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Refrescar Datos
                         </Button>
                     </CardHeader>
-                     {isSyncing && (
-                        <CardContent>
-                            <div className="flex items-center gap-4">
-                               <Loader2 className="h-4 w-4 animate-spin" />
-                               <p className="text-sm text-muted-foreground">{syncMessage}</p>
-                            </div>
-                        </CardContent>
-                    )}
                     <CardContent>
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

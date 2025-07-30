@@ -284,157 +284,130 @@ export const sendPaymentReminder = onCall(
 
 
 // =====================================
-// Scheduled Function: Sync Notifications
+// Provired API Configuration
 // =====================================
+const PROVIRED_API_BASE_URL = "https://apiclient.proviredcolombia.com";
+const PROVIRED_STATIC_TOKEN = "iYmMqGfKb057z8ImmAm82ULmMgd26lelgs5BcYkOkQJgkacDljdbBbyb4Dh2pPP8";
 
-const API_BASE_URL = "https://apiclient.proviredcolombia.com";
-const STATIC_TOKEN = "iYmMqGfKb057z8ImmAm82ULmMgd26lelgs5BcYkOkQJgkacDljdbBbyb4Dh2pPP8";
+let proviredJwtToken: string | null = null;
+let proviredTokenExpiresAt: number | null = null;
 
-let jwtToken: string | null = null;
-let tokenExpiresAt: number | null = null;
-
-/**
- * Retrieves a JWT token, fetching a new one if expired.
- * @return {Promise<string>} The JWT token.
- */
-async function getJwtToken(): Promise<string> {
-  if (jwtToken && tokenExpiresAt && Date.now() < tokenExpiresAt) {
-    return jwtToken;
+async function getProviredJwtToken(): Promise<string> {
+  if (proviredJwtToken && proviredTokenExpiresAt && Date.now() < proviredTokenExpiresAt) {
+    return proviredJwtToken;
   }
-
-  logger.info("JWT is expired or null, fetching a new one.");
-  const response = await fetch(`${API_BASE_URL}/token`, {
+  logger.info("Provired JWT is expired or null, fetching a new one.");
+  const response = await fetch(`${PROVIRED_API_BASE_URL}/token`, {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({token: STATIC_TOKEN}),
+    body: JSON.stringify({token: PROVIRED_STATIC_TOKEN}),
   });
-
   if (!response.ok) {
-    throw new Error(`Failed to get JWT: ${response.status}`);
+    throw new Error(`Failed to get Provired JWT: ${response.status}`);
   }
-
   const data = (await response.json()) as { token: string };
   if (!data.token) {
-    throw new Error("JWT not found in token response");
+    throw new Error("Provired JWT not found in token response");
   }
-
-  jwtToken = data.token;
-  tokenExpiresAt = Date.now() + 5 * 60 * 60 * 1000; // 5 hours expiration
-  return jwtToken;
+  proviredJwtToken = data.token;
+  proviredTokenExpiresAt = Date.now() + 5 * 60 * 60 * 1000; // 5 hours expiration
+  return proviredJwtToken;
 }
 
-/**
- * Makes an authenticated request to the Provired API.
- * @param {string} endpoint The API endpoint to call.
- * @param {string} method The method for the API request body.
- * @return {Promise<Record<string, unknown>[]>} The data from the API.
- */
-async function makeApiRequest(
-  endpoint: string,
-  method: string,
-): Promise<Record<string, unknown>[]> {
-  const jwt = await getJwtToken();
+async function makeProviredApiRequest(endpoint: string, method: string): Promise<any[]> {
+  const jwt = await getProviredJwtToken();
   const body = JSON.stringify({method, params: {}});
-  const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
+  const response = await fetch(`${PROVIRED_API_BASE_URL}/${endpoint}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${jwt}`,
-    },
+    headers: {"Content-Type": "application/json", "Authorization": `Bearer ${jwt}`},
     body,
   });
-
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(`API Error: ${response.status} ${errorBody}`);
+    throw new Error(`Provired API Error: ${response.status} ${errorBody}`);
   }
-
   const responseData = await response.json() as { data: any[] };
   return responseData.data || [];
 }
 
-export const triggerProviredSync = onCall(
-  {cors: ALLOWED_ORIGINS},
-  async (request) => {
-    // Authentication check
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
-    }
-    logger.info("Starting daily notification sync, triggered by user:", request.auth.uid);
-    try {
-      // 1. Fetch existing notification identifiers from Firestore to avoid duplicates
-      const existingNotifsSnapshot = await db
-        .collection("provired_notifications").select("uniqueId").get();
-      const existingNotifIds = new Set(
-        existingNotifsSnapshot.docs.map((doc) => doc.data().uniqueId),
-      );
-      logger.info(`Found ${existingNotifIds.size} existing notifs in DB.`);
+// =====================================
+// Scheduled Function: Sync Notifications
+// =====================================
 
-      // 2. Fetch all notifications from the external API
-      const newNotifications = (
-        await makeApiRequest("notification", "getData")
-        ) as {
-        fechaPublicacion: string,
-        radicacion: string,
-        demandante?: string,
-        demandado?: string
-      }[];
-      if (!Array.isArray(newNotifications) || newNotifications.length === 0) {
-        logger.info("No new notifications to sync from API.");
-        return {success: true, count: 0, message: "No hay notificaciones nuevas para sincronizar."};
-      }
-      logger.info(`Fetched ${newNotifications.length} notifs from API.`);
+export const scheduledProviredSync = onSchedule(
+    {
+      schedule: "0 7,15,23 * * *", // Runs at 7 AM, 3 PM, and 11 PM every day.
+      timeZone: "America/Bogota",
+    },
+    async () => {
+        logger.info("Starting scheduled Provired notification sync.");
+        try {
+            // 1. Fetch existing notification identifiers from Firestore to avoid duplicates
+            const existingNotifsSnapshot = await db
+                .collection("provired_notifications").select("uniqueId").get();
+            const existingNotifIds = new Set(
+                existingNotifsSnapshot.docs.map((doc) => doc.data().uniqueId),
+            );
+            logger.info(`Found ${existingNotifIds.size} existing Provired notifications in DB.`);
 
-      // 3. Filter out notifications that already exist in the database
-      const notificationsToSave = newNotifications.filter((item) => {
-        const uniqueId = `${item.fechaPublicacion}-${item.radicacion}`
-          .replace(/\s+/g, "");
-        return !existingNotifIds.has(uniqueId);
-      });
+            // 2. Fetch all notifications from the external API
+            const newNotifications = (await makeProviredApiRequest("notification", "getData")) as {
+                fechaPublicacion: string,
+                radicacion: string,
+                demandante?: string,
+                demandado?: string
+            }[];
+            if (!Array.isArray(newNotifications) || newNotifications.length === 0) {
+                logger.info("No new notifications to sync from Provired API.");
+                return;
+            }
+            logger.info(`Fetched ${newNotifications.length} notifications from Provired API.`);
 
-      if (notificationsToSave.length === 0) {
-        logger.info("No new notifications to save after filtering.");
-        return {success: true, count: 0, message: "La base de datos ya está actualizada."};
-      }
-      logger.info(
-        `Found ${notificationsToSave.length} new notifications to save.`,
-      );
+            // 3. Filter out notifications that already exist in the database
+            const notificationsToSave = newNotifications.filter((item) => {
+                const uniqueId = `${item.fechaPublicacion}-${item.radicacion}`.replace(/\s+/g, "");
+                return !existingNotifIds.has(uniqueId);
+            });
 
-      // 4. Save the new notifications in batches
-      const BATCH_SIZE = 400; // Firestore batch limit is 500
-      for (let i = 0; i < notificationsToSave.length; i += BATCH_SIZE) {
-        const batch = db.batch();
-        const chunk = notificationsToSave.slice(i, i + BATCH_SIZE);
-        chunk.forEach((item) => {
-          const uniqueId = `${item.fechaPublicacion}-${item.radicacion}`
-            .replace(/\s+/g, "");
-            // Auto-generate ID
-          const docRef = db.collection("provired_notifications").doc();
-          const dataToSet = {
-            ...item,
-            uniqueId: uniqueId,
-            demandante_lower: (item.demandante || "").toLowerCase(),
-            demandado_lower: (item.demandado || "").toLowerCase(),
-            syncedAt: Timestamp.now(),
-          };
-          batch.set(docRef, dataToSet);
-        });
-        await batch.commit();
-        logger.info(
-          `Committed batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(
-            notificationsToSave.length / BATCH_SIZE,
-          )}.`,
-        );
-      }
+            if (notificationsToSave.length === 0) {
+                logger.info("No new Provired notifications to save after filtering.");
+                return;
+            }
+            logger.info(`Found ${notificationsToSave.length} new Provired notifications to save.`);
 
-      logger.info("Daily notification sync completed successfully.");
-      return {success: true, count: notificationsToSave.length, message: `${notificationsToSave.length} notificaciones nuevas guardadas.`};
-    } catch (error) {
-      logger.error("Error during daily notification sync:", error);
-      // Throw error to indicate failure for potential retries
-      throw new HttpsError("internal", "Error durante la sincronización", (error as Error).message);
-    }
-  });
+            // 4. Save the new notifications in batches
+            const BATCH_SIZE = 400; // Firestore batch limit is 500
+            for (let i = 0; i < notificationsToSave.length; i += BATCH_SIZE) {
+                const batch = db.batch();
+                const chunk = notificationsToSave.slice(i, i + BATCH_SIZE);
+                chunk.forEach((item) => {
+                    const uniqueId = `${item.fechaPublicacion}-${item.radicacion}`.replace(/\s+/g, "");
+                    const docRef = db.collection("provired_notifications").doc(); // Auto-generate ID
+                    const dataToSet = {
+                        ...item,
+                        uniqueId: uniqueId,
+                        demandante_lower: (item.demandante || "").toLowerCase(),
+                        demandado_lower: (item.demandado || "").toLowerCase(),
+                        syncedAt: Timestamp.now(),
+                    };
+                    batch.set(docRef, dataToSet);
+                });
+                await batch.commit();
+                logger.info(
+                    `Committed Provired batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(
+                        notificationsToSave.length / BATCH_SIZE,
+                    )}.`,
+                );
+            }
+
+            logger.info("Scheduled Provired notification sync completed successfully.");
+        } catch (error) {
+            logger.error("Error during scheduled Provired notification sync:", error);
+            throw error; // Re-throw to indicate failure for potential retries
+        }
+    },
+);
+
 
 // =====================================
 // User Management Functions
