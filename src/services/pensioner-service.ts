@@ -56,10 +56,18 @@ export async function getProcesosCanceladosConPensionados(): Promise<ProcesoCanc
         data.forEach(p => {
             const existing = groupedByPagoId.get(p.pagoId);
             if(existing) {
-                // Merge concepts from duplicate entry
-                existing.conceptos.push(...p.conceptos);
+                // Merge concepts from duplicate entry, ensuring no duplicate concepts are added.
+                p.conceptos.forEach(newConcept => {
+                    const conceptExists = existing.conceptos.some(
+                        existingConcept => existingConcept.codigo === newConcept.codigo && existingConcept.nombre === newConcept.nombre
+                    );
+                    if (!conceptExists) {
+                        existing.conceptos.push(newConcept);
+                    }
+                });
             } else {
-                groupedByPagoId.set(p.pagoId, { ...p, conceptos: [...p.conceptos] }); // Ensure concepts is a new array
+                // Use a copy of the conceptos array to avoid mutation issues
+                groupedByPagoId.set(p.pagoId, { ...p, conceptos: [...p.conceptos] });
             }
         });
 
