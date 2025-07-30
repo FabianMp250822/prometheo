@@ -41,14 +41,47 @@ const allPermissions = [
     { id: 'canAccessConfiguracion', label: 'Acceder a Configuración' },
 ];
 
+const defaultPermissionsByRole: { [key: string]: { [key: string]: boolean } } = {
+  Administrador: {
+    canViewDashboard: true, canViewBuscador: true, canViewHojaDeVida: true,
+    canViewAgenda: true, canViewLiquidaciones: true, canViewPagosSentencias: true,
+    canViewContabilidad: true, canViewProcesosEnLinea: true, canViewReportes: true,
+    canViewGestionDemandas: true, canManageUsers: true, canAccessConfiguracion: true,
+  },
+  "Abogado Titular": {
+    canViewDashboard: true, canViewBuscador: true, canViewHojaDeVida: true,
+    canViewAgenda: true, canViewLiquidaciones: true, canViewPagosSentencias: true,
+    canViewContabilidad: false, canViewProcesosEnLinea: true, canViewReportes: false,
+    canViewGestionDemandas: true, canManageUsers: false, canAccessConfiguracion: false,
+  },
+  "Abogado Externo": {
+    canViewDashboard: true, canViewBuscador: true, canViewHojaDeVida: true,
+    canViewAgenda: true, canViewLiquidaciones: false, canViewPagosSentencias: false,
+    canViewContabilidad: false, canViewProcesosEnLinea: true, canViewReportes: false,
+    canViewGestionDemandas: true, canManageUsers: false, canAccessConfiguracion: false,
+  },
+  Contador: {
+    canViewDashboard: true, canViewBuscador: true, canViewHojaDeVida: false,
+    canViewAgenda: false, canViewLiquidaciones: true, canViewPagosSentencias: true,
+    canViewContabilidad: true, canViewProcesosEnLinea: false, canViewReportes: true,
+    canViewGestionDemandas: false, canManageUsers: false, canAccessConfiguracion: true,
+  },
+};
+
+
 export function UserPermissionsModal({ user, isOpen, onClose, onPermissionsUpdate }: UserPermissionsModalProps) {
     const [permissions, setPermissions] = useState<{ [key: string]: boolean }>({});
     const [isSaving, setIsSaving] = useState(false);
     const { toast } = useToast();
 
     useEffect(() => {
-        if (user?.permissions) {
-            setPermissions(user.permissions);
+        if (user) {
+            // If user has permissions, use them. Otherwise, load defaults for their role.
+            if (user.permissions && Object.keys(user.permissions).length > 0) {
+                setPermissions(user.permissions);
+            } else {
+                setPermissions(defaultPermissionsByRole[user.rol] || {});
+            }
         } else {
             setPermissions({});
         }
