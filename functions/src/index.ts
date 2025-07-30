@@ -292,7 +292,7 @@ let proviredTokenExpiresAt: number | null = null;
 
 /**
  * Retrieves a JWT token from Provired, caching it for 5 hours.
- * @returns {Promise<string>} The JWT token.
+ * @return {Promise<string>} The JWT token.
  */
 async function getProviredJwtToken(): Promise<string> {
   if (proviredJwtToken && proviredTokenExpiresAt && Date.now() < proviredTokenExpiresAt) {
@@ -320,7 +320,7 @@ async function getProviredJwtToken(): Promise<string> {
  * Makes an authenticated request to the Provired API.
  * @param {string} endpoint - The API endpoint to call.
  * @param {string} method - The method for the API request body.
- * @returns {Promise<any[]>} The data array from the API response.
+ * @return {Promise<any[]>} The data array from the API response.
  */
 async function makeProviredApiRequest(endpoint: string, method: string): Promise<any[]> {
   const jwt = await getProviredJwtToken();
@@ -660,7 +660,7 @@ export const submitPublicForm = onCall({cors: ALLOWED_ORIGINS}, async (request) 
  * It is triggered by a user action in the frontend and returns a comprehensive
  * dataset containing processes and their related sub-collections.
  * @param {object} request - The request object from the client. Must be authenticated.
- * @returns {Promise<{success: boolean, data?: object, error?: string}>}
+ * @return {Promise<{success: boolean, data?: object, error?: string}>}
  * An object indicating success and containing the fetched data or an error message.
  */
 export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
@@ -721,7 +721,7 @@ export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) 
  * Saves synced data from the external source to Firestore.
  * This function is callable from the client.
  * @param {object} request - The request object containing the data to save.
- * @returns {Promise<{success: boolean, message: string}>} A confirmation object.
+ * @return {Promise<{success: boolean, message: string}>} A confirmation object.
  */
 export const saveSyncedData = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
   if (!request.auth) {
