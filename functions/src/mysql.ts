@@ -1,30 +1,32 @@
 
 import mysql from "mysql2/promise";
 import * as functions from "firebase-functions";
-import type { Pool } from "mysql2/promise";
-
-// Get the mysql config object, which might be undefined during cold starts or deployment analysis.
-const mysqlConfig = functions.config().mysql;
-
-// Configuration for the MySQL connection pool
-const config = {
-  host: mysqlConfig?.host || "193.203.175.34", // IP from your Hostinger panel
-  user: mysqlConfig?.user || "u965232645_dajusticia",
-  password: mysqlConfig?.password || "D@justicia162804",
-  database: mysqlConfig?.database || "u965232645_dajusticia",
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-};
+import type {Pool} from "mysql2/promise";
 
 let pool: Pool | null = null;
 
 /**
  * Creates and returns a singleton MySQL connection pool.
+ * The entire configuration is read inside this function to avoid
+ * global scope errors during deployment.
  * @return {Pool} The MySQL connection pool.
  */
 function getPool(): Pool {
   if (!pool) {
+    // Get the mysql config object ONLY when the pool is first requested.
+    const mysqlConfig = functions.config().mysql;
+
+    // Configuration for the MySQL connection pool
+    const config = {
+      host: mysqlConfig?.host || "193.203.175.34", // IP from your Hostinger panel
+      user: mysqlConfig?.user || "u965232645_dajusticia",
+      password: mysqlConfig?.password || "D@justicia162804",
+      database: mysqlConfig?.database || "u965232645_dajusticia",
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+    };
+    
     pool = mysql.createPool(config);
   }
   return pool;
