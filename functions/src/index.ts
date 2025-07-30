@@ -295,15 +295,8 @@ let proviredJwtToken: string | null = null;
 let proviredTokenExpiresAt: number | null = null;
 
 /**
- * @fileOverview This function connects directly to an external MySQL database
- * to sync legal process data. It replaces the previous method of calling
- * intermediary PHP scripts.
- *
- * It is triggered by a user action in the frontend and returns a comprehensive
- * dataset containing processes and their related sub-collections.
- * @param {object} request - The request object from the client. Must be authenticated.
- * @return {Promise<{success: boolean, data?: object, error?: string}>}
- * An object indicating success and containing the fetched data or an error message.
+ * Retrieves a JWT token from Provired, caching it for 5 hours.
+ * @returns {Promise<string>} The JWT token.
  */
 async function getProviredJwtToken(): Promise<string> {
   if (proviredJwtToken && proviredTokenExpiresAt && Date.now() < proviredTokenExpiresAt) {
@@ -328,15 +321,10 @@ async function getProviredJwtToken(): Promise<string> {
 }
 
 /**
- * @fileOverview This function connects directly to an external MySQL database
- * to sync legal process data. It replaces the previous method of calling
- * intermediary PHP scripts.
- *
- * It is triggered by a user action in the frontend and returns a comprehensive
- * dataset containing processes and their related sub-collections.
- * @param {object} request - The request object from the client. Must be authenticated.
- * @return {Promise<{success: boolean, data?: object, error?: string}>}
- * An object indicating success and containing the fetched data or an error message.
+ * Makes an authenticated request to the Provired API.
+ * @param {string} endpoint - The API endpoint to call.
+ * @param {string} method - The method for the API request body.
+ * @returns {Promise<any[]>} The data array from the API response.
  */
 async function makeProviredApiRequest(endpoint: string, method: string): Promise<any[]> {
   const jwt = await getProviredJwtToken();
@@ -436,66 +424,30 @@ export const scheduledProviredSync = onSchedule(
 // =====================================
 // User Management Functions
 // =====================================
-const defaultPermissions = {
-  // Admin has all permissions
+const defaultPermissionsByRole: { [key: string]: { [key: string]: boolean } } = {
   Administrador: {
-    canViewDashboard: true,
-    canViewBuscador: true,
-    canViewHojaDeVida: true,
-    canViewAgenda: true,
-    canViewLiquidaciones: true,
-    canViewPagosSentencias: true,
-    canViewContabilidad: true,
-    canViewProcesosEnLinea: true,
-    canViewReportes: true,
-    canViewGestionDemandas: true,
-    canManageUsers: true,
-    canAccessConfiguracion: true,
+    canViewDashboard: true, canViewBuscador: true, canViewHojaDeVida: true,
+    canViewAgenda: true, canViewLiquidaciones: true, canViewPagosSentencias: true,
+    canViewContabilidad: true, canViewProcesosEnLinea: true, canViewReportes: true,
+    canViewGestionDemandas: true, canManageUsers: true, canAccessConfiguracion: true,
   },
-  // Default for a lawyer
   "Abogado Titular": {
-    canViewDashboard: true,
-    canViewBuscador: true,
-    canViewHojaDeVida: true,
-    canViewAgenda: true,
-    canViewLiquidaciones: true,
-    canViewPagosSentencias: true,
-    canViewContabilidad: false,
-    canViewProcesosEnLinea: true,
-    canViewReportes: false,
-    canViewGestionDemandas: true,
-    canManageUsers: false,
-    canAccessConfiguracion: false,
+    canViewDashboard: true, canViewBuscador: true, canViewHojaDeVida: true,
+    canViewAgenda: true, canViewLiquidaciones: true, canViewPagosSentencias: true,
+    canViewContabilidad: false, canViewProcesosEnLinea: true, canViewReportes: false,
+    canViewGestionDemandas: true, canManageUsers: false, canAccessConfiguracion: false,
   },
-  // Default for an external lawyer
   "Abogado Externo": {
-    canViewDashboard: true,
-    canViewBuscador: true,
-    canViewHojaDeVida: true,
-    canViewAgenda: true,
-    canViewLiquidaciones: false,
-    canViewPagosSentencias: false,
-    canViewContabilidad: false,
-    canViewProcesosEnLinea: true,
-    canViewReportes: false,
-    canViewGestionDemandas: true,
-    canManageUsers: false,
-    canAccessConfiguracion: false,
+    canViewDashboard: true, canViewBuscador: true, canViewHojaDeVida: true,
+    canViewAgenda: true, canViewLiquidaciones: false, canViewPagosSentencias: false,
+    canViewContabilidad: false, canViewProcesosEnLinea: true, canViewReportes: false,
+    canViewGestionDemandas: true, canManageUsers: false, canAccessConfiguracion: false,
   },
-  // Default for an accountant
   Contador: {
-    canViewDashboard: true,
-    canViewBuscador: true,
-    canViewHojaDeVida: false,
-    canViewAgenda: false,
-    canViewLiquidaciones: true,
-    canViewPagosSentencias: true,
-    canViewContabilidad: true,
-    canViewProcesosEnLinea: false,
-    canViewReportes: true,
-    canViewGestionDemandas: false,
-    canManageUsers: false,
-    canAccessConfiguracion: true,
+    canViewDashboard: true, canViewBuscador: true, canViewHojaDeVida: false,
+    canViewAgenda: false, canViewLiquidaciones: true, canViewPagosSentencias: true,
+    canViewContabilidad: true, canViewProcesosEnLinea: false, canViewReportes: true,
+    canViewGestionDemandas: false, canManageUsers: false, canAccessConfiguracion: true,
   },
 };
 
@@ -525,7 +477,7 @@ export const createUser = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
   }
 
   // Get default permissions for the role
-  const permissions = defaultPermissions[role as keyof typeof defaultPermissions] || {};
+  const permissions = defaultPermissionsByRole[role as keyof typeof defaultPermissionsByRole] || {};
 
   try {
     // 3. Create user in Firebase Authentication
@@ -712,7 +664,7 @@ export const submitPublicForm = onCall({cors: ALLOWED_ORIGINS}, async (request) 
  * It is triggered by a user action in the frontend and returns a comprehensive
  * dataset containing processes and their related sub-collections.
  * @param {object} request - The request object from the client. Must be authenticated.
- * @return {Promise<{success: boolean, data?: object, error?: string}>}
+ * @returns {Promise<{success: boolean, data?: object, error?: string}>}
  * An object indicating success and containing the fetched data or an error message.
  */
 export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
@@ -772,6 +724,8 @@ export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) 
 /**
  * Saves synced data from the external source to Firestore.
  * This function is callable from the client.
+ * @param {object} request - The request object containing the data to save.
+ * @returns {Promise<{success: boolean, message: string}>} A confirmation object.
  */
 export const saveSyncedData = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
   if (!request.auth) {
@@ -922,3 +876,5 @@ export const scheduledSync = onSchedule(
     }
   },
 );
+
+    
