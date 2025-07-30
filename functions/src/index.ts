@@ -18,6 +18,7 @@ import * as nodemailer from "nodemailer";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import fetch from "node-fetch";
 import {getAuth} from "firebase-admin/auth";
+import { queryDatabase } from "./mysql";
 
 const ALLOWED_ORIGINS = [
   "https://9000-firebase-studio-1751988148835.cluster-joak5ukfbnbyqspg4tewa33d24.cloudworkstations.dev",
@@ -634,100 +635,63 @@ export const submitPublicForm = onCall({cors: ALLOWED_ORIGINS}, async (request) 
   }
 });
 
-
 /**
- * Fetches data from an external URL and extracts JSON array from the response.
- * Handles potential HTML wrapper content around JSON data.
- * @param {string} url - The URL to fetch data from.
- * @return {Promise<any>} - The parsed JSON data from the response.
- * @throws {Error} - Throws a custom error if the request or parsing fails.
- */
-async function fetchExternalData(url: string): Promise<any> {
-  try {
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-      },
-    });
-
-    if (!response.ok) {
-      if (response.status === 403) {
-        throw new Error("Error de red: 403 Forbidden. El servidor externo está bloqueando la solicitud. Esto puede deberse a medidas de seguridad. Intente contactar al administrador del servidor externo.");
-      }
-      throw new Error(`Error de red: ${response.status} ${response.statusText}`);
-    }
-
-    const textResponse = await response.text();
-    const jsonStart = textResponse.indexOf("[");
-    const jsonEnd = textResponse.lastIndexOf("]");
-
-    if (jsonStart === -1 || jsonEnd === -1) {
-      return [];
-    }
-
-    const jsonString = textResponse.substring(jsonStart, jsonEnd + 1);
-
-    try {
-      const parsedData = JSON.parse(jsonString);
-      // Check if the external API itself returned an error message.
-      if (parsedData.error) {
-        throw new Error(`Error de la API externa: ${parsedData.error}`);
-      }
-      return parsedData;
-    } catch (parseError: any) {
-      logger.error(`JSON parsing error for URL ${url}:`, parseError.message);
-      throw new Error("La respuesta del servidor externo no es un JSON válido.");
-    }
-  } catch (error: any) {
-    logger.error(`Error fetching from ${url}:`, error.message);
-    // Rethrow the error to be caught by the calling function
-    throw new Error(`Fallo la conexión con el servidor externo en ${url}. Detalles: ${error.message}`);
-  }
-}
-
-/**
- * A callable function that acts as a proxy to fetch data from an external API.
- * This allows the client-side app to securely request this data.
- * @param {object} request - The request object from the client.
+ * @fileOverview This function connects directly to an external MySQL database
+ * to sync legal process data. It replaces the previous method of calling
+ * intermediary PHP scripts.
+ *
+ * It is triggered by a user action in the frontend and returns a comprehensive
+ * dataset containing processes and their related sub-collections.
+ * @param {object} request - The request object from the client. Must be authenticated.
  * @return {Promise<{success: boolean, data?: object, error?: string}>}
+ * An object indicating success and containing the fetched data or an error message.
  */
 export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "Must be authenticated to sync data.");
-  }
-  logger.info("Starting external data sync triggered by user:", request.auth.uid);
-
-  try {
-    const procesos = await fetchExternalData("https://appdajusticia.com/procesos.php?all=true");
-    if (!Array.isArray(procesos) || procesos.length === 0) {
-      return {success: false, error: "La API externa no devolvió procesos. La lista puede estar vacía o el servicio no está disponible."};
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Must be authenticated to sync data.");
     }
+    logger.info("Starting direct MySQL data sync triggered by user:", request.auth.uid);
 
-    const uniqueIds = [...new Set(procesos.map((p) => p.num_registro))];
-    logger.info(`Found ${uniqueIds.length} unique processes to sync.`);
+    try {
+        // Step 1: Fetch all main processes
+        const procesos = await queryDatabase("SELECT * FROM `procesos`");
+        if (!Array.isArray(procesos) || procesos.length === 0) {
+            return { success: false, error: "No se encontraron procesos en la base de datos externa." };
+        }
+        logger.info(`Found ${procesos.length} processes to sync.`);
 
-    const demandantesPromises = uniqueIds.map((id) => fetchExternalData(`https://appdajusticia.com/procesos.php?num_registro=${id}`).then((data) => ({key: id, data})));
-    const anotacionesPromises = uniqueIds.map((id) => fetchExternalData(`https://appdajusticia.com/anotaciones.php?num_registro=${id}`).then((data) => ({key: id, data})));
-    const anexosPromises = uniqueIds.map((id) => fetchExternalData(`https://appdajusticia.com/crud_anexos.php?num_registro=${id}`).then((data) => ({key: id, data})));
+        // Step 2: Get unique process IDs
+        const uniqueIds = [...new Set(procesos.map((p) => p.num_registro).filter(Boolean))];
+        if (uniqueIds.length === 0) {
+             return { success: true, data: { procesos: [], demandantes: {}, anotaciones: {}, anexos: {} } };
+        }
+        
+        // Step 3: Fetch related data for all unique IDs in parallel
+        const [demandantesResults, anotacionesResults, anexosResults] = await Promise.all([
+            queryDatabase("SELECT * FROM `demandantes` WHERE `num_registro` IN (?)", [uniqueIds]),
+            queryDatabase("SELECT * FROM `anotaciones` WHERE `num_registro` IN (?)", [uniqueIds]),
+            queryDatabase("SELECT * FROM `anexos` WHERE `num_registro` IN (?)", [uniqueIds]),
+        ]);
 
-    const [demandantesResults, anotacionesResults, anexosResults] = await Promise.all([
-      Promise.all(demandantesPromises),
-      Promise.all(anotacionesPromises),
-      Promise.all(anexosPromises),
-    ]);
+        // Step 4: Group the related data by process ID for easy lookup
+        const groupById = (rows: any[], key: string) => {
+          return rows.reduce((acc, row) => {
+            const id = row[key];
+            if (!acc[id]) acc[id] = [];
+            acc[id].push(row);
+            return acc;
+          }, {});
+        };
 
-    const demandantes = Object.fromEntries(demandantesResults.map((item) => [item.key, item.data]));
-    const anotaciones = Object.fromEntries(anotacionesResults.map((item) => [item.key, item.data]));
-    const anexos = Object.fromEntries(anexosResults.map((item) => [item.key, item.data]));
+        const demandantes = groupById(demandantesResults, 'num_registro');
+        const anotaciones = groupById(anotacionesResults, 'num_registro');
+        const anexos = groupById(anexosResults, 'num_registro');
 
-    logger.info("Successfully fetched all external data.");
-    return {success: true, data: {procesos, demandantes, anotaciones, anexos}};
-  } catch (error: any) {
-    logger.error("Error during external data sync:", error);
-    if (error instanceof HttpsError) {
-      throw error;
+        logger.info("Successfully fetched all external data directly from MySQL.");
+        return { success: true, data: { procesos, demandantes, anotaciones, anexos } };
+    } catch (error: any) {
+        logger.error("Error during direct MySQL data sync:", error);
+        // Provide a clear error message to the client
+        throw new HttpsError("internal", `Error de base de datos externa: ${error.message}`);
     }
-    // Encapsulate the detailed error message to send back to the client.
-    throw new HttpsError("internal", error.message || "An unexpected error occurred during data synchronization.");
-  }
 });
