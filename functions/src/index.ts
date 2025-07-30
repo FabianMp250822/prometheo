@@ -12,7 +12,7 @@
 import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import {initializeApp, getApps} from "firebase-admin/app";
-import {getFirestore, Timestamp} from "firebase-admin/firestore";
+import {getFirestore, Timestamp, writeBatch} from "firebase-admin/firestore";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import * as nodemailer from "nodemailer";
 import {onSchedule} from "firebase-functions/v2/scheduler";
@@ -667,13 +667,12 @@ export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) 
     }
 
     // Step 3: Fetch related data for all unique IDs in parallel
-    // Create a string of '?' placeholders for the IN clause
-    const placeholders = uniqueIds.map(() => '?').join(',');
+    const placeholders = uniqueIds.map(() => "?").join(",");
 
     const [demandantesResults, anotacionesResults, anexosResults] = await Promise.all([
-        queryDatabase(`SELECT * FROM \`demandantes\` WHERE \`num_registro\` IN (${placeholders})`, uniqueIds),
-        queryDatabase(`SELECT * FROM \`anotaciones\` WHERE \`num_registro\` IN (${placeholders})`, uniqueIds),
-        queryDatabase(`SELECT * FROM \`anexos\` WHERE \`num_registro\` IN (${placeholders})`, uniqueIds),
+      queryDatabase(`SELECT * FROM \`demandantes\` WHERE \`num_registro\` IN (${placeholders})`, uniqueIds),
+      queryDatabase(`SELECT * FROM \`anotaciones\` WHERE \`num_registro\` IN (${placeholders})`, uniqueIds),
+      queryDatabase(`SELECT * FROM \`anexos\` WHERE \`num_registro\` IN (${placeholders})`, uniqueIds),
     ]);
 
 
@@ -698,4 +697,67 @@ export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) 
     // Provide a clear error message to the client
     throw new HttpsError("internal", `Error de base de datos externa: ${error.message}`);
   }
+});
+
+
+/**
+ * Saves synced data from the external source to Firestore.
+ * This function is callable from the client.
+ */
+export const saveSyncedData = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Must be authenticated to save data.");
+    }
+    logger.info("Saving synced data triggered by user:", request.auth.uid);
+
+    const data = request.data;
+    if (!data || !data.procesos) {
+        throw new HttpsError("invalid-argument", "No data provided to save.");
+    }
+
+    const {procesos, demandantes, anotaciones, anexos} = data;
+    const BATCH_SIZE = 400; // Firestore batch writes are limited to 500 operations.
+
+    try {
+        for (let i = 0; i < procesos.length; i += BATCH_SIZE) {
+            const batch = writeBatch(db);
+            const chunk = procesos.slice(i, i + BATCH_SIZE);
+
+            for (const proceso of chunk) {
+                if (!proceso.num_registro) continue; // Skip if no ID
+                const procesoDocRef = db.collection("procesos").doc(proceso.num_registro);
+                batch.set(procesoDocRef, Object.fromEntries(Object.entries(proceso).filter(([_, v]) => v != null)));
+
+                // Add subcollections
+                const subCollections = {
+                    demandantes: demandantes[proceso.num_registro],
+                    anotaciones: anotaciones[proceso.num_registro],
+                    anexos: anexos[proceso.num_registro],
+                };
+
+                for (const [key, items] of Object.entries(subCollections)) {
+                    if (items && Array.isArray(items) && items.length > 0) {
+                        const subCollectionRef = procesoDocRef.collection(key);
+                        items.forEach((item: any) => {
+                             // Use a unique field from the item or generate one if not available.
+                             // 'auto' for anotaciones, 'id_anexo' for anexos, and maybe 'identidad_demandante' for demandantes.
+                            const itemId = item.auto || item.id_anexo || item.identidad_demandante;
+                            if (itemId) {
+                                const itemDocRef = subCollectionRef.doc(itemId.toString());
+                                batch.set(itemDocRef, Object.fromEntries(Object.entries(item).filter(([_, v]) => v != null)));
+                            }
+                        });
+                    }
+                }
+            }
+            await batch.commit();
+            logger.info(`Committed batch ${i / BATCH_SIZE + 1}.`);
+            // Brief pause to avoid overwhelming Firestore.
+            await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        return {success: true, message: `${procesos.length} procesos guardados.`};
+    } catch (error: any) {
+        logger.error("Error saving synced data to Firestore:", error);
+        throw new HttpsError("internal", "Failed to save data to Firestore.", error.message);
+    }
 });
