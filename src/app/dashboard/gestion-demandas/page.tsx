@@ -178,11 +178,6 @@ export default function GestionDemandasPage() {
 
   // --- Data Saving to Firebase ---
   const handleSaveData = useCallback(() => {
-    if (!user) {
-        toast({ variant: 'destructive', title: 'No Autenticado', description: 'Debe iniciar sesión para guardar datos.' });
-        return;
-    }
-
     if (!externalData || externalData.procesos.length === 0) {
       toast({ variant: 'destructive', title: 'No hay datos para guardar', description: 'Primero debes obtener los datos del servidor externo.' });
       return;
@@ -191,7 +186,7 @@ export default function GestionDemandasPage() {
     startSaving(async () => {
       setLoadingMessage(`Iniciando guardado...`);
       try {
-        const result = await saveSyncedDataToFirebase(user, externalData);
+        const result = await saveSyncedDataToFirebase(externalData);
         toast({ title: 'Guardado Exitoso', description: result.message || `${externalData.procesos.length} procesos guardados.` });
         await fetchProcesos(null);
 
@@ -202,7 +197,7 @@ export default function GestionDemandasPage() {
         setExternalData(null); // Clear memory
       }
     });
-  }, [externalData, toast, user]);
+  }, [externalData, toast]);
 
   // --- UI Handlers ---
   const handleViewDetails = (process: any) => {
