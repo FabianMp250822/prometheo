@@ -1,32 +1,27 @@
 
 import mysql from "mysql2/promise";
-import * as functions from "firebase-functions";
 import type {Pool} from "mysql2/promise";
 
 let pool: Pool | null = null;
 
 /**
- * Creates and returns a singleton MySQL connection pool.
- * The entire configuration is read inside this function to avoid
- * global scope errors during deployment.
+ * Creates and returns a singleton MySQL connection pool using environment variables.
  * @return {Pool} The MySQL connection pool.
  */
 function getPool(): Pool {
   if (!pool) {
-    // Get the mysql config object ONLY when the pool is first requested.
-    const mysqlConfig = functions.config().mysql;
-
-    // Configuration for the MySQL connection pool
+    // Configuration for the MySQL connection pool using environment variables.
+    // These need to be set in your Firebase project.
     const config = {
-      host: mysqlConfig?.host || "193.203.175.34", // IP from your Hostinger panel
-      user: mysqlConfig?.user || "u965232645_dajusticia",
-      password: mysqlConfig?.password || "D@justicia162804",
-      database: mysqlConfig?.database || "u965232645_dajusticia",
+      host: process.env.MYSQL_HOST || "193.203.175.34",
+      user: process.env.MYSQL_USER || "u965232645_dajusticia",
+      password: process.env.MYSQL_PASSWORD || "D@justicia162804",
+      database: process.env.MYSQL_DATABASE || "u965232645_dajusticia",
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
     };
-    
+
     pool = mysql.createPool(config);
   }
   return pool;
