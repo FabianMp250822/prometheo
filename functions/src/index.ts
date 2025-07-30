@@ -18,7 +18,7 @@ import * as nodemailer from "nodemailer";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import fetch from "node-fetch";
 import {getAuth} from "firebase-admin/auth";
-import { queryDatabase } from "./mysql";
+import {queryDatabase} from "./mysql.js";
 
 const ALLOWED_ORIGINS = [
   "https://9000-firebase-studio-1751988148835.cluster-joak5ukfbnbyqspg4tewa33d24.cloudworkstations.dev",
@@ -647,51 +647,51 @@ export const submitPublicForm = onCall({cors: ALLOWED_ORIGINS}, async (request) 
  * An object indicating success and containing the fetched data or an error message.
  */
 export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
-    if (!request.auth) {
-        throw new HttpsError("unauthenticated", "Must be authenticated to sync data.");
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Must be authenticated to sync data.");
+  }
+  logger.info("Starting direct MySQL data sync triggered by user:", request.auth.uid);
+
+  try {
+    // Step 1: Fetch all main processes
+    const procesos = await queryDatabase("SELECT * FROM `procesos`");
+    if (!Array.isArray(procesos) || procesos.length === 0) {
+      return {success: false, error: "No se encontraron procesos en la base de datos externa."};
     }
-    logger.info("Starting direct MySQL data sync triggered by user:", request.auth.uid);
+    logger.info(`Found ${procesos.length} processes to sync.`);
 
-    try {
-        // Step 1: Fetch all main processes
-        const procesos = await queryDatabase("SELECT * FROM `procesos`");
-        if (!Array.isArray(procesos) || procesos.length === 0) {
-            return { success: false, error: "No se encontraron procesos en la base de datos externa." };
-        }
-        logger.info(`Found ${procesos.length} processes to sync.`);
-
-        // Step 2: Get unique process IDs
-        const uniqueIds = [...new Set(procesos.map((p) => p.num_registro).filter(Boolean))];
-        if (uniqueIds.length === 0) {
-             return { success: true, data: { procesos: [], demandantes: {}, anotaciones: {}, anexos: {} } };
-        }
-        
-        // Step 3: Fetch related data for all unique IDs in parallel
-        const [demandantesResults, anotacionesResults, anexosResults] = await Promise.all([
-            queryDatabase("SELECT * FROM `demandantes` WHERE `num_registro` IN (?)", [uniqueIds]),
-            queryDatabase("SELECT * FROM `anotaciones` WHERE `num_registro` IN (?)", [uniqueIds]),
-            queryDatabase("SELECT * FROM `anexos` WHERE `num_registro` IN (?)", [uniqueIds]),
-        ]);
-
-        // Step 4: Group the related data by process ID for easy lookup
-        const groupById = (rows: any[], key: string) => {
-          return rows.reduce((acc, row) => {
-            const id = row[key];
-            if (!acc[id]) acc[id] = [];
-            acc[id].push(row);
-            return acc;
-          }, {});
-        };
-
-        const demandantes = groupById(demandantesResults, 'num_registro');
-        const anotaciones = groupById(anotacionesResults, 'num_registro');
-        const anexos = groupById(anexosResults, 'num_registro');
-
-        logger.info("Successfully fetched all external data directly from MySQL.");
-        return { success: true, data: { procesos, demandantes, anotaciones, anexos } };
-    } catch (error: any) {
-        logger.error("Error during direct MySQL data sync:", error);
-        // Provide a clear error message to the client
-        throw new HttpsError("internal", `Error de base de datos externa: ${error.message}`);
+    // Step 2: Get unique process IDs
+    const uniqueIds = [...new Set(procesos.map((p) => p.num_registro).filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      return {success: true, data: {procesos: [], demandantes: {}, anotaciones: {}, anexos: {}}};
     }
+
+    // Step 3: Fetch related data for all unique IDs in parallel
+    const [demandantesResults, anotacionesResults, anexosResults] = await Promise.all([
+      queryDatabase("SELECT * FROM `demandantes` WHERE `num_registro` IN (?)", [uniqueIds]),
+      queryDatabase("SELECT * FROM `anotaciones` WHERE `num_registro` IN (?)", [uniqueIds]),
+      queryDatabase("SELECT * FROM `anexos` WHERE `num_registro` IN (?)", [uniqueIds]),
+    ]);
+
+    // Step 4: Group the related data by process ID for easy lookup
+    const groupById = (rows: any[], key: string) => {
+      return rows.reduce((acc, row) => {
+        const id = row[key];
+        if (!acc[id]) acc[id] = [];
+        acc[id].push(row);
+        return acc;
+      }, {});
+    };
+
+    const demandantes = groupById(demandantesResults, "num_registro");
+    const anotaciones = groupById(anotacionesResults, "num_registro");
+    const anexos = groupById(anexosResults, "num_registro");
+
+    logger.info("Successfully fetched all external data directly from MySQL.");
+    return {success: true, data: {procesos, demandantes, anotaciones, anexos}};
+  } catch (error: any) {
+    logger.error("Error during direct MySQL data sync:", error);
+    // Provide a clear error message to the client
+    throw new HttpsError("internal", `Error de base de datos externa: ${error.message}`);
+  }
 });
