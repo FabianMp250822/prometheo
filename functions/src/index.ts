@@ -667,11 +667,15 @@ export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) 
     }
 
     // Step 3: Fetch related data for all unique IDs in parallel
+    // Create a string of '?' placeholders for the IN clause
+    const placeholders = uniqueIds.map(() => '?').join(',');
+
     const [demandantesResults, anotacionesResults, anexosResults] = await Promise.all([
-      queryDatabase("SELECT * FROM `demandantes` WHERE `num_registro` IN (?)", [uniqueIds]),
-      queryDatabase("SELECT * FROM `anotaciones` WHERE `num_registro` IN (?)", [uniqueIds]),
-      queryDatabase("SELECT * FROM `anexos` WHERE `num_registro` IN (?)", [uniqueIds]),
+        queryDatabase(`SELECT * FROM \`demandantes\` WHERE \`num_registro\` IN (${placeholders})`, uniqueIds),
+        queryDatabase(`SELECT * FROM \`anotaciones\` WHERE \`num_registro\` IN (${placeholders})`, uniqueIds),
+        queryDatabase(`SELECT * FROM \`anexos\` WHERE \`num_registro\` IN (${placeholders})`, uniqueIds),
     ]);
+
 
     // Step 4: Group the related data by process ID for easy lookup
     const groupById = (rows: any[], key: string) => {
