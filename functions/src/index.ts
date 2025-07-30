@@ -18,6 +18,7 @@ import * as nodemailer from "nodemailer";
 import fetch from "node-fetch";
 import {getAuth} from "firebase-admin/auth";
 import {queryDatabase} from "./mysql.js";
+import {onSchedule} from "firebase-functions/v2/scheduler";
 
 const ALLOWED_ORIGINS = [
   "https://9000-firebase-studio-1751988148835.cluster-joak5ukfbnbyqspg4tewa33d24.cloudworkstations.dev",
@@ -352,7 +353,7 @@ async function makeApiRequest(
   return responseData.data || [];
 }
 
-export const syncDailyNotifications = onCall(
+export const triggerProviredSync = onCall(
   {cors: ALLOWED_ORIGINS},
   async (request) => {
     // Authentication check
@@ -371,7 +372,7 @@ export const syncDailyNotifications = onCall(
 
       // 2. Fetch all notifications from the external API
       const newNotifications = (
-        await makeApiRequest("report", "getData")
+        await makeApiRequest("notification", "getData")
         ) as {
         fechaPublicacion: string,
         radicacion: string,
@@ -742,10 +743,9 @@ export const saveSyncedData = onCall({cors: ALLOWED_ORIGINS}, async (request) =>
         for (const [key, items] of Object.entries(subCollections)) {
           if (items && Array.isArray(items) && items.length > 0) {
             const subCollectionRef = procesoDocRef.collection(key);
-            items.forEach((item: any) => {
+            items.forEach((item: any, index: number) => {
               // Use a unique field from the item or generate one if not available.
-              // 'auto' for anotaciones, 'id_anexo' for anexos, and maybe 'identidad_demandante' for demandantes.
-              const itemId = item.auto || item.id_anexo || item.identidad_demandante;
+              const itemId = item.auto || item.id_anexo || item.identidad_demandante || `${Date.now()}-${index}`;
               if (itemId) {
                 const itemDocRef = subCollectionRef.doc(itemId.toString());
                 batch.set(itemDocRef, Object.fromEntries(Object.entries(item).filter(([, value]) => value != null)));
@@ -765,3 +765,92 @@ export const saveSyncedData = onCall({cors: ALLOWED_ORIGINS}, async (request) =>
     throw new HttpsError("internal", "Failed to save data to Firestore.", error.message);
   }
 });
+
+
+// =====================================
+// Scheduled Function: Sync External Data
+// =====================================
+
+// Helper function to group rows by a key
+const groupById = (rows: any[], key: string) => {
+  return rows.reduce((acc, row) => {
+    const id = row[key];
+    if (!acc[id]) acc[id] = [];
+    acc[id].push(row);
+    return acc;
+  }, {});
+};
+
+export const scheduledSync = onSchedule(
+  {
+    schedule: "0 9,21 * * *", // Runs at 9:00 AM and 9:00 PM every day.
+    timeZone: "America/Bogota",
+  },
+  async () => {
+    logger.info("Starting scheduled data sync from external MySQL DB.");
+
+    try {
+      // Step 1: Fetch data from MySQL
+      logger.info("Fetching data from MySQL...");
+      const procesos = await queryDatabase("SELECT * FROM `procesos`");
+      if (!Array.isArray(procesos) || procesos.length === 0) {
+        logger.info("No processes found in external DB. Sync finished.");
+        return;
+      }
+      logger.info(`Found ${procesos.length} processes to sync.`);
+
+      const uniqueIds = [...new Set(procesos.map((p) => p.num_registro).filter(Boolean))];
+      if (uniqueIds.length === 0) {
+        logger.info("No unique process IDs found. Sync finished.");
+        return;
+      }
+      const placeholders = uniqueIds.map(() => "?").join(",");
+
+      const [demandantes, anotaciones, anexos] = await Promise.all([
+        queryDatabase(`SELECT * FROM \`demandantes\` WHERE \`num_registro\` IN (${placeholders})`, uniqueIds).then((res) => groupById(res, "num_registro")),
+        queryDatabase(`SELECT * FROM \`anotaciones\` WHERE \`num_registro\` IN (${placeholders})`, uniqueIds).then((res) => groupById(res, "num_registro")),
+        queryDatabase(`SELECT * FROM \`anexos\` WHERE \`num_registro\` IN (${placeholders})`, uniqueIds).then((res) => groupById(res, "num_registro")),
+      ]);
+
+      logger.info("Successfully fetched all external data. Starting Firestore save.");
+
+      // Step 2: Save data to Firestore
+      const BATCH_SIZE = 400;
+      for (let i = 0; i < procesos.length; i += BATCH_SIZE) {
+        const batch = db.batch();
+        const chunk = procesos.slice(i, i + BATCH_SIZE);
+
+        for (const proceso of chunk) {
+          if (!proceso.num_registro) continue;
+          const procesoDocRef = db.collection("procesos").doc(proceso.num_registro);
+          batch.set(procesoDocRef, Object.fromEntries(Object.entries(proceso).filter(([, value]) => value != null)));
+
+          const subCollections = {
+            demandantes: demandantes[proceso.num_registro],
+            anotaciones: anotaciones[proceso.num_registro],
+            anexos: anexos[proceso.num_registro],
+          };
+
+          for (const [key, items] of Object.entries(subCollections)) {
+            if (items && Array.isArray(items) && items.length > 0) {
+              const subCollectionRef = procesoDocRef.collection(key);
+              items.forEach((item: any, index: number) => {
+                const itemId = item.auto || item.id_anexo || item.identidad_demandante || `${Date.now()}-${index}`;
+                if (itemId) {
+                  const itemDocRef = subCollectionRef.doc(itemId.toString());
+                  batch.set(itemDocRef, Object.fromEntries(Object.entries(item).filter(([, value]) => value != null)));
+                }
+              });
+            }
+          }
+        }
+        await batch.commit();
+        logger.info(`Committed batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(procesos.length / BATCH_SIZE)}.`);
+      }
+      logger.info(`Scheduled sync completed successfully. ${procesos.length} processes saved.`);
+    } catch (error: any) {
+      logger.error("Error during scheduled sync:", error);
+      throw error; // Re-throw to indicate failure for potential retries
+    }
+  },
+);
