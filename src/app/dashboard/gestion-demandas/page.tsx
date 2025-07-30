@@ -191,12 +191,12 @@ export default function GestionDemandasPage() {
     startSaving(async () => {
       setLoadingMessage(`Iniciando guardado...`);
       try {
-        await saveSyncedDataToFirebase(externalData);
-        toast({ title: 'Guardado Exitoso', description: `${externalData.procesos.length} procesos y sus datos asociados han sido guardados en Firebase.` });
+        const result = await saveSyncedDataToFirebase(externalData);
+        toast({ title: 'Guardado Exitoso', description: result.message || `${externalData.procesos.length} procesos guardados.` });
         await fetchProcesos(null);
 
       } catch (error: any) {
-         toast({ variant: 'destructive', title: 'Error al Guardar', description: `Error de Firestore: ${error.message}` });
+         toast({ variant: 'destructive', title: 'Error al Guardar', description: `Error: ${error.message}` });
       } finally {
         setSavingProgress(null);
         setExternalData(null); // Clear memory
