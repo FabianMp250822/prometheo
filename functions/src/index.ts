@@ -421,7 +421,7 @@ export const scheduledProviredSync = onSchedule(
 // User Management Functions
 // =====================================
 const defaultPermissionsByRole: { [key: string]: { [key: string]: boolean } } = {
-  "Administrador": {
+  Administrador: {
     canViewDashboard: true, canViewBuscador: true, canViewHojaDeVida: true,
     canViewAgenda: true, canViewLiquidaciones: true, canViewPagosSentencias: true,
     canViewContabilidad: true, canViewProcesosEnLinea: true, canViewReportes: true,
@@ -439,7 +439,7 @@ const defaultPermissionsByRole: { [key: string]: { [key: string]: boolean } } = 
     canViewContabilidad: false, canViewProcesosEnLinea: true, canViewReportes: false,
     canViewGestionDemandas: true, canManageUsers: false, canAccessConfiguracion: false,
   },
-  "Contador": {
+  Contador: {
     canViewDashboard: true, canViewBuscador: true, canViewHojaDeVida: false,
     canViewAgenda: false, canViewLiquidaciones: true, canViewPagosSentencias: true,
     canViewContabilidad: true, canViewProcesosEnLinea: false, canViewReportes: true,
