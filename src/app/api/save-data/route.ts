@@ -38,8 +38,8 @@ export async function POST(request: Request) {
 
             for (const [key, items] of Object.entries(subCollections)) {
                 if (items && Array.isArray(items) && items.length > 0) {
-                    items.forEach((item: any) => {
-                        const itemId = item.auto || item.id_anexo || item.identidad_demandante || `${Date.now()}`;
+                    items.forEach((item: any, index: number) => { // Added index here
+                        const itemId = item.auto || item.id_anexo || item.identidad_demandante || `${Date.now()}-${index}`; // Use index for uniqueness
                         if (itemId) {
                             const itemDocRef = procesoDocRef.collection(key).doc(itemId.toString());
                             batch.set(itemDocRef, Object.fromEntries(Object.entries(item).filter(([, value]) => value != null)));
