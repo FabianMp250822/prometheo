@@ -288,8 +288,7 @@ export const sendPaymentReminder = onCall(
 // =====================================
 
 const API_BASE_URL = "https://apiclient.proviredcolombia.com";
-const STATIC_TOKEN =
-"iYmMqGfKb057z8ImmAm82ULmMgd26lelgs5BcYkOkQJgkacDljdbBbyb4Dh2pPP8";
+const STATIC_TOKEN = "iYmMqGfKb057z8ImmAm82ULmMgd26lelgs5BcYkOkQJgkacDljdbBbyb4Dh2pPP8";
 
 let jwtToken: string | null = null;
 let tokenExpiresAt: number | null = null;
@@ -354,9 +353,14 @@ async function makeApiRequest(
   return responseData.data || [];
 }
 
-export const syncDailyNotifications = onSchedule("every day 07:00",
-  async () => {
-    logger.info("Starting daily notification sync...");
+export const syncDailyNotifications = onCall(
+  {cors: ALLOWED_ORIGINS},
+  async (request) => {
+    // Authentication check
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+    }
+    logger.info("Starting daily notification sync, triggered by user:", request.auth.uid);
     try {
       // 1. Fetch existing notification identifiers from Firestore to avoid duplicates
       const existingNotifsSnapshot = await db
@@ -377,7 +381,7 @@ export const syncDailyNotifications = onSchedule("every day 07:00",
       }[];
       if (!Array.isArray(newNotifications) || newNotifications.length === 0) {
         logger.info("No new notifications to sync from API.");
-        return;
+        return { success: true, count: 0, message: "No hay notificaciones nuevas para sincronizar." };
       }
       logger.info(`Fetched ${newNotifications.length} notifs from API.`);
 
@@ -390,7 +394,7 @@ export const syncDailyNotifications = onSchedule("every day 07:00",
 
       if (notificationsToSave.length === 0) {
         logger.info("No new notifications to save after filtering.");
-        return;
+        return { success: true, count: 0, message: "La base de datos ya está actualizada." };
       }
       logger.info(
         `Found ${notificationsToSave.length} new notifications to save.`,
@@ -424,10 +428,11 @@ export const syncDailyNotifications = onSchedule("every day 07:00",
       }
 
       logger.info("Daily notification sync completed successfully.");
+      return { success: true, count: notificationsToSave.length, message: `${notificationsToSave.length} notificaciones nuevas guardadas.` };
     } catch (error) {
       logger.error("Error during daily notification sync:", error);
       // Throw error to indicate failure for potential retries
-      throw error;
+      throw new HttpsError("internal", "Error durante la sincronización", (error as Error).message);
     }
   });
 
