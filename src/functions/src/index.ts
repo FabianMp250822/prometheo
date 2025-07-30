@@ -13,7 +13,7 @@ import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import {initializeApp, getApps} from "firebase-admin/app";
 import {getFirestore, Timestamp} from "firebase-admin/firestore";
-import {HttpsError, onCall} from "firebase-functions/v2/https";
+import {HttpsError, onCall} from "firebase-functions/v2/httpshttps";
 import * as nodemailer from "nodemailer";
 import fetch from "node-fetch";
 import {getAuth} from "firebase-admin/auth";
@@ -103,11 +103,8 @@ export const onNewPaymentCreate = onDocumentCreated(
       return;
     }
 
-    logger.info(
-      `Found ${sentenceConcepts.length} concepts in pmt ${pagoId}.`,
-    );
-
-    const newProcessDocRef = db.collection("procesoscancelados").doc();
+    // Use the pagoId as the document ID in procesoscancelados to prevent duplicates
+    const newProcessDocRef = db.collection("procesoscancelados").doc(pagoId);
 
     const fechaLiquidacionDate = paymentData.fechaProcesado?.toDate ?
       paymentData.fechaProcesado.toDate() : new Date();
@@ -122,18 +119,19 @@ export const onNewPaymentCreate = onDocumentCreated(
       })),
       creadoEn: Timestamp.now(),
       fechaLiquidacion: fechaLiquidacionDate.toISOString(),
-      pagoId: paymentData.pagoId || pagoId,
+      pagoId: pagoId,
       pensionadoId: pensionadoId,
       periodoPago: paymentData.periodoPago,
     };
 
     try {
-      await newProcessDocRef.set(newProcessData);
+      // Use set() with the specific doc ID to either create or overwrite.
+      await newProcessDocRef.set(newProcessData, {merge: true});
       logger.info(
-        `Created proc doc ${newProcessDocRef.id} for pmt ${pagoId}.`,
+        `Created/Updated procesoscancelados doc ${pagoId}.`,
       );
     } catch (error) {
-      logger.error(`Error creating proc doc for pmt ${pagoId}:`, error);
+      logger.error(`Error creating/updating doc for pmt ${pagoId}:`, error);
       // Let the function fail to indicate an error, which can trigger retries.
       throw error;
     }
@@ -284,83 +282,73 @@ export const sendPaymentReminder = onCall(
 
 
 // =====================================
-// Scheduled Function: Sync Notifications
+// Provired API Configuration
 // =====================================
+const PROVIRED_API_BASE_URL = "https://apiclient.proviredcolombia.com";
+const PROVIRED_STATIC_TOKEN = "iYmMqGfKb057z8ImmAm82ULmMgd26lelgs5BcYkOkQJgkacDljdbBbyb4Dh2pPP8";
 
-const API_BASE_URL = "https://apiclient.proviredcolombia.com";
-const STATIC_TOKEN = "iYmMqGfKb057z8ImmAm82ULmMgd26lelgs5BcYkOkQJgkacDljdbBbyb4Dh2pPP8";
-
-let jwtToken: string | null = null;
-let tokenExpiresAt: number | null = null;
+let proviredJwtToken: string | null = null;
+let proviredTokenExpiresAt: number | null = null;
 
 /**
- * Retrieves a JWT token, fetching a new one if expired.
+ * Retrieves a JWT token from Provired, caching it for 5 hours.
  * @return {Promise<string>} The JWT token.
  */
-async function getJwtToken(): Promise<string> {
-  if (jwtToken && tokenExpiresAt && Date.now() < tokenExpiresAt) {
-    return jwtToken;
+async function getProviredJwtToken(): Promise<string> {
+  if (proviredJwtToken && proviredTokenExpiresAt && Date.now() < proviredTokenExpiresAt) {
+    return proviredJwtToken;
   }
-
-  logger.info("JWT is expired or null, fetching a new one.");
-  const response = await fetch(`${API_BASE_URL}/token`, {
+  logger.info("Provired JWT is expired or null, fetching a new one.");
+  const response = await fetch(`${PROVIRED_API_BASE_URL}/token`, {
     method: "POST",
     headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({token: STATIC_TOKEN}),
+    body: JSON.stringify({token: PROVIRED_STATIC_TOKEN}),
   });
-
   if (!response.ok) {
-    throw new Error(`Failed to get JWT: ${response.status}`);
+    throw new Error(`Failed to get Provired JWT: ${response.status}`);
   }
-
   const data = (await response.json()) as { token: string };
   if (!data.token) {
-    throw new Error("JWT not found in token response");
+    throw new Error("Provired JWT not found in token response");
   }
-
-  jwtToken = data.token;
-  tokenExpiresAt = Date.now() + 5 * 60 * 60 * 1000; // 5 hours expiration
-  return jwtToken;
+  proviredJwtToken = data.token;
+  proviredTokenExpiresAt = Date.now() + 5 * 60 * 60 * 1000; // 5 hours expiration
+  return proviredJwtToken;
 }
 
 /**
  * Makes an authenticated request to the Provired API.
- * @param {string} endpoint The API endpoint to call.
- * @param {string} method The method for the API request body.
- * @return {Promise<Record<string, unknown>[]>} The data from the API.
+ * @param {string} endpoint - The API endpoint to call.
+ * @param {string} method - The method for the API request body.
+ * @return {Promise<any[]>} The data array from the API response.
  */
-async function makeApiRequest(
-  endpoint: string,
-  method: string,
-): Promise<Record<string, unknown>[]> {
-  const jwt = await getJwtToken();
+async function makeProviredApiRequest(endpoint: string, method: string): Promise<any[]> {
+  const jwt = await getProviredJwtToken();
   const body = JSON.stringify({method, params: {}});
-  const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
+  const response = await fetch(`${PROVIRED_API_BASE_URL}/${endpoint}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${jwt}`,
-    },
+    headers: {"Content-Type": "application/json", "Authorization": `Bearer ${jwt}`},
     body,
   });
-
   if (!response.ok) {
     const errorBody = await response.text();
-    throw new Error(`API Error: ${response.status} ${errorBody}`);
+    throw new Error(`Provired API Error: ${response.status} ${errorBody}`);
   }
-
   const responseData = await response.json() as { data: any[] };
   return responseData.data || [];
 }
 
-export const triggerProviredSync = onCall(
-  {cors: ALLOWED_ORIGINS},
-  async (request) => {
-    // Authentication check
-    if (!request.auth) {
-      throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
-    }
-    logger.info("Starting daily notification sync, triggered by user:", request.auth.uid);
+// =====================================
+// Scheduled Function: Sync Notifications
+// =====================================
+
+export const scheduledProviredSync = onSchedule(
+  {
+    schedule: "0 7,15,23 * * *", // Runs at 7 AM, 3 PM, and 11 PM every day.
+    timeZone: "America/Bogota",
+  },
+  async () => {
+    logger.info("Starting scheduled Provired notification sync.");
     try {
       // 1. Fetch existing notification identifiers from Firestore to avoid duplicates
       const existingNotifsSnapshot = await db
@@ -368,37 +356,32 @@ export const triggerProviredSync = onCall(
       const existingNotifIds = new Set(
         existingNotifsSnapshot.docs.map((doc) => doc.data().uniqueId),
       );
-      logger.info(`Found ${existingNotifIds.size} existing notifs in DB.`);
+      logger.info(`Found ${existingNotifIds.size} existing Provired notifications in DB.`);
 
       // 2. Fetch all notifications from the external API
-      const newNotifications = (
-        await makeApiRequest("notification", "getData")
-        ) as {
-        fechaPublicacion: string,
-        radicacion: string,
-        demandante?: string,
-        demandado?: string
-      }[];
+      const newNotifications = (await makeProviredApiRequest("notification", "getData")) as {
+                fechaPublicacion: string,
+                radicacion: string,
+                demandante?: string,
+                demandado?: string
+            }[];
       if (!Array.isArray(newNotifications) || newNotifications.length === 0) {
-        logger.info("No new notifications to sync from API.");
-        return {success: true, count: 0, message: "No hay notificaciones nuevas para sincronizar."};
+        logger.info("No new notifications to sync from Provired API.");
+        return;
       }
-      logger.info(`Fetched ${newNotifications.length} notifs from API.`);
+      logger.info(`Fetched ${newNotifications.length} notifications from Provired API.`);
 
       // 3. Filter out notifications that already exist in the database
       const notificationsToSave = newNotifications.filter((item) => {
-        const uniqueId = `${item.fechaPublicacion}-${item.radicacion}`
-          .replace(/\s+/g, "");
+        const uniqueId = `${item.fechaPublicacion}-${item.radicacion}`.replace(/\s+/g, "");
         return !existingNotifIds.has(uniqueId);
       });
 
       if (notificationsToSave.length === 0) {
-        logger.info("No new notifications to save after filtering.");
-        return {success: true, count: 0, message: "La base de datos ya está actualizada."};
+        logger.info("No new Provired notifications to save after filtering.");
+        return;
       }
-      logger.info(
-        `Found ${notificationsToSave.length} new notifications to save.`,
-      );
+      logger.info(`Found ${notificationsToSave.length} new Provired notifications to save.`);
 
       // 4. Save the new notifications in batches
       const BATCH_SIZE = 400; // Firestore batch limit is 500
@@ -406,10 +389,8 @@ export const triggerProviredSync = onCall(
         const batch = db.batch();
         const chunk = notificationsToSave.slice(i, i + BATCH_SIZE);
         chunk.forEach((item) => {
-          const uniqueId = `${item.fechaPublicacion}-${item.radicacion}`
-            .replace(/\s+/g, "");
-            // Auto-generate ID
-          const docRef = db.collection("provired_notifications").doc();
+          const uniqueId = `${item.fechaPublicacion}-${item.radicacion}`.replace(/\s+/g, "");
+          const docRef = db.collection("provired_notifications").doc(); // Auto-generate ID
           const dataToSet = {
             ...item,
             uniqueId: uniqueId,
@@ -421,24 +402,88 @@ export const triggerProviredSync = onCall(
         });
         await batch.commit();
         logger.info(
-          `Committed batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(
+          `Committed Provired batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(
             notificationsToSave.length / BATCH_SIZE,
           )}.`,
         );
       }
 
-      logger.info("Daily notification sync completed successfully.");
-      return {success: true, count: notificationsToSave.length, message: `${notificationsToSave.length} notificaciones nuevas guardadas.`};
+      logger.info("Scheduled Provired notification sync completed successfully.");
     } catch (error) {
-      logger.error("Error during daily notification sync:", error);
-      // Throw error to indicate failure for potential retries
-      throw new HttpsError("internal", "Error durante la sincronización", (error as Error).message);
+      logger.error("Error during scheduled Provired notification sync:", error);
+      throw error; // Re-throw to indicate failure for potential retries
     }
-  });
+  },
+);
+
 
 // =====================================
 // User Management Functions
 // =====================================
+
+const defaultPermissions = {
+  // Admin has all permissions
+  Administrador: {
+    canViewDashboard: true,
+    canViewBuscador: true,
+    canViewHojaDeVida: true,
+    canViewAgenda: true,
+    canViewLiquidaciones: true,
+    canViewPagosSentencias: true,
+    canViewContabilidad: true,
+    canViewProcesosEnLinea: true,
+    canViewReportes: true,
+    canViewGestionDemandas: true,
+    canManageUsers: true,
+    canAccessConfiguracion: true,
+  },
+  // Default for a lawyer
+  "Abogado Titular": {
+    canViewDashboard: true,
+    canViewBuscador: true,
+    canViewHojaDeVida: true,
+    canViewAgenda: true,
+    canViewLiquidaciones: true,
+    canViewPagosSentencias: true,
+    canViewContabilidad: false,
+    canViewProcesosEnLinea: true,
+    canViewReportes: false,
+    canViewGestionDemandas: true,
+    canManageUsers: false,
+    canAccessConfiguracion: false,
+  },
+  // Default for an external lawyer
+  "Abogado Externo": {
+    canViewDashboard: true,
+    canViewBuscador: true,
+    canViewHojaDeVida: true,
+    canViewAgenda: true,
+    canViewLiquidaciones: false,
+    canViewPagosSentencias: false,
+    canViewContabilidad: false,
+    canViewProcesosEnLinea: true,
+    canViewReportes: false,
+    canViewGestionDemandas: true,
+    canManageUsers: false,
+    canAccessConfiguracion: false,
+  },
+  // Default for an accountant
+  Contador: {
+    canViewDashboard: true,
+    canViewBuscador: true,
+    canViewHojaDeVida: false,
+    canViewAgenda: false,
+    canViewLiquidaciones: true,
+    canViewPagosSentencias: true,
+    canViewContabilidad: true,
+    canViewProcesosEnLinea: false,
+    canViewReportes: true,
+    canViewGestionDemandas: false,
+    canManageUsers: false,
+    canAccessConfiguracion: true,
+  },
+};
+
 
 export const createUser = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
   // 1. Authentication Check: Ensure the caller is an authenticated admin.
@@ -464,6 +509,9 @@ export const createUser = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
     );
   }
 
+  // Get default permissions for the role
+  const permissions = defaultPermissions[role as keyof typeof defaultPermissions] || {};
+
   try {
     // 3. Create user in Firebase Authentication
     const userRecord = await auth.createUser({
@@ -481,6 +529,7 @@ export const createUser = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
       nombre: displayName,
       email: email,
       rol: role,
+      permissions: permissions, // Add permissions object
       // Store associated pensioners for lawyers
       associatedPensioners: associatedPensioners || [],
       createdAt: Timestamp.now(),
@@ -641,15 +690,11 @@ export const submitPublicForm = onCall({cors: ALLOWED_ORIGINS}, async (request) 
 });
 
 /**
- * @fileOverview This function connects directly to an external MySQL database
- * to sync legal process data. It replaces the previous method of calling
- * intermediary PHP scripts.
- *
- * It is triggered by a user action in the frontend and returns a comprehensive
- * dataset containing processes and their related sub-collections.
- * @param {object} request - The request object from the client. Must be authenticated.
+ * Syncs all legal process data from an external MySQL database.
+ * This function is callable by an authenticated user from the client.
+ * @param {object} request The request object.
  * @return {Promise<{success: boolean, data?: object, error?: string}>}
- * An object indicating success and containing the fetched data or an error message.
+ * An object indicating success and containing the fetched data, or an error.
  */
 export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
   if (!request.auth) {
@@ -771,6 +816,20 @@ export const saveSyncedData = onCall({cors: ALLOWED_ORIGINS}, async (request) =>
 // Scheduled Function: Sync External Data
 // =====================================
 
+// Helper function to group rows by a key
+const groupById = (rows: any[], key: string) => {
+  return rows.reduce((acc, row) => {
+    const id = row[key];
+    if (!acc[id]) acc[id] = [];
+    acc[id].push(row);
+    return acc;
+  }, {});
+};
+
+/**
+ * A scheduled function that runs twice daily to sync data from an external
+ * MySQL database to Firestore. This replaces the manual sync process.
+ */
 export const scheduledSync = onSchedule(
   {
     schedule: "0 9,21 * * *", // Runs at 9:00 AM and 9:00 PM every day.
@@ -844,13 +903,3 @@ export const scheduledSync = onSchedule(
     }
   },
 );
-
-// Helper function to group rows by a key
-const groupById = (rows: any[], key: string) => {
-  return rows.reduce((acc, row) => {
-    const id = row[key];
-    if (!acc[id]) acc[id] = [];
-    acc[id].push(row);
-    return acc;
-  }, {});
-};

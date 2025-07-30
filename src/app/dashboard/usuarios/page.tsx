@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, UserPlus, Users, Edit, Trash2 } from 'lucide-react';
+import { Loader2, UserPlus, Users, Edit, Trash2, KeyRound } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import type { Pensioner } from '@/lib/data';
@@ -19,6 +19,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { UserPermissionsModal } from '@/components/dashboard/user-permissions-modal';
 
 const functions = getFunctions();
 const createUserCallable = httpsCallable(functions, 'createUser');
@@ -30,6 +31,7 @@ interface AppUser {
     nombre: string;
     email: string;
     rol: string;
+    permissions?: { [key: string]: boolean };
 }
 
 const roles = ["Administrador", "Abogado Titular", "Abogado Externo", "Contador"];
@@ -48,6 +50,10 @@ export default function UsuariosPage() {
     const [users, setUsers] = useState<AppUser[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isFetchingUsers, setIsFetchingUsers] = useState(true);
+    
+    const [selectedUserForPermissions, setSelectedUserForPermissions] = useState<AppUser | null>(null);
+    const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
+
 
     const fetchPensioners = useCallback(async () => {
         try {
@@ -111,8 +117,14 @@ export default function UsuariosPage() {
             setIsLoading(false);
         }
     };
+
+    const handleOpenPermissionsModal = (user: AppUser) => {
+        setSelectedUserForPermissions(user);
+        setIsPermissionsModalOpen(true);
+    };
     
     return (
+        <>
         <div className="p-4 md:p-8 space-y-6">
             <Card>
                 <CardHeader>
@@ -213,7 +225,9 @@ export default function UsuariosPage() {
                                             <TableCell>{user.email}</TableCell>
                                             <TableCell><Badge variant="secondary">{user.rol}</Badge></TableCell>
                                             <TableCell className="text-right space-x-2">
-                                                <Button variant="outline" size="icon" className="h-8 w-8"><Edit className="h-4 w-4" /></Button>
+                                                 <Button variant="outline" size="sm" onClick={() => handleOpenPermissionsModal(user)}>
+                                                    <KeyRound className="h-3 w-3 mr-1" /> Permisos
+                                                </Button>
                                                 <Button variant="destructive" size="icon" className="h-8 w-8"><Trash2 className="h-4 w-4" /></Button>
                                             </TableCell>
                                         </TableRow>
@@ -225,5 +239,12 @@ export default function UsuariosPage() {
                 </Card>
             </div>
         </div>
+        <UserPermissionsModal 
+            user={selectedUserForPermissions}
+            isOpen={isPermissionsModalOpen}
+            onClose={() => setIsPermissionsModalOpen(false)}
+            onPermissionsUpdate={fetchUsers}
+        />
+        </>
     );
 }
