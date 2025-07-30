@@ -204,6 +204,7 @@ export default function NotificacionesPage() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
+                                            <TableHead className="w-[50px]">#</TableHead>
                                             <TableHead>Demandante</TableHead>
                                             <TableHead>Demandado</TableHead>
                                             <TableHead>Última Actuación</TableHead>
@@ -213,8 +214,9 @@ export default function NotificacionesPage() {
                                     </TableHeader>
                                     <TableBody>
                                         {groupedNotifications.length > 0 ? (
-                                            groupedNotifications.map((group) => (
+                                            groupedNotifications.map((group, index) => (
                                                 <TableRow key={group.demandante_lower}>
+                                                    <TableCell>{index + 1}</TableCell>
                                                     <TableCell className="font-medium">{group.demandante}</TableCell>
                                                     <TableCell>{group.notifications[0]?.demandado || 'N/A'}</TableCell>
                                                     <TableCell>{group.lastNotificationDate}</TableCell>
@@ -228,7 +230,7 @@ export default function NotificacionesPage() {
                                             ))
                                         ) : (
                                             <TableRow>
-                                                <TableCell colSpan={5} className="h-24 text-center">
+                                                <TableCell colSpan={6} className="h-24 text-center">
                                                     {searchTerm ? "No se encontraron resultados para su búsqueda." : "No hay notificaciones para mostrar."}
                                                 </TableCell>
                                             </TableRow>

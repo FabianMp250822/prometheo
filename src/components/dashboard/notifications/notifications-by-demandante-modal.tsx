@@ -50,6 +50,7 @@ export function NotificationsByDemandanteModal({ isOpen, onClose, demandante }: 
                         <Table>
                             <TableHeader className="sticky top-0 bg-background z-10">
                                 <TableRow>
+                                    <TableHead className="w-[50px]">#</TableHead>
                                     <TableHead>Fecha</TableHead>
                                     <TableHead>Proceso</TableHead>
                                     <TableHead>Radicación</TableHead>
@@ -58,8 +59,9 @@ export function NotificationsByDemandanteModal({ isOpen, onClose, demandante }: 
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {demandante.notifications.map((notif) => (
+                                {demandante.notifications.map((notif, index) => (
                                     <TableRow key={notif.id}>
+                                        <TableCell>{index + 1}</TableCell>
                                         <TableCell className="font-medium whitespace-nowrap">{notif.fechaPublicacion}</TableCell>
                                         <TableCell>{notif.proceso}</TableCell>
                                         <TableCell>{notif.radicacion}</TableCell>
