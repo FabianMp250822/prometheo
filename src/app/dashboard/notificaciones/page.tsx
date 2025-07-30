@@ -63,8 +63,10 @@ export default function NotificacionesPage() {
         const notificationsMap = new Map<string, { demandante: string; demandante_lower: string; notifications: Notification[] }>();
         
         docs.forEach(doc => {
-            const notif = { id: doc.id, ...doc.data() } as Notification;
+            // Check if it's a Firestore doc or a plain object
+            const notif = doc.data ? { id: doc.id, ...doc.data() } as Notification : doc as Notification;
             const key = notif.demandante_lower;
+
             if (!notificationsMap.has(key)) {
                 notificationsMap.set(key, {
                     demandante: notif.demandante,
@@ -83,7 +85,8 @@ export default function NotificacionesPage() {
             };
         });
         
-        grouped.sort((a, b) => new Date(b.lastNotificationDate).getTime() - new Date(a.lastNotificationDate).getTime());
+        // Sort alphabetically by demandante name
+        grouped.sort((a, b) => a.demandante.localeCompare(b.demandante));
         setGroupedNotifications(grouped);
 
     }, []);
