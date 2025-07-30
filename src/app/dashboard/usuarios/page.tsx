@@ -20,6 +20,7 @@ import { Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { UserPermissionsModal } from '@/components/dashboard/user-permissions-modal';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 const functions = getFunctions();
 const createUserCallable = httpsCallable(functions, 'createUser');
@@ -35,6 +36,7 @@ interface AppUser {
 }
 
 const roles = ["Administrador", "Abogado Titular", "Abogado Externo", "Contador"];
+const protectedUserEmail = "fabianmunozpuello@gmail.com";
 
 export default function UsuariosPage() {
     const { toast } = useToast();
@@ -225,10 +227,26 @@ export default function UsuariosPage() {
                                             <TableCell>{user.email}</TableCell>
                                             <TableCell><Badge variant="secondary">{user.rol}</Badge></TableCell>
                                             <TableCell className="text-right space-x-2">
-                                                 <Button variant="outline" size="sm" onClick={() => handleOpenPermissionsModal(user)}>
+                                                 <Button variant="outline" size="sm" onClick={() => handleOpenPermissionsModal(user)} disabled={user.email === protectedUserEmail}>
                                                     <KeyRound className="h-3 w-3 mr-1" /> Permisos
                                                 </Button>
-                                                <Button variant="destructive" size="icon" className="h-8 w-8"><Trash2 className="h-4 w-4" /></Button>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <Button variant="destructive" size="icon" className="h-8 w-8" disabled={user.email === protectedUserEmail}><Trash2 className="h-4 w-4" /></Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                        <AlertDialogTitle>¿Está seguro?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                           Esta acción es irreversible y eliminará al usuario permanentemente.
+                                                        </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                        <AlertDialogAction>Eliminar</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
                                             </TableCell>
                                         </TableRow>
                                     ))}
