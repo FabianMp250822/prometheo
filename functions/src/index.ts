@@ -733,4 +733,3 @@ export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) 
   }
 });
 
-    
