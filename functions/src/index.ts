@@ -12,7 +12,7 @@
 import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import {initializeApp, getApps} from "firebase-admin/app";
-import {getFirestore, Timestamp, writeBatch} from "firebase-admin/firestore";
+import {getFirestore, Timestamp, WriteBatch} from "firebase-admin/firestore";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import * as nodemailer from "nodemailer";
 import {onSchedule} from "firebase-functions/v2/scheduler";
@@ -720,13 +720,13 @@ export const saveSyncedData = onCall({cors: ALLOWED_ORIGINS}, async (request) =>
 
   try {
     for (let i = 0; i < procesos.length; i += BATCH_SIZE) {
-      const batch = writeBatch(db);
+      const batch = db.batch();
       const chunk = procesos.slice(i, i + BATCH_SIZE);
 
       for (const proceso of chunk) {
         if (!proceso.num_registro) continue; // Skip if no ID
         const procesoDocRef = db.collection("procesos").doc(proceso.num_registro);
-        batch.set(procesoDocRef, Object.fromEntries(Object.entries(proceso).filter(([, value]) => value != null)));
+        batch.set(procesoDocRef, Object.fromEntries(Object.entries(proceso).filter(([key, value]) => value != null)));
 
         // Add subcollections
         const subCollections = {
@@ -744,7 +744,7 @@ export const saveSyncedData = onCall({cors: ALLOWED_ORIGINS}, async (request) =>
               const itemId = item.auto || item.id_anexo || item.identidad_demandante;
               if (itemId) {
                 const itemDocRef = subCollectionRef.doc(itemId.toString());
-                batch.set(itemDocRef, Object.fromEntries(Object.entries(item).filter(([, value]) => value != null)));
+                batch.set(itemDocRef, Object.fromEntries(Object.entries(item).filter(([key, value]) => value != null)));
               }
             });
           }
@@ -761,3 +761,5 @@ export const saveSyncedData = onCall({cors: ALLOWED_ORIGINS}, async (request) =>
     throw new HttpsError("internal", "Failed to save data to Firestore.", error.message);
   }
 });
+
+    
