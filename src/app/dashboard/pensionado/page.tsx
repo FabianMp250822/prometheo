@@ -5,9 +5,9 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight, Briefcase, FileDown, TrendingDown, BellRing, Info, Handshake, Target } from 'lucide-react';
+import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight, Briefcase, FileDown, TrendingDown, BellRing, Info, Handshake, Target, MinusSquare, BarChart3 } from 'lucide-react';
 import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parsePaymentDetailName, formatFirebaseTimestamp, parsePeriodoPago, parseDepartmentName } from '@/lib/helpers';
-import type { Payment, Parris1, LegalProcess, Causante, PagosHistoricoRecord, PensionerProfileData, DajusticiaClient, DajusticiaPayment, ProviredNotification } from '@/lib/data';
+import type { Payment, Parris1, LegalProcess, Causante, PagosHistoricoRecord, PensionerProfileData, DajusticiaClient, DajusticiaPayment, ProviredNotification, CausanteRecord } from '@/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { collection, doc, getDoc, getDocs, query, where, limit, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useAuth } from '@/context/auth-provider';
 import { getLifeExpectancyInfo } from '@/lib/life-expectancy';
+import { datosConsolidados, datosIPC } from '../liquidaciones/anexo-ley-4/page';
 
 
 function InfoField({ icon, label, value }: { icon: React.ReactNode, label: string, value: React.ReactNode }) {
@@ -87,18 +88,11 @@ export default function PensionadoPage() {
                 return dateB.getTime() - dateA.getTime();
             });
 
-            let historicalPayment: PagosHistoricoRecord | null = null;
-            if (payments.length === 0) {
-                const historicalDocRef = doc(db, "pagosHistorico", document);
-                const historicalDoc = await getDoc(historicalDocRef);
-                if (historicalDoc.exists()) {
-                    const data = historicalDoc.data();
-                    if (data.records && Array.isArray(data.records) && data.records.length > 0) {
-                        const sortedRecords = [...data.records].sort((a, b) => (b.ANO_RET || 0) - (a.ANO_RET || 0));
-                        historicalPayment = sortedRecords[0] as PagosHistoricoRecord;
-                    }
-                }
-            }
+            const historicalDocRef = doc(db, 'pagosHistorico', document);
+            const historicalDoc = await getDoc(historicalDocRef);
+            const historicalPayments = historicalDoc.exists() && Array.isArray(historicalDoc.data().records) ? historicalDoc.data().records as PagosHistoricoRecord[] : [];
+            const historicalPayment = historicalPayments.length > 0 ? [...historicalPayments].sort((a,b) => (b.ANO_RET || 0) - (a.ANO_RET || 0))[0] : null;
+
             
             const processesQuery = query(collection(db, 'procesos'), where("identidad_clientes", "==", document));
             const processesSnapshot = await getDocs(processesQuery);
@@ -143,6 +137,7 @@ export default function PensionadoPage() {
                 parris1Data,
                 causanteData,
                 historicalPayment,
+                historicalPayments, // Pass the full array
                 dajusticiaClientData,
                 dajusticiaPayments,
                 lastNotification,
@@ -224,13 +219,90 @@ export default function PensionadoPage() {
         const birthDate = new Date(formatFirebaseTimestamp(profileData.parris1Data.fe_nacido, 'yyyy-MM-dd'));
         if (isNaN(birthDate.getTime())) return null;
 
-        // Simple gender assumption based on common Spanish name endings. This is not foolproof.
         const name = parseEmployeeName(selectedPensioner?.empleado || '').toLowerCase();
         const gender = name.endsWith('a') ? 'female' : 'male';
 
         return getLifeExpectancyInfo(birthDate, gender);
 
     }, [profileData?.parris1Data, selectedPensioner]);
+    
+     const adquisitivoData = useMemo(() => {
+        const { payments, historicalPayments, causanteData } = profileData || {};
+        if (!payments || !historicalPayments || !causanteData) return null;
+
+        const allYears = Array.from({ length: new Date().getFullYear() - 1998 + 1 }, (_, i) => 1998 + i);
+
+        let initialData = allYears.map(year => {
+            let paidByCompany = 0;
+            const paymentsInYear = payments.filter(p => parsePeriodoPago(p.periodoPago)?.startDate?.getFullYear() === year);
+            if (paymentsInYear.length > 0) {
+                const firstPaymentMonth = parsePeriodoPago(paymentsInYear[0].periodoPago)?.startDate?.getMonth();
+                if (firstPaymentMonth !== undefined) {
+                    const paymentsInFirstMonth = paymentsInYear.filter(p => parsePeriodoPago(p.periodoPago)?.startDate?.getMonth() === firstPaymentMonth);
+                    paidByCompany = paymentsInFirstMonth.reduce((acc, p) => acc + (p.detalles.find(d => (d.nombre === 'Mesada Pensional' || d.codigo === 'MESAD') && d.ingresos > 0)?.ingresos || 0), 0);
+                }
+            } else {
+                 const historicalRecord = historicalPayments.find(rec => rec.ANO_RET === year);
+                 if (historicalRecord?.VALOR_ACT) {
+                    paidByCompany = parseFloat(historicalRecord.VALOR_ACT.replace(',', '.')) || 0;
+                 }
+            }
+
+            let pensionDeVejez = 0;
+            const causanteRecordForYear = causanteData.records.find(rec => rec.fecha_desde && new Date(formatFirebaseTimestamp(rec.fecha_desde, 'yyyy-MM-dd')).getFullYear() + 1 === year);
+            if (causanteRecordForYear?.valor_iss) {
+                pensionDeVejez = causanteRecordForYear.valor_iss;
+            }
+
+            return { year, smlmv: datosConsolidados[year]?.smlmv || 0, paidByCompany, pensionDeVejez, unidadPensional: 0, numSmlmv: 0, isProjected: false };
+        });
+
+        for (let i = 1; i < initialData.length; i++) {
+            if (initialData[i].pensionDeVejez === 0 && initialData[i - 1].pensionDeVejez > 0) {
+                const prevIpc = datosIPC[initialData[i-1].year];
+                if (prevIpc !== undefined) {
+                    initialData[i].pensionDeVejez = initialData[i - 1].pensionDeVejez * (1 + prevIpc / 100);
+                    initialData[i].isProjected = true;
+                }
+            }
+        }
+        
+        const calculatedData = initialData.map(data => ({
+            ...data,
+            unidadPensional: data.paidByCompany + data.pensionDeVejez,
+            numSmlmv: data.smlmv > 0 ? (data.paidByCompany + data.pensionDeVejez) / data.smlmv : 0,
+        })).filter(d => d.unidadPensional > 0 || d.pensionDeVejez > 0);
+
+        if (calculatedData.length < 1) return null;
+
+        const firstRecord = calculatedData[0];
+        const lastRecord = calculatedData[calculatedData.length - 1];
+        const smlmvLoss = (firstRecord.numSmlmv - lastRecord.numSmlmv).toFixed(2);
+        
+        const sharingYearRecord = calculatedData.find(d => d.pensionDeVejez > 0 && !d.isProjected);
+        let sharingInfo = null;
+        if (sharingYearRecord && causanteData.records.length > 0) {
+            const firstCausanteRecord = causanteData.records.filter(r => r.fecha_desde).sort((a,b) => formatFirebaseTimestamp(a.fecha_desde!, 't') - formatFirebaseTimestamp(b.fecha_desde!, 't'))[0];
+            const preSharingYearData = calculatedData.find(d => d.year === sharingYearRecord.year - 1);
+            
+            sharingInfo = {
+                sharingDate: firstCausanteRecord ? formatFirebaseTimestamp(firstCausanteRecord.fecha_desde, 'dd/MM/yyyy') : 'N/A',
+                mesadaAntes: preSharingYearData ? preSharingYearData.paidByCompany : 0,
+                aCargoColpensiones: sharingYearRecord.pensionDeVejez,
+                porcentajeColpensiones: sharingYearRecord.unidadPensional > 0 ? (sharingYearRecord.pensionDeVejez / sharingYearRecord.unidadPensional) * 100 : 0,
+                aCargoEmpresa: sharingYearRecord.paidByCompany,
+                porcentajeEmpresa: sharingYearRecord.unidadPensional > 0 ? (sharingYearRecord.paidByCompany / sharingYearRecord.unidadPensional) * 100 : 0,
+            };
+        }
+
+        return {
+            primeraMesada: { fecha: firstRecord.year, valor: firstRecord.unidadPensional },
+            ultimaMesada: { fecha: lastRecord.year, valor: lastRecord.unidadPensional },
+            smlmvLoss,
+            sharingInfo,
+        };
+
+    }, [profileData]);
 
 
     if (isLoading) {
@@ -316,6 +388,51 @@ export default function PensionadoPage() {
                             <CardContent className="grid md:grid-cols-2 gap-4 text-sm">
                                 <InfoField icon={<Calendar />} label="Edad Actual" value={`${demographicInfo.age} años`} />
                                 <InfoField icon={<TrendingUp />} label="Expectativa de Vida Restante" value={demographicInfo.expectancy ? `${demographicInfo.expectancy} años` : 'Dato no disponible'} />
+                            </CardContent>
+                        </Card>
+                    )}
+
+                     {adquisitivoData && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-xl flex items-center gap-2"><BarChart3 className="h-5 w-5"/>Resumen de Poder Adquisitivo</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="grid md:grid-cols-3 gap-4 text-sm">
+                                    <InfoField icon={<Calendar />} label="Primera Mesada" value={`${formatCurrency(adquisitivoData.primeraMesada.valor)} (${adquisitivoData.primeraMesada.fecha})`} />
+                                    <InfoField icon={<Calendar />} label="Última Mesada" value={`${formatCurrency(adquisitivoData.ultimaMesada.valor)} (${adquisitivoData.ultimaMesada.fecha})`} />
+                                    <InfoField icon={<MinusSquare className="text-destructive"/>} label="Pérdida de SMLMV" value={<span className="font-bold text-destructive">{adquisitivoData.smlmvLoss}</span>} />
+                                </div>
+                                {adquisitivoData.sharingInfo && (
+                                     <div>
+                                        <h4 className="font-semibold text-foreground mb-2">Resumen de Compartición Pensional</h4>
+                                         <div className="border rounded-lg overflow-hidden">
+                                            <Table>
+                                                <TableBody>
+                                                    <TableRow>
+                                                        <TableCell className="font-semibold bg-muted/50">FECHA DE COMPARTICIÓN</TableCell>
+                                                        <TableCell className='text-center'>{adquisitivoData.sharingInfo.sharingDate}</TableCell>
+                                                    </TableRow>
+                                                    <TableRow>
+                                                        <TableCell className="font-semibold bg-muted/50">MESADA PLENA ANTES DE COMPARTIR</TableCell>
+                                                        <TableCell className='text-center font-medium'>{formatCurrency(adquisitivoData.sharingInfo.mesadaAntes)}</TableCell>
+                                                    </TableRow>
+                                                     <TableRow className="bg-muted/30">
+                                                        <TableCell colSpan={2} className="text-center font-bold text-muted-foreground text-xs">DISTRIBUCIÓN POST-COMPARTICIÓN</TableCell>
+                                                     </TableRow>
+                                                     <TableRow>
+                                                        <TableCell className="font-semibold">A CARGO DE COLPENSIONES</TableCell>
+                                                        <TableCell className='text-center'>{adquisitivoData.sharingInfo.porcentajeColpensiones.toFixed(2)}% ({formatCurrency(adquisitivoData.sharingInfo.aCargoColpensiones)})</TableCell>
+                                                     </TableRow>
+                                                     <TableRow>
+                                                        <TableCell className="font-semibold">MAYOR VALOR A CARGO DE LA EMPRESA</TableCell>
+                                                        <TableCell className='text-center'>{adquisitivoData.sharingInfo.porcentajeEmpresa.toFixed(2)}% ({formatCurrency(adquisitivoData.sharingInfo.aCargoEmpresa)})</TableCell>
+                                                     </TableRow>
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                     </div>
+                                )}
                             </CardContent>
                         </Card>
                     )}

@@ -1,4 +1,5 @@
 
+
 import type { Timestamp } from 'firebase/firestore';
 
 export type PaymentStatus = "Analizado" | "Pendiente" | "Pagado";
@@ -229,6 +230,7 @@ export interface PensionerProfileData {
     parris1Data: Parris1 | null;
     causanteData: Causante | null;
     historicalPayment: PagosHistoricoRecord | null;
+    historicalPayments: PagosHistoricoRecord[]; // Add this
     dajusticiaClientData: DajusticiaClient | null;
     dajusticiaPayments: DajusticiaPayment[];
     lastNotification: ProviredNotification | null;
