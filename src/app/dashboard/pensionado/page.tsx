@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight, Briefcase, FileDown, TrendingDown, BellRing, Info, Handshake } from 'lucide-react';
+import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight, Briefcase, FileDown, TrendingDown, BellRing, Info, Handshake, Target } from 'lucide-react';
 import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parsePaymentDetailName, formatFirebaseTimestamp, parsePeriodoPago, parseDepartmentName } from '@/lib/helpers';
 import type { Payment, Parris1, LegalProcess, Causante, PagosHistoricoRecord, PensionerProfileData, DajusticiaClient, DajusticiaPayment, ProviredNotification } from '@/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -14,6 +14,8 @@ import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useAuth } from '@/context/auth-provider';
+import { getLifeExpectancyInfo } from '@/lib/life-expectancy';
+
 
 function InfoField({ icon, label, value }: { icon: React.ReactNode, label: string, value: React.ReactNode }) {
     return (
@@ -215,6 +217,20 @@ export default function PensionadoPage() {
             return total + mesadaAmount;
         }, 0);
     }, [profileData?.payments]);
+    
+    const demographicInfo = useMemo(() => {
+        if (!profileData?.parris1Data?.fe_nacido) return null;
+        
+        const birthDate = new Date(formatFirebaseTimestamp(profileData.parris1Data.fe_nacido, 'yyyy-MM-dd'));
+        if (isNaN(birthDate.getTime())) return null;
+
+        // Simple gender assumption based on common Spanish name endings. This is not foolproof.
+        const name = parseEmployeeName(selectedPensioner?.empleado || '').toLowerCase();
+        const gender = name.endsWith('a') ? 'female' : 'male';
+
+        return getLifeExpectancyInfo(birthDate, gender);
+
+    }, [profileData?.parris1Data, selectedPensioner]);
 
 
     if (isLoading) {
@@ -290,6 +306,20 @@ export default function PensionadoPage() {
 
             {!isLoading && !error && (
                 <>
+                    {demographicInfo && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-xl flex items-center gap-2">
+                                    <Target className="h-5 w-5" /> Datos Demográficos Clave
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="grid md:grid-cols-2 gap-4 text-sm">
+                                <InfoField icon={<Calendar />} label="Edad Actual" value={`${demographicInfo.age} años`} />
+                                <InfoField icon={<TrendingUp />} label="Expectativa de Vida Restante" value={demographicInfo.expectancy ? `${demographicInfo.expectancy} años` : 'Dato no disponible'} />
+                            </CardContent>
+                        </Card>
+                    )}
+
                     {lastNotification && (
                         <Card>
                              <CardHeader>
