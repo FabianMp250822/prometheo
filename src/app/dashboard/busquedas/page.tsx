@@ -6,7 +6,7 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ListFilter, UserSearch, Download, UserSquare, Banknote } from 'lucide-react';
+import { ListFilter, UserSearch, Download, UserSquare, Banknote, ArrowUpDown } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Search, Loader2 } from 'lucide-react';
 import { isBefore, isAfter, isValid, parse } from 'date-fns';
@@ -63,6 +63,9 @@ export default function BusquedasPage() {
     const [jubilacionDate2, setJubilacionDate2] = useState('');
     
     const [sheetPensioner, setSheetPensioner] = useState<Pensioner | null>(null);
+
+    const [sortConfig, setSortConfig] = useState<{ key: keyof Pensioner | 'empleado' | 'fechaJubilacion'; direction: 'asc' | 'desc' } | null>(null);
+
 
     useEffect(() => {
         const fetchDependencies = async () => {
@@ -144,8 +147,52 @@ export default function BusquedasPage() {
         }
     }, [selectedDependencia, jubilacionSearchType, jubilacionDate1, jubilacionDate2, toast]);
     
+    const sortedRetirementResults = useMemo(() => {
+        let sortableItems = [...retirementResults];
+        if (sortConfig !== null) {
+            sortableItems.sort((a, b) => {
+                let aValue, bValue;
+
+                if (sortConfig.key === 'fechaJubilacion') {
+                    aValue = parseSpanishDate(a.fechaPensionado || a.ano_jubilacion || '')?.getTime() || 0;
+                    bValue = parseSpanishDate(b.fechaPensionado || b.ano_jubilacion || '')?.getTime() || 0;
+                } else if (sortConfig.key === 'empleado') {
+                    aValue = parseEmployeeName(a.empleado).toLowerCase();
+                    bValue = parseEmployeeName(b.empleado).toLowerCase();
+                } else {
+                    return 0; // Or handle other keys if needed
+                }
+
+                if (aValue < bValue) {
+                    return sortConfig.direction === 'asc' ? -1 : 1;
+                }
+                if (aValue > bValue) {
+                    return sortConfig.direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return sortableItems;
+    }, [retirementResults, sortConfig]);
+
+    const requestSort = (key: 'empleado' | 'fechaJubilacion') => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const getSortIcon = (key: 'empleado' | 'fechaJubilacion') => {
+        if (!sortConfig || sortConfig.key !== key) {
+            return <ArrowUpDown className="h-3 w-3 ml-2 opacity-30" />;
+        }
+        return sortConfig.direction === 'asc' ? '▲' : '▼';
+    };
+
+
     const handleExportToExcel = () => {
-        if (retirementResults.length === 0) {
+        if (sortedRetirementResults.length === 0) {
             toast({
                 variant: 'destructive',
                 title: 'Sin Datos',
@@ -154,7 +201,7 @@ export default function BusquedasPage() {
             return;
         }
 
-        const dataToExport = retirementResults.map((p, index) => ({
+        const dataToExport = sortedRetirementResults.map((p, index) => ({
             '#': index + 1,
             'Nombre': parseEmployeeName(p.empleado),
             'Documento': p.documento,
@@ -253,27 +300,35 @@ export default function BusquedasPage() {
 
                     <div className="mt-6">
                         <div className="flex justify-between items-center mb-2">
-                           <h4 className="text-md font-semibold">Resultados de Jubilación ({retirementResults.length})</h4>
-                            <Button onClick={handleExportToExcel} disabled={retirementResults.length === 0} variant="outline" size="sm">
+                           <h4 className="text-md font-semibold">Resultados de Jubilación ({sortedRetirementResults.length})</h4>
+                            <Button onClick={handleExportToExcel} disabled={sortedRetirementResults.length === 0} variant="outline" size="sm">
                                 <Download className="mr-2 h-4 w-4" />
                                 Exportar a Excel
                             </Button>
                         </div>
                         {isLoadingRetirement ? (
                             <div className="flex justify-center items-center p-10"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
-                        ) : retirementResults.length > 0 ? (
+                        ) : sortedRetirementResults.length > 0 ? (
                              <Table>
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead className="w-[50px]">#</TableHead>
-                                        <TableHead>Nombre</TableHead>
+                                        <TableHead>
+                                            <Button variant="ghost" onClick={() => requestSort('empleado')} className="px-2">
+                                                Nombre {getSortIcon('empleado')}
+                                            </Button>
+                                        </TableHead>
                                         <TableHead>Documento</TableHead>
-                                        <TableHead>Fecha Jubilación</TableHead>
+                                        <TableHead>
+                                            <Button variant="ghost" onClick={() => requestSort('fechaJubilacion')} className="px-2">
+                                                Fecha Jubilación {getSortIcon('fechaJubilacion')}
+                                            </Button>
+                                        </TableHead>
                                         <TableHead className="text-right">Acciones</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {retirementResults.map((p, index) => (
+                                    {sortedRetirementResults.map((p, index) => (
                                         <TableRow key={p.id}>
                                             <TableCell>{index + 1}</TableCell>
                                             <TableCell>{parseEmployeeName(p.empleado)}</TableCell>
