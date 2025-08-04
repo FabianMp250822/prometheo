@@ -220,6 +220,10 @@ export default function PrecedenteSerpPage() {
 
     }, [selectedPensioner, payments, historicalPayments, sharingDateInfo]);
 
+    const totalGeneralRetroactivas = useMemo(() => {
+        return tabla1Data.reduce((acc, row) => acc + row.totalRetroactivas, 0);
+    }, [tabla1Data]);
+
     const sharingData = useMemo(() => {
         if (!causanteRecords || causanteRecords.length === 0 || !sharingDateInfo || tabla1Data.length === 0) return null;
         
@@ -306,38 +310,46 @@ export default function PrecedenteSerpPage() {
                                     {isLoading ? (
                                         <div className="flex justify-center items-center p-10"><Loader2 className="h-8 w-8 animate-spin" /></div>
                                     ) : tabla1Data.length > 0 ? (
-                                        <div className="overflow-x-auto"><Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>Año</TableHead>
-                                                    <TableHead>SMLMV</TableHead>
-                                                    <TableHead>% Reajuste SMLMV</TableHead>
-                                                    <TableHead>Proyección Mesada</TableHead>
-                                                    <TableHead># SMLMV</TableHead>
-                                                    <TableHead>% Reajuste IPC</TableHead>
-                                                    <TableHead>Mesada Pagada</TableHead>
-                                                    <TableHead># SMLMV</TableHead>
-                                                    <TableHead>Diferencias</TableHead>
-                                                    <TableHead># Mesadas</TableHead>
-                                                    <TableHead>Total Retroactivas</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>{tabla1Data.map(row => (
-                                                <TableRow key={row.año}>
-                                                    <TableCell>{row.año}</TableCell>
-                                                    <TableCell>{formatCurrency(row.smlmv)}</TableCell>
-                                                    <TableCell>{row.reajusteSMLMV.toFixed(2)}%</TableCell>
-                                                    <TableCell>{formatCurrency(row.proyeccionMesada)}</TableCell>
-                                                    <TableCell>{row.numSmlmvProyectado.toFixed(2)}</TableCell>
-                                                    <TableCell>{row.reajusteIPC.toFixed(2)}%</TableCell>
-                                                    <TableCell>{formatCurrency(row.mesadaPagada)}</TableCell>
-                                                    <TableCell>{row.numSmlmvPagado.toFixed(2)}</TableCell>
-                                                    <TableCell>{formatCurrency(row.diferencia)}</TableCell>
-                                                    <TableCell>{row.numMesadas}</TableCell>
-                                                    <TableCell>{formatCurrency(row.totalRetroactivas)}</TableCell>
-                                                </TableRow>
-                                            ))}</TableBody>
-                                        </Table></div>
+                                        <div className="overflow-x-auto">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>Año</TableHead>
+                                                        <TableHead>SMLMV</TableHead>
+                                                        <TableHead>% Reajuste SMLMV</TableHead>
+                                                        <TableHead>Proyección Mesada</TableHead>
+                                                        <TableHead># SMLMV</TableHead>
+                                                        <TableHead>% Reajuste IPC</TableHead>
+                                                        <TableHead>Mesada Pagada</TableHead>
+                                                        <TableHead># SMLMV</TableHead>
+                                                        <TableHead>Diferencias</TableHead>
+                                                        <TableHead># Mesadas</TableHead>
+                                                        <TableHead>Total Retroactivas</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {tabla1Data.map(row => (
+                                                        <TableRow key={row.año}>
+                                                            <TableCell>{row.año}</TableCell>
+                                                            <TableCell>{formatCurrency(row.smlmv)}</TableCell>
+                                                            <TableCell>{row.reajusteSMLMV.toFixed(2)}%</TableCell>
+                                                            <TableCell>{formatCurrency(row.proyeccionMesada)}</TableCell>
+                                                            <TableCell>{row.numSmlmvProyectado.toFixed(2)}</TableCell>
+                                                            <TableCell>{row.reajusteIPC.toFixed(2)}%</TableCell>
+                                                            <TableCell>{formatCurrency(row.mesadaPagada)}</TableCell>
+                                                            <TableCell>{row.numSmlmvPagado.toFixed(2)}</TableCell>
+                                                            <TableCell>{formatCurrency(row.diferencia)}</TableCell>
+                                                            <TableCell>{row.numMesadas}</TableCell>
+                                                            <TableCell>{formatCurrency(row.totalRetroactivas)}</TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                    <TableRow className="font-bold bg-muted">
+                                                        <TableCell colSpan={10} className="text-right">TOTAL GENERAL RETROACTIVAS</TableCell>
+                                                        <TableCell className="text-left">{formatCurrency(totalGeneralRetroactivas)}</TableCell>
+                                                    </TableRow>
+                                                </TableBody>
+                                            </Table>
+                                        </div>
                                     ) : (
                                         <p className="text-center text-muted-foreground py-4">No se encontraron datos de pagos para este pensionado.</p>
                                     )}
