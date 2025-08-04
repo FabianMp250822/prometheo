@@ -3,18 +3,18 @@
 
 import { usePensioner } from '@/context/pensioner-provider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { UserX, Scale } from 'lucide-react';
-import { parseEmployeeName, formatCurrency } from '@/lib/helpers';
+import { UserX, Scale, Loader2 } from 'lucide-react';
+import { parseEmployeeName, formatCurrency, parsePeriodoPago, formatFirebaseTimestamp } from '@/lib/helpers';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { collection, doc, getDocs, query, where, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { Payment, PagosHistoricoRecord, CausanteRecord } from '@/lib/data';
+import { datosConsolidados, datosIPC } from '../anexo-ley-4/page';
+
 
 // Sample data extracted from the image
-const anexo2Data1 = [
-    { anio: 1999, smlmv: 236460, reajusteSmlmv: 0.00, proyeccion: 916964, numSmlmvProyeccion: 3.88, reajusteIpc: 16.70, mesadaPagada: 916964, numSmlmvPagado: 3.88, diferencia: 0, numMesadas: 0.00, totalRetroactivas: 0 },
-    { anio: 2000, smlmv: 260100, reajusteSmlmv: 15.00, proyeccion: 1054509, numSmlmvProyeccion: 3.88, reajusteIpc: 9.23, mesadaPagada: 1001600, numSmlmvPagado: 3.85, diferencia: 52909, numMesadas: 14.00, totalRetroactivas: 740726 },
-    { anio: 2001, smlmv: 286000, reajusteSmlmv: 15.00, proyeccion: 1212685, numSmlmvProyeccion: 4.05, reajusteIpc: 8.75, mesadaPagada: 1089240, numSmlmvPagado: 3.81, diferencia: 123445, numMesadas: 14.00, totalRetroactivas: 1728230 },
-];
-const comparticionData = { mesadaPlena: 1844342, colpensiones: 1199822, empresa: 644520 };
 const anexo2Data3 = [
     { anio: 2004, smlmv: 358000, reajusteSmlmv: 0.00, proyeccion: 644520, numSmlmvProyeccion: 1.80, reajusteIpc: 6.49, mesadaPagada: 136126, numSmlmvPagado: 0.38, diferencia: 508394, numMesadas: 10.00, totalRetroactivas: 5083940 },
     { anio: 2005, smlmv: 381500, reajusteSmlmv: 5.50, proyeccion: 679969, numSmlmvProyeccion: 1.78, reajusteIpc: 5.50, mesadaPagada: 143613, numSmlmvPagado: 0.38, diferencia: 536356, numMesadas: 14.00, totalRetroactivas: 7508984 },
@@ -33,6 +33,221 @@ const antijuridicoData = [
 
 export default function PrecedenteSerpPage() {
     const { selectedPensioner } = usePensioner();
+    const [isLoading, setIsLoading] = useState(false);
+    const [payments, setPayments] = useState<Payment[]>([]);
+    const [historicalPayments, setHistoricalPayments] = useState<PagosHistoricoRecord[]>([]);
+    const [causanteRecords, setCausanteRecords] = useState<CausanteRecord[]>([]);
+
+    const fetchAllData = useCallback(async () => {
+        if (!selectedPensioner) {
+            setPayments([]);
+            setHistoricalPayments([]);
+            setCausanteRecords([]);
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const paymentsQuery = query(collection(db, 'pensionados', selectedPensioner.id, 'pagos'));
+            const paymentsSnapshot = await getDocs(paymentsQuery);
+            const paymentsData = paymentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
+            const uniquePayments = paymentsData.filter((payment, index, self) =>
+                index === self.findIndex((p) => p.periodoPago === payment.periodoPago)
+            );
+            setPayments(uniquePayments);
+
+            const historicalDocRef = doc(db, 'pagosHistorico', selectedPensioner.documento);
+            const historicalDocSnap = await getDoc(historicalDocRef);
+            if (historicalDocSnap.exists() && Array.isArray(historicalDocSnap.data().records)) {
+                setHistoricalPayments(historicalDocSnap.data().records as PagosHistoricoRecord[]);
+            } else {
+                setHistoricalPayments([]);
+            }
+
+            const causanteQuery = query(collection(db, 'causante'), where('cedula_causante', '==', selectedPensioner.documento));
+            const causanteSnapshot = await getDocs(causanteQuery);
+            if (!causanteSnapshot.empty) {
+                const data = causanteSnapshot.docs[0].data();
+                if (data && Array.isArray(data.records)) {
+                    setCausanteRecords(data.records as CausanteRecord[]);
+                }
+            } else {
+                setCausanteRecords([]);
+            }
+        } catch (error) {
+            console.error("Error fetching data:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [selectedPensioner]);
+
+    useEffect(() => {
+        fetchAllData();
+    }, [fetchAllData]);
+
+    const sharingDateInfo = useMemo(() => {
+        if (!causanteRecords || causanteRecords.length === 0) return null;
+        const sortedRecords = [...causanteRecords]
+            .filter(r => r.fecha_desde)
+            .sort((a, b) => formatFirebaseTimestamp(a.fecha_desde!, 't') - formatFirebaseTimestamp(b.fecha_desde!, 't'));
+
+        if (sortedRecords.length === 0) return null;
+        
+        const sharingDate = new Date(formatFirebaseTimestamp(sortedRecords[0].fecha_desde, 'yyyy-MM-dd'));
+        return {
+            date: sharingDate,
+            year: sharingDate.getFullYear(),
+            month: sharingDate.getMonth() + 1
+        };
+    }, [causanteRecords]);
+
+    const tabla1Data = useMemo(() => {
+        if (!selectedPensioner) return [];
+        
+        const countMesadasInYear = (year: number): number => {
+            const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
+        
+            if (sharingDateInfo && year === sharingDateInfo.year) {
+                const paymentsInSharingYear = payments.filter(p => {
+                    const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
+                    return paymentDate && paymentDate.getFullYear() === year && (paymentDate.getMonth() + 1) <= sharingDateInfo.month;
+                });
+                
+                return paymentsInSharingYear.reduce((count, p) => {
+                    const hasMesada = p.detalles.some(detail =>
+                        (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional'))
+                    );
+                     const hasMesada14 = p.detalles.some(detail =>
+                        (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) ||
+                        (detail.nombre === '285-Mesada Adicional')
+                    );
+                    return count + (hasMesada ? 1 : 0) + (hasMesada14 ? 1 : 0);
+                }, 0);
+            }
+        
+            if (paymentsInYear.length > 0) {
+                 return paymentsInYear.reduce((count, p) => {
+                     const hasMesada = p.detalles.some(detail =>
+                        (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional'))
+                    );
+                     const hasMesada14 = p.detalles.some(detail =>
+                        (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) ||
+                        (detail.nombre === '285-Mesada Adicional')
+                    );
+                    return count + (hasMesada ? 1 : 0) + (hasMesada14 ? 1 : 0);
+                }, 0);
+            }
+            
+            const historicalRecordsForYear = historicalPayments.filter(rec => rec.ANO_RET === year);
+            if (historicalRecordsForYear.length > 0) return 14; 
+            
+            return 0;
+        };
+        
+        const getFirstPensionInYear = (year: number): number => {
+            const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
+            if (paymentsInYear.length > 0) {
+                const firstPayment = paymentsInYear.sort((a,b) => {
+                    const dateA = parsePeriodoPago(a.periodoPago)?.startDate ?? new Date(9999,1,1);
+                    const dateB = parsePeriodoPago(b.periodoPago)?.startDate ?? new Date(9999,1,1);
+                    return dateA.getTime() - dateB.getTime();
+                })[0];
+                const mesada = firstPayment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
+                if (mesada && mesada.ingresos > 0) return mesada.ingresos;
+            }
+            const historicalRecord = historicalPayments.find(p => p.ANO_RET === year && p.VALOR_ACT);
+            if (historicalRecord) return parseFloat(historicalRecord.VALOR_ACT!.replace(/,/g, ''));
+            return 0;
+        };
+
+        const firstPensionYear = Object.keys(datosConsolidados).map(Number).find(year => getFirstPensionInYear(year) > 0);
+        if (!firstPensionYear) return [];
+
+        const endYear = sharingDateInfo ? sharingDateInfo.year : new Date().getFullYear();
+
+        const relevantYears = Object.keys(datosConsolidados)
+            .map(Number)
+            .filter(year => year >= firstPensionYear && year <= endYear)
+            .sort((a, b) => a - b);
+        
+        let proyeccionAnterior = 0;
+        let numSmlmvProyectadoAnterior = 0;
+
+        return relevantYears.map((year, index) => {
+            const smlmv = datosConsolidados[year as keyof typeof datosConsolidados]?.smlmv || 0;
+            const reajusteSMLMV = datosConsolidados[year as keyof typeof datosConsolidados]?.reajusteSMLMV || 0;
+            const reajusteIPC = datosIPC[year - 1 as keyof typeof datosIPC] || 0;
+            
+            const mesadaPagada = getFirstPensionInYear(year);
+            
+            let proyeccionMesada = 0;
+            if (index === 0) {
+                 proyeccionMesada = mesadaPagada > 0 ? mesadaPagada : 0;
+            } else {
+                 const reajusteMayor = Math.max(reajusteSMLMV, reajusteIPC);
+                 proyeccionMesada = proyeccionAnterior * (1 + reajusteMayor / 100);
+            }
+            proyeccionAnterior = proyeccionMesada > 0 ? proyeccionMesada : mesadaPagada;
+
+            const numSmlmvProyectado = smlmv > 0 ? proyeccionMesada / smlmv : 0;
+            const numSmlmvPagado = smlmv > 0 ? mesadaPagada / smlmv : 0;
+            const diferencia = proyeccionMesada > 0 ? proyeccionMesada - mesadaPagada : 0;
+            const numMesadas = countMesadasInYear(year);
+            const totalRetroactivas = diferencia > 0 ? diferencia * numMesadas : 0;
+            
+            let numSmlmvMesadaPlena = 0;
+            if (index === 0) {
+                numSmlmvMesadaPlena = numSmlmvProyectado;
+            } else {
+                numSmlmvMesadaPlena = numSmlmvProyectadoAnterior;
+            }
+            numSmlmvProyectadoAnterior = numSmlmvProyectado;
+
+            return {
+                año: year,
+                smlmv,
+                reajusteSMLMV,
+                proyeccionMesada,
+                numSmlmvProyectado,
+                reajusteIPC,
+                mesadaPagada,
+                numSmlmvPagado,
+                diferencia,
+                numMesadas,
+                totalRetroactivas,
+                numSmlmvMesadaPlena
+            };
+        });
+
+    }, [selectedPensioner, payments, historicalPayments, sharingDateInfo]);
+
+    const sharingData = useMemo(() => {
+        if (!causanteRecords || causanteRecords.length === 0 || !sharingDateInfo || tabla1Data.length === 0) return null;
+        
+        const lastRowTabla1 = tabla1Data[tabla1Data.length - 1];
+        if (!lastRowTabla1) return null;
+
+        const initialSharingRecord = [...causanteRecords]
+            .filter(r => r.fecha_desde)
+            .sort((a,b) => formatFirebaseTimestamp(a.fecha_desde!, 't') - formatFirebaseTimestamp(b.fecha_desde!, 't'))[0];
+
+        if (!initialSharingRecord) return null;
+
+        const mesadaColpensiones = initialSharingRecord.valor_iss || 0;
+        const mayorValorEmpresa = initialSharingRecord.valor_empresa || 0;
+        
+        const mesadaPlena = lastRowTabla1.proyeccionMesada;
+        
+        const porcentajeColpensiones = mesadaPlena > 0 ? (mesadaColpensiones / mesadaPlena) * 100 : 0;
+        const porcentajeEmpresa = mesadaPlena > 0 ? (mayorValorEmpresa / mesadaPlena) * 100 : 0;
+
+        return {
+            mesadaPlena,
+            mesadaColpensiones,
+            mayorValorEmpresa,
+            porcentajeColpensiones,
+            porcentajeEmpresa,
+        };
+    }, [causanteRecords, tabla1Data, sharingDateInfo]);
 
     const renderPreliquidacionTable = (title: string, data: { label: string; value: string | number; sublabel?: string }[]) => (
         <div className="mb-6">
@@ -87,22 +302,68 @@ export default function PrecedenteSerpPage() {
                             <TabsContent value="anexo2" className="mt-4 space-y-6">
                                 <Card>
                                     <CardHeader><CardTitle className="text-base">1. Reajuste de Mesada a Cargo de la Empresa Antes de Compartir</CardTitle></CardHeader>
-                                    <CardContent><Table>
-                                        <TableHeader><TableRow><TableHead>Año</TableHead><TableHead>SMLMV</TableHead><TableHead>% Reajuste SMLMV</TableHead><TableHead>Proyección Mesada</TableHead><TableHead># SMLMV</TableHead><TableHead>% Reajuste IPC</TableHead><TableHead>Mesada Pagada</TableHead><TableHead># SMLMV</TableHead><TableHead>Diferencias</TableHead><TableHead># Mesadas</TableHead><TableHead>Total Retroactivas</TableHead></TableRow></TableHeader>
-                                        <TableBody>{anexo2Data1.map(row => (<TableRow key={row.anio}><TableCell>{row.anio}</TableCell><TableCell>{formatCurrency(row.smlmv)}</TableCell><TableCell>{row.reajusteSmlmv.toFixed(2)}%</TableCell><TableCell>{formatCurrency(row.proyeccion)}</TableCell><TableCell>{row.numSmlmvProyeccion.toFixed(2)}</TableCell><TableCell>{row.reajusteIpc.toFixed(2)}%</TableCell><TableCell>{formatCurrency(row.mesadaPagada)}</TableCell><TableCell>{row.numSmlmvPagado.toFixed(2)}</TableCell><TableCell>{formatCurrency(row.diferencia)}</TableCell><TableCell>{row.numMesadas.toFixed(2)}</TableCell><TableCell>{formatCurrency(row.totalRetroactivas)}</TableCell></TableRow>))}</TableBody>
-                                    </Table></CardContent>
+                                    <CardContent>
+                                    {isLoading ? (
+                                        <div className="flex justify-center items-center p-10"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                                    ) : tabla1Data.length > 0 ? (
+                                        <div className="overflow-x-auto"><Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Año</TableHead>
+                                                    <TableHead>SMLMV</TableHead>
+                                                    <TableHead>% Reajuste SMLMV</TableHead>
+                                                    <TableHead>Proyección Mesada</TableHead>
+                                                    <TableHead># SMLMV</TableHead>
+                                                    <TableHead>% Reajuste IPC</TableHead>
+                                                    <TableHead>Mesada Pagada</TableHead>
+                                                    <TableHead># SMLMV</TableHead>
+                                                    <TableHead>Diferencias</TableHead>
+                                                    <TableHead># Mesadas</TableHead>
+                                                    <TableHead>Total Retroactivas</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>{tabla1Data.map(row => (
+                                                <TableRow key={row.año}>
+                                                    <TableCell>{row.año}</TableCell>
+                                                    <TableCell>{formatCurrency(row.smlmv)}</TableCell>
+                                                    <TableCell>{row.reajusteSMLMV.toFixed(2)}%</TableCell>
+                                                    <TableCell>{formatCurrency(row.proyeccionMesada)}</TableCell>
+                                                    <TableCell>{row.numSmlmvProyectado.toFixed(2)}</TableCell>
+                                                    <TableCell>{row.reajusteIPC.toFixed(2)}%</TableCell>
+                                                    <TableCell>{formatCurrency(row.mesadaPagada)}</TableCell>
+                                                    <TableCell>{row.numSmlmvPagado.toFixed(2)}</TableCell>
+                                                    <TableCell>{formatCurrency(row.diferencia)}</TableCell>
+                                                    <TableCell>{row.numMesadas}</TableCell>
+                                                    <TableCell>{formatCurrency(row.totalRetroactivas)}</TableCell>
+                                                </TableRow>
+                                            ))}</TableBody>
+                                        </Table></div>
+                                    ) : (
+                                        <p className="text-center text-muted-foreground py-4">No se encontraron datos de pagos para este pensionado.</p>
+                                    )}
+                                    </CardContent>
                                 </Card>
+                                
                                 <Card>
                                     <CardHeader><CardTitle className="text-base">2. Compartición de la Mesada Reajustada Así:</CardTitle></CardHeader>
-                                    <CardContent><Table>
-                                        <TableBody>
-                                            <TableRow><TableCell className="font-semibold">MESADA PLENA DE LA PENSION CONVENCIONAL ANTES DE LA COMPARTICION</TableCell><TableCell className="text-right font-bold">{formatCurrency(comparticionData.mesadaPlena)}</TableCell><TableCell className="text-right font-bold">100.00%</TableCell></TableRow>
-                                            <TableRow><TableCell colSpan={3} className="font-semibold text-center text-muted-foreground text-xs">CUOTAS PARTES EN QUE SE DISTRIBUYE EL MONTO DE MESADA PENSIONAL A PARTIR DE LA COMPARTICION</TableCell></TableRow>
-                                            <TableRow><TableCell>MESADA RECONOCIDA POR COLPENSIONES</TableCell><TableCell className="text-right">{formatCurrency(comparticionData.colpensiones)}</TableCell><TableCell className="text-right">{(comparticionData.colpensiones / comparticionData.mesadaPlena * 100).toFixed(2)}%</TableCell></TableRow>
-                                            <TableRow><TableCell>MAYOR VALOR A CARGO DE LA EMPRESA</TableCell><TableCell className="text-right">{formatCurrency(comparticionData.empresa)}</TableCell><TableCell className="text-right">{(comparticionData.empresa / comparticionData.mesadaPlena * 100).toFixed(2)}%</TableCell></TableRow>
-                                        </TableBody>
-                                    </Table></CardContent>
+                                    <CardContent>
+                                    {isLoading ? (
+                                         <div className="flex justify-center items-center p-10"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                                    ) : sharingData ? (
+                                        <Table>
+                                            <TableBody>
+                                                <TableRow><TableCell className="font-semibold">MESADA PLENA DE LA PENSION CONVENCIONAL ANTES DE LA COMPARTICION</TableCell><TableCell className="text-right font-bold">{formatCurrency(sharingData.mesadaPlena)}</TableCell><TableCell className="text-right font-bold">100.00%</TableCell></TableRow>
+                                                <TableRow><TableCell colSpan={3} className="font-semibold text-center text-muted-foreground text-xs">CUOTAS PARTES EN QUE SE DISTRIBUYE EL MONTO DE MESADA PENSIONAL A PARTIR DE LA COMPARTICION</TableCell></TableRow>
+                                                <TableRow><TableCell>MESADA RECONOCIDA POR COLPENSIONES</TableCell><TableCell className="text-right">{formatCurrency(sharingData.mesadaColpensiones)}</TableCell><TableCell className="text-right">{sharingData.porcentajeColpensiones.toFixed(2)}%</TableCell></TableRow>
+                                                <TableRow><TableCell>MAYOR VALOR A CARGO DE LA EMPRESA</TableCell><TableCell className="text-right">{formatCurrency(sharingData.mayorValorEmpresa)}</TableCell><TableCell className="text-right">{sharingData.porcentajeEmpresa.toFixed(2)}%</TableCell></TableRow>
+                                            </TableBody>
+                                        </Table>
+                                    ) : (
+                                         <p className="text-center text-muted-foreground py-4">No se encontraron datos de compartición.</p>
+                                    )}
+                                    </CardContent>
                                 </Card>
+
                                 <Card>
                                     <CardHeader><CardTitle className="text-base">3. Reajuste de Mesada Cuota Parte de Empresa (Fiduprevisora)</CardTitle></CardHeader>
                                     <CardContent><Table>
@@ -244,3 +505,4 @@ export default function PrecedenteSerpPage() {
         </div>
     );
 }
+
