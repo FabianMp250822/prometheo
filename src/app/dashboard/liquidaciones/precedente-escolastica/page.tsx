@@ -5,6 +5,7 @@ import { usePensioner } from '@/context/pensioner-provider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { UserX, Scale } from 'lucide-react';
 import { parseEmployeeName } from '@/lib/helpers';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function PrecedenteEscolasticaPage() {
     const { selectedPensioner } = usePensioner();
@@ -34,8 +35,22 @@ export default function PrecedenteEscolasticaPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-muted-foreground">Aquí se implementará la lógica y la interfaz para este tipo de liquidación.</p>
-                        {/* Placeholder for future liquidation form/results */}
+                        <Tabs defaultValue="anexo2" className="w-full">
+                            <TabsList className="grid w-full grid-cols-3">
+                                <TabsTrigger value="anexo2">Anexo 2</TabsTrigger>
+                                <TabsTrigger value="preliminar">Preliminar</TabsTrigger>
+                                <TabsTrigger value="antijuridico">Antijurídico</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="anexo2" className="mt-4">
+                                <p className="text-muted-foreground">Contenido para Anexo 2 de Precedente Escolástica.</p>
+                            </TabsContent>
+                            <TabsContent value="preliminar" className="mt-4">
+                                <p className="text-muted-foreground">Contenido para la liquidación preliminar de Precedente Escolástica.</p>
+                            </TabsContent>
+                            <TabsContent value="antijuridico" className="mt-4">
+                               <p className="text-muted-foreground">Contenido para el cálculo Antijurídico de Precedente Escolástica.</p>
+                            </TabsContent>
+                        </Tabs>
                     </CardContent>
                 </Card>
             ) : (
