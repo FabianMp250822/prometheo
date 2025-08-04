@@ -27,6 +27,25 @@ const anexo2Data4 = [
 export default function PrecedenteSerpPage() {
     const { selectedPensioner } = usePensioner();
 
+    const renderPreliquidacionTable = (title: string, data: { label: string; value: string | number; sublabel?: string }[]) => (
+        <div className="mb-6">
+            <h4 className="text-sm font-semibold uppercase text-muted-foreground mb-2">{title}</h4>
+            <Table className="border">
+                <TableBody>
+                    {data.map((row, index) => (
+                        <TableRow key={index}>
+                            <TableCell className="font-medium w-3/4">
+                                {row.label}
+                                {row.sublabel && <span className="block text-xs text-muted-foreground">{row.sublabel}</span>}
+                            </TableCell>
+                            <TableCell className="text-right">{typeof row.value === 'number' ? formatCurrency(row.value) : row.value}</TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+            </Table>
+        </div>
+    );
+
     return (
         <div className="p-4 md:p-8 space-y-6">
             <Card>
@@ -93,7 +112,53 @@ export default function PrecedenteSerpPage() {
                                 </Card>
                             </TabsContent>
                             <TabsContent value="preliquidación" className="mt-4">
-                                <p className="text-muted-foreground">Contenido para la preliquidación de Precedente SERP.</p>
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="text-center text-lg">PRELIQUIDACION CONFORME A UNIDAD PRESTACIONAL CONVENCIONAL</CardTitle>
+                                        <div className="flex justify-around pt-2">
+                                            <span><strong>CÉDULA:</strong> 22,371,841</span>
+                                            <span><strong>NOMBRE:</strong> DIANA MARIA ACOSTA ANGULO</span>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                        {renderPreliquidacionTable("I. DATOS RELEVANTES DEL PENSIONADO Y SU MESADA PENSIONAL", [
+                                            { label: "FECHA DE NACIMIENTO", value: "" },
+                                            { label: "EDAD ACTUAL", value: "" },
+                                            { label: "SEXO", value: "" },
+                                            { label: "NUMERO DE AÑOS DE EXPECTATIVA DE VIDA DEL PENSIONADO SEGUN TABLA DE SUPERVIVIENCIA", value: "" },
+                                            { label: "FECHA DE OTORGAMIENTO DE PENSION DE JUBILACIÓN", value: "" },
+                                            { label: "AÑO Y MONTO DE LA MESADA A REAJUSTAR (1999)", value: 916964 },
+                                            { label: "NUMERO DE SALARIOS MINIMOS DE LA MESADA A REAJUSTAR", value: "3.88" },
+                                            { label: "FECHA DE COMPARTICION DE LA PENSION CONVENCIONAL CON LA PENSION DEL ISS-COLPENSIONES", value: "" },
+                                            { label: "MESADA PLENA DE LA PENSION CONVENCIONAL ANTES DE LA COMPARTICION", value: 1335948 },
+                                            { label: "PORCENTAJES Y VALORES DE CUOTAS PARTES EN QUE SE DISTRIBUYE EL MONTO DE LA MESADA PENSIONAL A PARTIR DE LA COMPARTICION", value: "" },
+                                            { label: "A CARGO DE COLPENSIONES", value: "89.81%", sublabel: formatCurrency(1199822)},
+                                            { label: "MAYOR VALOR A CARGO DE LA EMPRESA", value: "10.19%", sublabel: formatCurrency(136126)},
+                                        ])}
+
+                                        {renderPreliquidacionTable("II. INDICADOR DE MESADAS", [
+                                            { label: "VALOR DE PENSION ACTUALMENTE DEVENGADA", sublabel: "(MAYOR VALOR A CARGO DE LA EMPRESA + PENSION ISS- COLPENSIONES)", value: 3613391 },
+                                            { label: "NUMERO DE SALARIOS MINIMOS LEGALES MENSUALES VIGENTES DE PENSION ACTUALMENTE DEVENGADA", value: "2.78" },
+                                            { label: "VALOR DE PENSION REAJUSTADA", sublabel: "(MAYOR VALOR REAJUSTADO + PENSION ISS-COLPENSIONES REAJUSTADA)", value: 3752432 },
+                                            { label: "NUMERO DE SALARIOS MINIMOS LEGALES MENSUALES VIGENTES DE PENSION REAJUSTADA", value: "2.89" },
+                                            { label: "VALOR DEL AUMENTO LOGRADO AL REAJUSTAR LA PENSION", value: 139041 },
+                                            { label: "NUMERO DE SALARIOS MINIMOS LEGALES MENSUALES VIGENTES DEL AUMENTO LOGRADO A LA MESADA INTEGRAL", value: "0.11" },
+                                        ])}
+                                        
+                                        {renderPreliquidacionTable("III. PROYECCION DE MESADAS FUTURAS", [
+                                            { label: "NUMERO DE MESADAS FUTURAS EN EXPECTATIVA DE VIDA DEL PENSIONADO", value: "2,025" },
+                                            { label: "VALOR DEL AUMENTO LOGRADO AL REAJUSTAR LA PENSION", value: 139041 },
+                                            { label: "MESADAS FUTURAS-EXPECTATIVA DE VIDA CON BASE EN EL REAJUSTE DIFERENCIAL OBTENIDO", value: "" },
+                                        ])}
+
+                                        {renderPreliquidacionTable("IV- ESTIMATIVO DE LOS 3 VALORES RESULTANTES OBTENIDOS CON EL REAJUSTE CORRECTO DE LA PENSIÓN:", [
+                                            { label: "RETROACTIVO PRESCRITOS INDEXADOS A FECHA 30 SEPT. 2024", value: 497994871 },
+                                            { label: "RETROACTIVO VIGENTE NO PRESCRITO", value: 73949176 },
+                                            { label: "MESADAS FUTURAS-EXPECTATIVA DE VIDA CON BASE EN EL REAJUSTE DIFERENCIAL OBTENIDO", value: "" },
+                                            { label: "TOTAL DE LOS CONCEPTOS POR RECUPERAR", value: 571944047 },
+                                        ])}
+                                    </CardContent>
+                                </Card>
                             </TabsContent>
                             <TabsContent value="antijuridico" className="mt-4">
                                <p className="text-muted-foreground">Contenido para el cálculo Antijurídico de Precedente SERP.</p>
