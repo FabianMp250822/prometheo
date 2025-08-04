@@ -84,6 +84,22 @@ export default function PrecedenteSerpPage() {
         fetchAllData();
     }, [fetchAllData]);
 
+    const getFirstPensionInYear = useCallback((year: number): number => {
+        const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
+        if (paymentsInYear.length > 0) {
+            const firstPayment = paymentsInYear.sort((a,b) => {
+                const dateA = parsePeriodoPago(a.periodoPago)?.startDate ?? new Date(9999,1,1);
+                const dateB = parsePeriodoPago(b.periodoPago)?.startDate ?? new Date(9999,1,1);
+                return dateA.getTime() - dateB.getTime();
+            })[0];
+            const mesada = firstPayment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
+            if (mesada && mesada.ingresos > 0) return mesada.ingresos;
+        }
+        const historicalRecord = historicalPayments.find(p => p.ANO_RET === year && p.VALOR_ACT);
+        if (historicalRecord) return parseFloat(historicalRecord.VALOR_ACT!.replace(/,/g, ''));
+        return 0;
+    }, [payments, historicalPayments]);
+
     const sharingDateInfo = useMemo(() => {
         if (!causanteRecords || causanteRecords.length === 0) return null;
         const sortedRecords = [...causanteRecords]
@@ -140,22 +156,6 @@ export default function PrecedenteSerpPage() {
             const historicalRecordsForYear = historicalPayments.filter(rec => rec.ANO_RET === year);
             if (historicalRecordsForYear.length > 0) return 14; 
             
-            return 0;
-        };
-        
-        const getFirstPensionInYear = (year: number): number => {
-            const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
-            if (paymentsInYear.length > 0) {
-                const firstPayment = paymentsInYear.sort((a,b) => {
-                    const dateA = parsePeriodoPago(a.periodoPago)?.startDate ?? new Date(9999,1,1);
-                    const dateB = parsePeriodoPago(b.periodoPago)?.startDate ?? new Date(9999,1,1);
-                    return dateA.getTime() - dateB.getTime();
-                })[0];
-                const mesada = firstPayment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
-                if (mesada && mesada.ingresos > 0) return mesada.ingresos;
-            }
-            const historicalRecord = historicalPayments.find(p => p.ANO_RET === year && p.VALOR_ACT);
-            if (historicalRecord) return parseFloat(historicalRecord.VALOR_ACT!.replace(/,/g, ''));
             return 0;
         };
 
@@ -218,7 +218,7 @@ export default function PrecedenteSerpPage() {
             };
         });
 
-    }, [selectedPensioner, payments, historicalPayments, sharingDateInfo]);
+    }, [selectedPensioner, payments, historicalPayments, sharingDateInfo, getFirstPensionInYear]);
 
     const totalGeneralRetroactivas = useMemo(() => {
         return tabla1Data.reduce((acc, row) => acc + row.totalRetroactivas, 0);
@@ -252,6 +252,14 @@ export default function PrecedenteSerpPage() {
             porcentajeEmpresa,
         };
     }, [causanteRecords, tabla1Data, sharingDateInfo]);
+
+    const anioRange = useMemo(() => {
+        const firstYearData = tabla1Data[0]?.año;
+        if (!firstYearData) return [];
+        const lastYear = new Date().getFullYear();
+        return Array.from({ length: lastYear - firstYearData + 1 }, (_, i) => firstYearData + i);
+    }, [tabla1Data]);
+
 
     const renderPreliquidacionTable = (title: string, data: { label: string; value: string | number; sublabel?: string }[]) => (
         <div className="mb-6">
@@ -440,63 +448,70 @@ export default function PrecedenteSerpPage() {
                                     </CardContent>
                                 </Card>
                             </TabsContent>
-                            <TabsContent value="antijuridico" className="mt-4">
+                             <TabsContent value="antijuridico" className="mt-4">
                                 <Card>
                                     <CardHeader>
                                         <CardTitle className="text-center text-lg">LIQUIDACION DE LEY 4a: LIQUIDACION DE REAJUSTES PENSIONALES SOBRE SUMATORIA DE MESADAS</CardTitle>
                                         <CardDescription className="text-center">LIQUIDACION DE RETROACTIVOS NO PRESCRITOS</CardDescription>
                                     </CardHeader>
                                     <CardContent className="overflow-x-auto">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>Año</TableHead>
-                                                    <TableHead>Tope 5 SMLMV</TableHead>
-                                                    <TableHead># SMLMV</TableHead>
-                                                    <TableHead>% de Ajuste</TableHead>
-                                                    <TableHead>Mesada Reajustada</TableHead>
-                                                    <TableHead>Pensión de Vejez</TableHead>
-                                                    <TableHead>Cargo Empresa</TableHead>
-                                                    <TableHead>Pagado por Empresa</TableHead>
-                                                    <TableHead>Diferencias Insolutas</TableHead>
-                                                    <TableHead>Mesadas</TableHead>
-                                                    <TableHead>Daño AntiJurídico</TableHead>
-                                                    <TableHead>Diferencias Anuales</TableHead>
-                                                    <TableHead>Indexacion de Diferencias</TableHead>
-                                                    <TableHead>Diferencias Indexadas</TableHead>
-                                                    <TableHead>Mesadas Ordinarias</TableHead>
-                                                    <TableHead>Diferencias Ordinarias</TableHead>
-                                                    <TableHead>Descuento Salud 12%</TableHead>
-                                                    <TableHead>Observación</TableHead>
-                                                    <TableHead>Mesada Colpensiones</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {antijuridicoData.map(row => (
-                                                    <TableRow key={row.anio}>
-                                                        <TableCell>{row.anio}</TableCell>
-                                                        <TableCell>{formatCurrency(row.tope)}</TableCell>
-                                                        <TableCell>{row.smlmv.toFixed(2)}</TableCell>
-                                                        <TableCell>{row.ajuste.toFixed(2)}%</TableCell>
-                                                        <TableCell>{formatCurrency(row.mesadaReajustada)}</TableCell>
-                                                        <TableCell>{formatCurrency(row.pensionVejez)}</TableCell>
-                                                        <TableCell>{formatCurrency(row.cargoEmpresa)}</TableCell>
-                                                        <TableCell>{formatCurrency(row.pagadoEmpresa)}</TableCell>
-                                                        <TableCell>{formatCurrency(row.diferenciasInsolutas)}</TableCell>
-                                                        <TableCell>{row.mesadas.toFixed(2)}</TableCell>
-                                                        <TableCell>{formatCurrency(row.danoAntijuridico)}</TableCell>
-                                                        <TableCell>{formatCurrency(row.diferenciasAnuales)}</TableCell>
-                                                        <TableCell>{formatCurrency(row.indexacionDiferencias)}</TableCell>
-                                                        <TableCell>{formatCurrency(row.diferenciasIndexadas)}</TableCell>
-                                                        <TableCell>{row.mesadasOrdinarias}</TableCell>
-                                                        <TableCell>{formatCurrency(row.diferenciasOrdinarias)}</TableCell>
-                                                        <TableCell>{formatCurrency(row.descuentoSalud)}</TableCell>
-                                                        <TableCell>{row.observacion}</TableCell>
-                                                        <TableCell>{formatCurrency(row.mesadaColpensiones)}</TableCell>
+                                        {isLoading ? (
+                                            <div className="flex justify-center items-center p-10"><Loader2 className="h-8 w-8 animate-spin" /></div>
+                                        ) : (
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>Año</TableHead>
+                                                        <TableHead>Tope 5 SMLMV</TableHead>
+                                                        <TableHead># SMLMV</TableHead>
+                                                        <TableHead>% de Ajuste</TableHead>
+                                                        <TableHead>Mesada Reajustada</TableHead>
+                                                        <TableHead>Pensión de Vejez</TableHead>
+                                                        <TableHead>Cargo Empresa</TableHead>
+                                                        <TableHead>Pagado por Empresa</TableHead>
+                                                        <TableHead>Diferencias Insolutas</TableHead>
+                                                        <TableHead>Mesadas</TableHead>
+                                                        <TableHead>Daño AntiJurídico</TableHead>
+                                                        <TableHead>Diferencias Anuales</TableHead>
+                                                        <TableHead>Indexacion de Diferencias</TableHead>
+                                                        <TableHead>Diferencias Indexadas</TableHead>
+                                                        <TableHead>Mesadas Ordinarias</TableHead>
+                                                        <TableHead>Diferencias Ordinarias</TableHead>
+                                                        <TableHead>Descuento Salud 12%</TableHead>
+                                                        <TableHead>Observación</TableHead>
+                                                        <TableHead>Mesada Colpensiones</TableHead>
                                                     </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {anioRange.map((year, index) => {
+                                                        const rowData = antijuridicoData[index % antijuridicoData.length]; // Cycle through example data
+                                                        return (
+                                                            <TableRow key={year}>
+                                                                <TableCell>{year}</TableCell>
+                                                                <TableCell>{formatCurrency(rowData.tope)}</TableCell>
+                                                                <TableCell>{rowData.smlmv.toFixed(2)}</TableCell>
+                                                                <TableCell>{rowData.ajuste.toFixed(2)}%</TableCell>
+                                                                <TableCell>{formatCurrency(rowData.mesadaReajustada)}</TableCell>
+                                                                <TableCell>{formatCurrency(rowData.pensionVejez)}</TableCell>
+                                                                <TableCell>{formatCurrency(rowData.cargoEmpresa)}</TableCell>
+                                                                <TableCell>{formatCurrency(rowData.pagadoEmpresa)}</TableCell>
+                                                                <TableCell>{formatCurrency(rowData.diferenciasInsolutas)}</TableCell>
+                                                                <TableCell>{rowData.mesadas.toFixed(2)}</TableCell>
+                                                                <TableCell>{formatCurrency(rowData.danoAntijuridico)}</TableCell>
+                                                                <TableCell>{formatCurrency(rowData.diferenciasAnuales)}</TableCell>
+                                                                <TableCell>{formatCurrency(rowData.indexacionDiferencias)}</TableCell>
+                                                                <TableCell>{formatCurrency(rowData.diferenciasIndexadas)}</TableCell>
+                                                                <TableCell>{rowData.mesadasOrdinarias}</TableCell>
+                                                                <TableCell>{formatCurrency(rowData.diferenciasOrdinarias)}</TableCell>
+                                                                <TableCell>{formatCurrency(rowData.descuentoSalud)}</TableCell>
+                                                                <TableCell>{rowData.observacion}</TableCell>
+                                                                <TableCell>{formatCurrency(rowData.mesadaColpensiones)}</TableCell>
+                                                            </TableRow>
+                                                        )
+                                                    })}
+                                                </TableBody>
+                                            </Table>
+                                        )}
                                     </CardContent>
                                 </Card>
                             </TabsContent>
