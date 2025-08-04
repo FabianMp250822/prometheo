@@ -1,57 +1,45 @@
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Calculator, PlusCircle, Loader2 } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { collection, getDocs, query } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { legalConcepts, UserPayment } from '@/lib/data';
-import { formatCurrency } from '@/lib/helpers';
-import { Badge } from '@/components/ui/badge';
+import { Calculator, Scale, FileText, Percent, ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 
-const liquidations = [
-    { id: 'LIQ-001', userId: 'FzP6XftfysbK6n4yS4yO', amount: 4500, date: '2023-10-16', status: 'Pagada' },
-    { id: 'LIQ-002', userId: 'N4TjbfT1Fl0A4RcaQ0jN', amount: 3000, date: '2023-11-02', status: 'Pagada' },
-    { id: 'LIQ-003', userId: 'O3n7m9wM2rVbF2gP1sYt', amount: 12000, date: '2024-03-02', status: 'En Proceso' },
-    { id: 'LIQ-004', userId: 'Q5o1p0aZ9wVbF3gP2sYu', amount: 5000, date: '2024-05-10', status: 'Pendiente' },
+const liquidationTypes = [
+    {
+        title: 'Presedente Escolástica CSD 39783 (2013)',
+        description: 'Calcula liquidaciones basadas en el precedente de la sentencia CSD 39783 del año 2013.',
+        icon: <Scale className="h-8 w-8 text-primary" />,
+        href: '/dashboard/liquidaciones/precedente-escolastica'
+    },
+    {
+        title: 'Presedente 4555 SERP (2020)',
+        description: 'Aplica la liquidación conforme al precedente de la sentencia 4555 de la SERP del año 2020.',
+        icon: <Scale className="h-8 w-8 text-primary" />,
+        href: '/dashboard/liquidaciones/precedente-serp'
+    },
+    {
+        title: 'Unidad Prestacional 4-100 (IPCs)',
+        description: 'Realiza cálculos de unidad prestacional basados en la Ley 4 y los Índices de Precios al Consumidor.',
+        icon: <FileText className="h-8 w-8 text-primary" />,
+        href: '/dashboard/liquidaciones/unidad-prestacional-ipc'
+    },
+    {
+        title: 'Unidad Prestacional 4-71 (SMLMV)',
+        description: 'Ejecuta liquidaciones de unidad prestacional según la Ley 4 y el Salario Mínimo Legal Mensual Vigente.',
+        icon: <FileText className="h-8 w-8 text-primary" />,
+        href: '/dashboard/liquidaciones/unidad-prestacional-smlmv'
+    },
+    {
+        title: 'Solo Reajuste IPCs Ley 100',
+        description: 'Calcula únicamente el reajuste pensional aplicando la variación del IPC conforme a la Ley 100.',
+        icon: <Percent className="h-8 w-8 text-primary" />,
+        href: '/dashboard/liquidaciones/reajuste-ipc'
+    },
 ];
 
 export default function LiquidadorPage() {
-    const [users, setUsers] = useState<UserPayment[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchUsers = async () => {
-            setIsLoading(true);
-            try {
-                const q = query(collection(db, "USUARIOS_SENTENCIAS_COLLECTION"));
-                const querySnapshot = await getDocs(q);
-                const usersData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UserPayment));
-                setUsers(usersData);
-            } catch (error) {
-                console.error("Error fetching users from Firestore:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchUsers();
-    }, []);
-
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case 'Pagada': return 'bg-green-100 text-green-800';
-            case 'En Proceso': return 'bg-blue-100 text-blue-800';
-            case 'Pendiente': return 'bg-yellow-100 text-yellow-800';
-            default: return 'bg-gray-100 text-gray-800';
-        }
-    }
-
     return (
         <div className="p-4 md:p-8 space-y-6">
             <Card>
@@ -61,96 +49,28 @@ export default function LiquidadorPage() {
                         Liquidador
                     </CardTitle>
                     <CardDescription>
-                        Genere y consulte liquidaciones de pagos judiciales.
+                        Seleccione el tipo de liquidación que desea realizar. Cada opción lo guiará a través del proceso específico.
                     </CardDescription>
                 </CardHeader>
             </Card>
-
-            <div className="grid md:grid-cols-3 gap-6">
-                <Card className="md:col-span-1">
-                    <CardHeader>
-                        <CardTitle className="text-xl flex items-center gap-2">
-                            <PlusCircle className="h-5 w-5" />
-                            Nueva Liquidación
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <form className="space-y-4">
-                            <div>
-                                <Label htmlFor="user">Usuario</Label>
-                                <Select>
-                                    <SelectTrigger id="user">
-                                        <SelectValue placeholder="Seleccione un usuario" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {isLoading ? (
-                                            <div className="flex justify-center p-2"><Loader2 className="h-4 w-4 animate-spin"/></div>
-                                        ) : (
-                                            users.map(u => <SelectItem key={u.user.document} value={u.user.document}>{u.user.name}</SelectItem>)
-                                        )}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <Label htmlFor="concept">Concepto</Label>
-                                <Select>
-                                    <SelectTrigger id="concept">
-                                        <SelectValue placeholder="Seleccione un concepto" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {legalConcepts.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <Label htmlFor="amount">Monto</Label>
-                                <Input id="amount" type="number" placeholder="Ingrese el monto" />
-                            </div>
-                            <Button className="w-full">Generar Liquidación</Button>
-                        </form>
-                    </CardContent>
-                </Card>
-
-                <Card className="md:col-span-2">
-                    <CardHeader>
-                        <CardTitle className="text-xl">Historial de Liquidaciones</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                         {isLoading ? (
-                            <div className="flex justify-center items-center p-10">
-                                <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                            </div>
-                        ) : (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>ID</TableHead>
-                                        <TableHead>Usuario</TableHead>
-                                        <TableHead className="text-right">Monto</TableHead>
-                                        <TableHead>Fecha</TableHead>
-                                        <TableHead>Estado</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {liquidations.map(liq => {
-                                        const user = users.find(u => u.id === liq.userId)?.user;
-                                        return (
-                                            <TableRow key={liq.id}>
-                                                <TableCell className="font-medium">{liq.id}</TableCell>
-                                                <TableCell>{user?.name || 'N/A'}</TableCell>
-                                                <TableCell className="text-right">{formatCurrency(liq.amount)}</TableCell>
-                                                <TableCell>{liq.date}</TableCell>
-                                                <TableCell>
-                                                    <Badge className={getStatusBadge(liq.status)}>{liq.status}</Badge>
-                                                </TableCell>
-                                            </TableRow>
-                                        );
-                                    })}
-                                </TableBody>
-                            </Table>
-                        )}
-                    </CardContent>
-                </Card>
+            
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {liquidationTypes.map((liq) => (
+                    <Card key={liq.title} className="flex flex-col hover:shadow-lg transition-shadow">
+                        <CardHeader className="flex-row items-center gap-4">
+                            {liq.icon}
+                            <CardTitle className="text-lg leading-tight">{liq.title}</CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex-grow flex flex-col justify-between">
+                            <p className="text-sm text-muted-foreground mb-4">{liq.description}</p>
+                            <Button asChild className="w-full mt-auto">
+                                <Link href={liq.href}>
+                                    Iniciar Liquidación <ArrowRight className="ml-2 h-4 w-4" />
+                                </Link>
+                            </Button>
+                        </CardContent>
+                    </Card>
+                ))}
             </div>
         </div>
     );
