@@ -254,6 +254,7 @@ export default function PrecedenteSerpPage() {
     }, [causanteRecords, tabla1Data, sharingDateInfo]);
 
     const anioRange = useMemo(() => {
+        if (tabla1Data.length === 0) return [];
         const firstYearData = tabla1Data[0]?.año;
         if (!firstYearData) return [];
         const lastYear = new Date().getFullYear();
@@ -430,7 +431,7 @@ export default function PrecedenteSerpPage() {
                                             { label: "VALOR DE PENSION REAJUSTADA", sublabel: "(MAYOR VALOR REAJUSTADO + PENSION ISS-COLPENSIONES REAJUSTADA)", value: 3752432 },
                                             { label: "NUMERO DE SALARIOS MINIMOS LEGALES MENSUALES VIGENTES DE PENSION REAJUSTADA", value: "2.89" },
                                             { label: "VALOR DEL AUMENTO LOGRADO AL REAJUSTAR LA PENSION", value: 139041 },
-                                            { label: "NUMERO DE SALARIOS MINIMOS LEGALES MENSUALES VIGENTES DEL AUMENTO LOGRADO A LA MESADA INTEGRAL", value: "0.11" },
+                                            { label: "NUMERO DE SALARIOS MINIMos LEGALES MENSUALES VIGENTES DEL AUMENTO LOGRADO A LA MESADA INTEGRAL", value: "0.11" },
                                         ])}
                                         
                                         {renderPreliquidacionTable("III. PROYECCION DE MESADAS FUTURAS", [
@@ -483,8 +484,10 @@ export default function PrecedenteSerpPage() {
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
-                                                    {anioRange.map((year, index) => {
-                                                        const rowData = antijuridicoData[index % antijuridicoData.length]; // Cycle through example data
+                                                    {anioRange.map((year) => {
+                                                        const pagadoEmpresa = getFirstPensionInYear(year);
+                                                        // Placeholder for other calculated values
+                                                        const rowData = antijuridicoData.find(d => d.anio === year) || { tope: 0, smlmv: 0, ajuste: 0, mesadaReajustada: 0, pensionVejez: 0, cargoEmpresa: 0, diferenciasInsolutas: 0, mesadas: 0, danoAntijuridico: 0, diferenciasAnuales: 0, indexacionDiferencias: 0, diferenciasIndexadas: 0, mesadasOrdinarias: 0, diferenciasOrdinarias: 0, descuentoSalud: 0, observacion: '', mesadaColpensiones: 0 };
                                                         return (
                                                             <TableRow key={year}>
                                                                 <TableCell>{year}</TableCell>
@@ -494,7 +497,7 @@ export default function PrecedenteSerpPage() {
                                                                 <TableCell>{formatCurrency(rowData.mesadaReajustada)}</TableCell>
                                                                 <TableCell>{formatCurrency(rowData.pensionVejez)}</TableCell>
                                                                 <TableCell>{formatCurrency(rowData.cargoEmpresa)}</TableCell>
-                                                                <TableCell>{formatCurrency(rowData.pagadoEmpresa)}</TableCell>
+                                                                <TableCell>{formatCurrency(pagadoEmpresa)}</TableCell>
                                                                 <TableCell>{formatCurrency(rowData.diferenciasInsolutas)}</TableCell>
                                                                 <TableCell>{rowData.mesadas.toFixed(2)}</TableCell>
                                                                 <TableCell>{formatCurrency(rowData.danoAntijuridico)}</TableCell>
