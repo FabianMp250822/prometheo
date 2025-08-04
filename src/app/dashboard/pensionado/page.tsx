@@ -20,8 +20,8 @@ import { datosConsolidados, datosIPC } from '../liquidaciones/anexo-ley-4/page';
 
 function InfoField({ icon, label, value }: { icon: React.ReactNode, label: string, value: React.ReactNode }) {
     return (
-        <div className="flex items-start gap-3">
-            <div className="text-muted-foreground mt-1">{icon}</div>
+        <div className="flex items-center gap-3">
+            <div className="text-muted-foreground">{icon}</div>
             <div>
                 <p className="text-sm text-muted-foreground">{label}</p>
                 <p className="font-medium">{value || 'N/A'}</p>
@@ -360,7 +360,7 @@ export default function PensionadoPage() {
                     </CardTitle>
                     <CardDescription>Resumen de la información de {parseEmployeeName(selectedPensioner.empleado)}.</CardDescription>
                 </CardHeader>
-                <CardContent className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-6">
                     <InfoField icon={<Hash />} label="Documento" value={selectedPensioner.documento} />
                     <InfoField icon={<Landmark />} label="Dependencia" value={parseDepartmentName(selectedPensioner.dependencia1)} />
                     <InfoField icon={<Tag />} label="Centro de Costo" value={selectedPensioner.centroCosto} />
