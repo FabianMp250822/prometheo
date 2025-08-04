@@ -38,14 +38,14 @@ export default function UnidadPrestacionalIpcPage() {
                         <Tabs defaultValue="anexo2" className="w-full">
                             <TabsList className="grid w-full grid-cols-3">
                                 <TabsTrigger value="anexo2">Anexo 2</TabsTrigger>
-                                <TabsTrigger value="preliminar">Preliminar</TabsTrigger>
+                                <TabsTrigger value="preliquidación">Preliquidación</TabsTrigger>
                                 <TabsTrigger value="antijuridico">Antijurídico</TabsTrigger>
                             </TabsList>
                             <TabsContent value="anexo2" className="mt-4">
                                 <p className="text-muted-foreground">Contenido para Anexo 2 de Unidad Prestacional IPC.</p>
                             </TabsContent>
-                            <TabsContent value="preliminar" className="mt-4">
-                                <p className="text-muted-foreground">Contenido para la liquidación preliminar de Unidad Prestacional IPC.</p>
+                            <TabsContent value="preliquidación" className="mt-4">
+                                <p className="text-muted-foreground">Contenido para la preliquidación de Unidad Prestacional IPC.</p>
                             </TabsContent>
                             <TabsContent value="antijuridico" className="mt-4">
                                <p className="text-muted-foreground">Contenido para el cálculo Antijurídico de Unidad Prestacional IPC.</p>
