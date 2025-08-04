@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 // Sample data extracted from the image
 const anexo2Data1 = [
     { anio: 1999, smlmv: 236460, reajusteSmlmv: 0.00, proyeccion: 916964, numSmlmvProyeccion: 3.88, reajusteIpc: 16.70, mesadaPagada: 916964, numSmlmvPagado: 3.88, diferencia: 0, numMesadas: 0.00, totalRetroactivas: 0 },
-    { anio: 2000, smlmv: 260100, reajusteSmlmv: 15.00, proyeccion: 1054509, numSmlmvProyeccion: 3.88, reajusteIpc: 9.23, mesadaPagada: 1001500, numSmlmvPagado: 3.85, diferencia: 52909, numMesadas: 14.00, totalRetroactivas: 740726 },
+    { anio: 2000, smlmv: 260100, reajusteSmlmv: 15.00, proyeccion: 1054509, numSmlmvProyeccion: 3.88, reajusteIpc: 9.23, mesadaPagada: 1001600, numSmlmvPagado: 3.85, diferencia: 52909, numMesadas: 14.00, totalRetroactivas: 740726 },
     { anio: 2001, smlmv: 286000, reajusteSmlmv: 15.00, proyeccion: 1212685, numSmlmvProyeccion: 4.05, reajusteIpc: 8.75, mesadaPagada: 1089240, numSmlmvPagado: 3.81, diferencia: 123445, numMesadas: 14.00, totalRetroactivas: 1728230 },
 ];
 const comparticionData = { mesadaPlena: 1844342, colpensiones: 1199822, empresa: 644520 };
@@ -22,6 +22,13 @@ const anexo2Data3 = [
 const anexo2Data4 = [
     { anio: 2004, smlmv: 358000, reajusteSmlmv: 0.00, proyeccion: 1199822, numSmlmvProyeccion: 3.35, reajusteIpc: 6.49, mesadaPagada: 1199822, numSmlmvPagado: 3.35, diferencia: 0, numMesadas: 10.00, totalRetroactivas: 0 },
     { anio: 2005, smlmv: 381500, reajusteSmlmv: 5.50, proyeccion: 1255812, numSmlmvProyeccion: 3.32, reajusteIpc: 5.50, mesadaPagada: 1265812, numSmlmvPagado: 3.32, diferencia: 0, numMesadas: 14.00, totalRetroactivas: 0 },
+];
+
+const antijuridicoData = [
+  { anio: 1999, tope: 0, smlmv: 0.00, ajuste: 0.00, mesadaReajustada: 916964, pensionVejez: 0, cargoEmpresa: 916964, pagadoEmpresa: 916964, diferenciasInsolutas: 0, mesadas: 14.00, danoAntijuridico: 0, diferenciasAnuales: 0, indexacionDiferencias: 0, diferenciasIndexadas: 0, mesadasOrdinarias: 0, diferenciasOrdinarias: 0, descuentoSalud: 0, observacion: 'Incremento salarial IPC 16.70%', mesadaColpensiones: 0 },
+  { anio: 2000, tope: 1182300, smlmv: 3.88, ajuste: 15.00, mesadaReajustada: 1054509, pensionVejez: 0, cargoEmpresa: 1054509, pagadoEmpresa: 1001600, diferenciasInsolutas: 52909, mesadas: 14.00, danoAntijuridico: 0, diferenciasAnuales: 740726, indexacionDiferencias: 1844018, diferenciasIndexadas: 2584744, mesadasOrdinarias: 12, diferenciasOrdinarias: 634908, descuentoSalud: 76189, observacion: 'Incremento salarial IPC 8.75%', mesadaColpensiones: 0 },
+  { anio: 2001, tope: 1300500, smlmv: 4.05, ajuste: 15.00, mesadaReajustada: 1212685, pensionVejez: 0, cargoEmpresa: 1212685, pagadoEmpresa: 1089240, diferenciasInsolutas: 123445, mesadas: 14.00, danoAntijuridico: 0, diferenciasAnuales: 1728230, indexacionDiferencias: 3857310, diferenciasIndexadas: 5585540, mesadasOrdinarias: 12, diferenciasOrdinarias: 1481340, descuentoSalud: 177761, observacion: 'Incremento salarial IPC 7.65%', mesadaColpensiones: 0 },
+  { anio: 2002, tope: 1430000, smlmv: 4.24, ajuste: 15.00, mesadaReajustada: 1394588, pensionVejez: 0, cargoEmpresa: 1394588, pagadoEmpresa: 1172567, diferenciasInsolutas: 222021, mesadas: 14.00, danoAntijuridico: 0, diferenciasAnuales: 3108294, indexacionDiferencias: 6329369, diferenciasIndexadas: 9437663, mesadasOrdinarias: 12, diferenciasOrdinarias: 2664252, descuentoSalud: 319710, observacion: 'Incremento salarial IPC 6.99%', mesadaColpensiones: 0 },
 ];
 
 export default function PrecedenteSerpPage() {
@@ -161,7 +168,64 @@ export default function PrecedenteSerpPage() {
                                 </Card>
                             </TabsContent>
                             <TabsContent value="antijuridico" className="mt-4">
-                               <p className="text-muted-foreground">Contenido para el cálculo Antijurídico de Precedente SERP.</p>
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="text-center text-lg">LIQUIDACION DE LEY 4a: LIQUIDACION DE REAJUSTES PENSIONALES SOBRE SUMATORIA DE MESADAS</CardTitle>
+                                        <CardDescription className="text-center">LIQUIDACION DE RETROACTIVOS NO PRESCRITOS</CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="overflow-x-auto">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Año</TableHead>
+                                                    <TableHead>Tope 5 SMLMV</TableHead>
+                                                    <TableHead># SMLMV</TableHead>
+                                                    <TableHead>% de Ajuste</TableHead>
+                                                    <TableHead>Mesada Reajustada</TableHead>
+                                                    <TableHead>Pensión de Vejez</TableHead>
+                                                    <TableHead>Cargo Empresa</TableHead>
+                                                    <TableHead>Pagado por Empresa</TableHead>
+                                                    <TableHead>Diferencias Insolutas</TableHead>
+                                                    <TableHead>Mesadas</TableHead>
+                                                    <TableHead>Daño AntiJurídico</TableHead>
+                                                    <TableHead>Diferencias Anuales</TableHead>
+                                                    <TableHead>Indexacion de Diferencias</TableHead>
+                                                    <TableHead>Diferencias Indexadas</TableHead>
+                                                    <TableHead>Mesadas Ordinarias</TableHead>
+                                                    <TableHead>Diferencias Ordinarias</TableHead>
+                                                    <TableHead>Descuento Salud 12%</TableHead>
+                                                    <TableHead>Observación</TableHead>
+                                                    <TableHead>Mesada Colpensiones</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {antijuridicoData.map(row => (
+                                                    <TableRow key={row.anio}>
+                                                        <TableCell>{row.anio}</TableCell>
+                                                        <TableCell>{formatCurrency(row.tope)}</TableCell>
+                                                        <TableCell>{row.smlmv.toFixed(2)}</TableCell>
+                                                        <TableCell>{row.ajuste.toFixed(2)}%</TableCell>
+                                                        <TableCell>{formatCurrency(row.mesadaReajustada)}</TableCell>
+                                                        <TableCell>{formatCurrency(row.pensionVejez)}</TableCell>
+                                                        <TableCell>{formatCurrency(row.cargoEmpresa)}</TableCell>
+                                                        <TableCell>{formatCurrency(row.pagadoEmpresa)}</TableCell>
+                                                        <TableCell>{formatCurrency(row.diferenciasInsolutas)}</TableCell>
+                                                        <TableCell>{row.mesadas.toFixed(2)}</TableCell>
+                                                        <TableCell>{formatCurrency(row.danoAntijuridico)}</TableCell>
+                                                        <TableCell>{formatCurrency(row.diferenciasAnuales)}</TableCell>
+                                                        <TableCell>{formatCurrency(row.indexacionDiferencias)}</TableCell>
+                                                        <TableCell>{formatCurrency(row.diferenciasIndexadas)}</TableCell>
+                                                        <TableCell>{row.mesadasOrdinarias}</TableCell>
+                                                        <TableCell>{formatCurrency(row.diferenciasOrdinarias)}</TableCell>
+                                                        <TableCell>{formatCurrency(row.descuentoSalud)}</TableCell>
+                                                        <TableCell>{row.observacion}</TableCell>
+                                                        <TableCell>{formatCurrency(row.mesadaColpensiones)}</TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </CardContent>
+                                </Card>
                             </TabsContent>
                         </Tabs>
                     </CardContent>
