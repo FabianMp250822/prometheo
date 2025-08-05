@@ -13,6 +13,15 @@ import { db } from '@/lib/firebase';
 import type { Payment, PagosHistoricoRecord, CausanteRecord } from '@/lib/data';
 import { datosConsolidados, datosIPC } from '../anexo-ley-4/page';
 
+// Función para calcular el % de ajuste basado en # SMLMV del año anterior
+const calculateAjustePorcentaje = (numSmlmvAnterior: number, ipcActual: number): number => {
+    if (numSmlmvAnterior <= 5) {
+        return 15; // 15% si # SMLMV del año anterior es <= 5
+    } else {
+        return ipcActual; // IPC si # SMLMV del año anterior es > 5
+    }
+};
+
 export default function PrecedenteSerpPage() {
     const { selectedPensioner } = usePensioner();
     const [isLoading, setIsLoading] = useState(false);
@@ -237,7 +246,7 @@ export default function PrecedenteSerpPage() {
         };
     }, [causanteRecords, tabla1Data]);
     
-     const calculationPeriods = useMemo(() => {
+    const calculationPeriods = useMemo(() => {
         const firstPensionYear = Object.keys(datosConsolidados).map(Number).find(year => getFirstPensionInYear(year) > 0);
         if (!firstPensionYear) return [];
 
@@ -301,44 +310,64 @@ export default function PrecedenteSerpPage() {
     const antijuridicoData = useMemo(() => {
         let pensionVejezAnterior = 0;
         let mesadaReajustadaAnterior = 0;
-
-        return calculationPeriods.map(period => {
+        let numSmlmvAnterior = 0;
+    
+        return calculationPeriods.map((period, index) => {
             const pagadoEmpresa = period.mesada;
             const numMesadas = countMesadasInYear(period.year, period.startMonth, period.endMonth);
             const numMesadasOrdinarias = countMesadasOrdinariasInPeriod(period.year, period.startMonth, period.endMonth);
             const smlmvAnual = datosConsolidados[period.year as keyof typeof datosConsolidados]?.smlmv || 0;
             const tope5SMLMV = smlmvAnual * 5;
-            const numSmlmv = 5;
-
-            // Find the specific record in causante that applies to this period's start date
+            
+            const ipcActual = datosIPC[period.year as keyof typeof datosIPC] || 0;
+            
+            let porcentajeAjuste = 0;
+            if (index === 0) {
+                porcentajeAjuste = 15;
+            } else {
+                porcentajeAjuste = calculateAjustePorcentaje(numSmlmvAnterior, ipcActual);
+            }
+    
+            let mesadaReajustada = 0;
+            if (index === 0) {
+                mesadaReajustada = pagadoEmpresa;
+            } else {
+                mesadaReajustada = mesadaReajustadaAnterior * (1 + porcentajeAjuste / 100);
+            }
+    
+            const numSmlmv = smlmvAnual > 0 ? mesadaReajustada / smlmvAnual : 0;
+    
             const causanteRecordForPeriod = causanteRecords.find(rec => {
                 if (!rec.fecha_desde) return false;
                 const recordDate = formatFirebaseTimestamp(rec.fecha_desde, 'yyyy-MM-dd');
                 const recordYear = new Date(recordDate).getFullYear();
-                return recordYear === period.year;
+                const recordMonth = new Date(recordDate).getMonth() + 1;
+                return recordYear === period.year && recordMonth >= period.startMonth && recordMonth <= period.endMonth;
             });
-
+    
             let pensionVejez = 0;
             if (causanteRecordForPeriod) {
                 pensionVejez = causanteRecordForPeriod.valor_iss || 0;
             } else {
-                 const ipcAnterior = datosIPC[period.year - 1 as keyof typeof datosIPC] || 0;
-                 if (pensionVejezAnterior > 0) {
+                const ipcAnterior = datosIPC[period.year - 1 as keyof typeof datosIPC] || 0;
+                if (pensionVejezAnterior > 0) {
                     pensionVejez = pensionVejezAnterior * (1 + ipcAnterior / 100);
-                 }
+                }
             }
-            pensionVejezAnterior = pensionVejez > 0 ? pensionVejez : pensionVejezAnterior;
-
             
-            let mesadaReajustada = 0; // Placeholder
             const cargoEmpresa = mesadaReajustada - pensionVejez;
             const diferenciasInsolutas = cargoEmpresa > 0 ? cargoEmpresa - pagadoEmpresa : 0;
             const diferenciasAnuales = diferenciasInsolutas > 0 ? diferenciasInsolutas * numMesadas : 0;
             
+            mesadaReajustadaAnterior = mesadaReajustada;
+            numSmlmvAnterior = numSmlmv;
+            pensionVejezAnterior = pensionVejez > 0 ? pensionVejez : pensionVejezAnterior;
+    
             return {
                 ...period,
                 tope5SMLMV,
                 numSmlmv,
+                porcentajeAjuste,
                 mesadaReajustada,
                 pensionVejez,
                 cargoEmpresa,
@@ -576,7 +605,7 @@ export default function PrecedenteSerpPage() {
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
-                                                    {antijuridicoData.map((row, index) => {
+                                                    {antijuridicoData.map((row) => {
                                                         const yearDisplay = row.startMonth > 1 || row.endMonth < 12 ? `${row.year} (M${row.startMonth}-M${row.endMonth})` : row.year;
 
                                                         return (
@@ -584,7 +613,7 @@ export default function PrecedenteSerpPage() {
                                                                 <TableCell>{yearDisplay}</TableCell>
                                                                 <TableCell>{formatCurrency(row.tope5SMLMV)}</TableCell>
                                                                 <TableCell>{row.numSmlmv.toFixed(2)}</TableCell>
-                                                                <TableCell>0.00%</TableCell>
+                                                                <TableCell>{row.porcentajeAjuste.toFixed(2)}%</TableCell>
                                                                 <TableCell>{formatCurrency(row.mesadaReajustada)}</TableCell>
                                                                 <TableCell>{formatCurrency(row.pensionVejez)}</TableCell>
                                                                 <TableCell>{formatCurrency(row.cargoEmpresa)}</TableCell>
