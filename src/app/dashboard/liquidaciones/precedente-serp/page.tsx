@@ -115,49 +115,49 @@ export default function PrecedenteSerpPage() {
             month: sharingDate.getMonth() + 1
         };
     }, [causanteRecords]);
+    
+    const countMesadasInYear = useCallback((year: number): number => {
+        const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
+    
+        if (sharingDateInfo && year === sharingDateInfo.year) {
+            const paymentsInSharingYear = payments.filter(p => {
+                const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
+                return paymentDate && paymentDate.getFullYear() === year && (paymentDate.getMonth() + 1) <= sharingDateInfo.month;
+            });
+            
+            return paymentsInSharingYear.reduce((count, p) => {
+                const hasMesada = p.detalles.some(detail =>
+                    (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional'))
+                );
+                 const hasMesada14 = p.detalles.some(detail =>
+                    (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) ||
+                    (detail.nombre === '285-Mesada Adicional')
+                );
+                return count + (hasMesada ? 1 : 0) + (hasMesada14 ? 1 : 0);
+            }, 0);
+        }
+    
+        if (paymentsInYear.length > 0) {
+             return paymentsInYear.reduce((count, p) => {
+                 const hasMesada = p.detalles.some(detail =>
+                    (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional'))
+                );
+                 const hasMesada14 = p.detalles.some(detail =>
+                    (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) ||
+                    (detail.nombre === '285-Mesada Adicional')
+                );
+                return count + (hasMesada ? 1 : 0) + (hasMesada14 ? 1 : 0);
+            }, 0);
+        }
+        
+        const historicalRecordsForYear = historicalPayments.filter(rec => rec.ANO_RET === year);
+        if (historicalRecordsForYear.length > 0) return 14; 
+        
+        return 0;
+    }, [payments, historicalPayments, sharingDateInfo]);
 
     const tabla1Data = useMemo(() => {
         if (!selectedPensioner) return [];
-        
-        const countMesadasInYear = (year: number): number => {
-            const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
-        
-            if (sharingDateInfo && year === sharingDateInfo.year) {
-                const paymentsInSharingYear = payments.filter(p => {
-                    const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
-                    return paymentDate && paymentDate.getFullYear() === year && (paymentDate.getMonth() + 1) <= sharingDateInfo.month;
-                });
-                
-                return paymentsInSharingYear.reduce((count, p) => {
-                    const hasMesada = p.detalles.some(detail =>
-                        (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional'))
-                    );
-                     const hasMesada14 = p.detalles.some(detail =>
-                        (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) ||
-                        (detail.nombre === '285-Mesada Adicional')
-                    );
-                    return count + (hasMesada ? 1 : 0) + (hasMesada14 ? 1 : 0);
-                }, 0);
-            }
-        
-            if (paymentsInYear.length > 0) {
-                 return paymentsInYear.reduce((count, p) => {
-                     const hasMesada = p.detalles.some(detail =>
-                        (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional'))
-                    );
-                     const hasMesada14 = p.detalles.some(detail =>
-                        (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) ||
-                        (detail.nombre === '285-Mesada Adicional')
-                    );
-                    return count + (hasMesada ? 1 : 0) + (hasMesada14 ? 1 : 0);
-                }, 0);
-            }
-            
-            const historicalRecordsForYear = historicalPayments.filter(rec => rec.ANO_RET === year);
-            if (historicalRecordsForYear.length > 0) return 14; 
-            
-            return 0;
-        };
 
         const firstPensionYear = Object.keys(datosConsolidados).map(Number).find(year => getFirstPensionInYear(year) > 0);
         if (!firstPensionYear) return [];
@@ -218,7 +218,7 @@ export default function PrecedenteSerpPage() {
             };
         });
 
-    }, [selectedPensioner, payments, historicalPayments, sharingDateInfo, getFirstPensionInYear]);
+    }, [selectedPensioner, countMesadasInYear, getFirstPensionInYear, sharingDateInfo]);
 
     const totalGeneralRetroactivas = useMemo(() => {
         return tabla1Data.reduce((acc, row) => acc + row.totalRetroactivas, 0);
@@ -254,12 +254,15 @@ export default function PrecedenteSerpPage() {
     }, [causanteRecords, tabla1Data, sharingDateInfo]);
 
     const anioRange = useMemo(() => {
-        if (tabla1Data.length === 0) return [];
-        const firstYearData = tabla1Data[0]?.año;
-        if (!firstYearData) return [];
+        if (historicalPayments.length === 0 && payments.length === 0) return [];
+        const firstPaymentYear = historicalPayments.reduce((min, p) => p.ANO_RET && p.ANO_RET < min ? p.ANO_RET : min, new Date().getFullYear());
+        const firstRecentPaymentYear = payments.reduce((min, p) => parseInt(p.año, 10) < min ? parseInt(p.año, 10) : min, new Date().getFullYear());
+        const firstYearData = Math.min(firstPaymentYear, firstRecentPaymentYear);
+
+        if (!firstYearData || firstYearData > new Date().getFullYear()) return [];
         const lastYear = new Date().getFullYear();
         return Array.from({ length: lastYear - firstYearData + 1 }, (_, i) => firstYearData + i);
-    }, [tabla1Data]);
+    }, [historicalPayments, payments]);
 
 
     const renderPreliquidacionTable = (title: string, data: { label: string; value: string | number; sublabel?: string }[]) => (
@@ -486,6 +489,7 @@ export default function PrecedenteSerpPage() {
                                                 <TableBody>
                                                     {anioRange.map((year) => {
                                                         const pagadoEmpresa = getFirstPensionInYear(year);
+                                                        const numMesadas = countMesadasInYear(year);
                                                         // Placeholder for other calculated values
                                                         const rowData = antijuridicoData.find(d => d.anio === year) || { tope: 0, smlmv: 0, ajuste: 0, mesadaReajustada: 0, pensionVejez: 0, cargoEmpresa: 0, diferenciasInsolutas: 0, mesadas: 0, danoAntijuridico: 0, diferenciasAnuales: 0, indexacionDiferencias: 0, diferenciasIndexadas: 0, mesadasOrdinarias: 0, diferenciasOrdinarias: 0, descuentoSalud: 0, observacion: '', mesadaColpensiones: 0 };
                                                         return (
@@ -499,7 +503,7 @@ export default function PrecedenteSerpPage() {
                                                                 <TableCell>{formatCurrency(rowData.cargoEmpresa)}</TableCell>
                                                                 <TableCell>{formatCurrency(pagadoEmpresa)}</TableCell>
                                                                 <TableCell>{formatCurrency(rowData.diferenciasInsolutas)}</TableCell>
-                                                                <TableCell>{rowData.mesadas.toFixed(2)}</TableCell>
+                                                                <TableCell>{numMesadas}</TableCell>
                                                                 <TableCell>{formatCurrency(rowData.danoAntijuridico)}</TableCell>
                                                                 <TableCell>{formatCurrency(rowData.diferenciasAnuales)}</TableCell>
                                                                 <TableCell>{formatCurrency(rowData.indexacionDiferencias)}</TableCell>
@@ -535,4 +539,3 @@ export default function PrecedenteSerpPage() {
         </div>
     );
 }
-
