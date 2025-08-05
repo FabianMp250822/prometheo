@@ -251,85 +251,90 @@ export default function PrecedenteSerpPage() {
                 .filter(p => parseInt(p.año, 10) === year)
                 .sort((a, b) => (parsePeriodoPago(a.periodoPago)?.startDate?.getTime() ?? 0) - (parsePeriodoPago(b.periodoPago)?.startDate?.getTime() ?? 0));
 
-            if (paymentsInYear.length === 0) {
-                 const historicalMesada = getFirstPensionInYear(year);
-                 if (historicalMesada > 0) {
-                    periods.push({ year, startMonth: 1, endMonth: 12, mesada: historicalMesada });
-                 }
-                continue;
+            let mesadasPorMes: (number | null)[] = Array(12).fill(null);
+            
+            if (paymentsInYear.length > 0) {
+                 paymentsInYear.forEach(p => {
+                    const mesadaDetail = p.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
+                    if (mesadaDetail && mesadaDetail.ingresos > 0) {
+                        const monthIndex = (parsePeriodoPago(p.periodoPago)?.startDate?.getMonth() ?? -1);
+                        if (monthIndex !== -1) {
+                            mesadasPorMes[monthIndex] = mesadaDetail.ingresos;
+                        }
+                    }
+                });
+            } else {
+                const historicalMesada = getFirstPensionInYear(year);
+                if (historicalMesada > 0) {
+                     mesadasPorMes.fill(historicalMesada);
+                } else {
+                    continue; 
+                }
             }
             
-            let lastMesada = -1;
+            let lastMesada: number | null = null;
             let lastPeriodStartMonth = 1;
             
-            const mesadasPorMes: (number | null)[] = Array(12).fill(null);
-            paymentsInYear.forEach(p => {
-                const mesadaDetail = p.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
-                if (mesadaDetail && mesadaDetail.ingresos > 0) {
-                    const monthIndex = (parsePeriodoPago(p.periodoPago)?.startDate?.getMonth() ?? -1);
-                    if (monthIndex !== -1) {
-                         mesadasPorMes[monthIndex] = mesadaDetail.ingresos;
-                    }
-                }
-            });
-
             for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
                 const mesadaActual = mesadasPorMes[monthIndex];
-                
-                if (lastMesada < 0 && mesadaActual !== null) {
+
+                if (lastMesada === null && mesadaActual !== null) {
                     lastMesada = mesadaActual;
                     lastPeriodStartMonth = monthIndex + 1;
                 }
                 
-                if (mesadaActual !== null && lastMesada > 0 && mesadaActual < lastMesada * 0.5) {
+                if (mesadaActual !== null && lastMesada !== null && mesadaActual < lastMesada * 0.5) {
                     periods.push({ year, startMonth: lastPeriodStartMonth, endMonth: monthIndex, mesada: lastMesada });
                     lastPeriodStartMonth = monthIndex + 1;
                     lastMesada = mesadaActual;
                 }
             }
-
-            if (lastMesada >= 0) {
+            
+            if (lastMesada !== null) {
                 periods.push({ year, startMonth: lastPeriodStartMonth, endMonth: 12, mesada: lastMesada });
             }
         }
-        return periods.filter(p => p.mesada >= 0);
+        return periods.filter(p => p.mesada > 0);
 
     }, [payments, historicalPayments, getFirstPensionInYear]);
     
     const antijuridicoData = useMemo(() => {
-        let totalDiferenciasAnuales = 0;
         let pensionVejezAnterior = 0;
+        let mesadaReajustadaAnterior = 0;
 
         return calculationPeriods.map(period => {
             const pagadoEmpresa = period.mesada;
             const numMesadas = countMesadasInYear(period.year, period.startMonth, period.endMonth);
             const numMesadasOrdinarias = countMesadasOrdinariasInPeriod(period.year, period.startMonth, period.endMonth);
             const smlmvAnual = datosConsolidados[period.year as keyof typeof datosConsolidados]?.smlmv || 0;
-            const numSmlmv = smlmvAnual > 0 ? pagadoEmpresa / smlmvAnual : 0;
             const tope5SMLMV = smlmvAnual * 5;
+            const numSmlmv = 5;
 
-            const causanteRecordForYear = causanteRecords.find(rec => rec.fecha_desde && new Date(formatFirebaseTimestamp(rec.fecha_desde, 'yyyy-MM-dd')).getFullYear() === period.year);
-            
+            // Find the specific record in causante that applies to this period's start date
+            const causanteRecordForPeriod = causanteRecords.find(rec => {
+                if (!rec.fecha_desde) return false;
+                const recordDate = formatFirebaseTimestamp(rec.fecha_desde, 'yyyy-MM-dd');
+                const recordYear = new Date(recordDate).getFullYear();
+                return recordYear === period.year;
+            });
+
             let pensionVejez = 0;
-            if (causanteRecordForYear) {
-                pensionVejez = causanteRecordForYear.valor_iss || 0;
+            if (causanteRecordForPeriod) {
+                pensionVejez = causanteRecordForPeriod.valor_iss || 0;
             } else {
                  const ipcAnterior = datosIPC[period.year - 1 as keyof typeof datosIPC] || 0;
                  if (pensionVejezAnterior > 0) {
                     pensionVejez = pensionVejezAnterior * (1 + ipcAnterior / 100);
                  }
             }
-            if (pensionVejez > 0) {
-                pensionVejezAnterior = pensionVejez;
-            }
+            pensionVejezAnterior = pensionVejez > 0 ? pensionVejez : pensionVejezAnterior;
 
-
-            const mesadaReajustada = 0; // Placeholder
+            
+            let mesadaReajustada = 0; // Placeholder
             const cargoEmpresa = mesadaReajustada - pensionVejez;
-            const diferenciasInsolutas = cargoEmpresa - pagadoEmpresa;
+            const diferenciasInsolutas = cargoEmpresa > 0 ? cargoEmpresa - pagadoEmpresa : 0;
             const diferenciasAnuales = diferenciasInsolutas > 0 ? diferenciasInsolutas * numMesadas : 0;
-            totalDiferenciasAnuales += diferenciasAnuales;
-
+            
             return {
                 ...period,
                 tope5SMLMV,
