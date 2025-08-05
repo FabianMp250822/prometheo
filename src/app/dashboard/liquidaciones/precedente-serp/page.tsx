@@ -13,8 +13,6 @@ import { db } from '@/lib/firebase';
 import type { Payment, PagosHistoricoRecord, CausanteRecord } from '@/lib/data';
 import { datosConsolidados, datosIPC } from '../anexo-ley-4/page';
 
-
-// Sample data extracted from the image
 const anexo2Data3 = [
     { anio: 2004, smlmv: 358000, reajusteSmlmv: 0.00, proyeccion: 644520, numSmlmvProyeccion: 1.80, reajusteIpc: 6.49, mesadaPagada: 136126, numSmlmvPagado: 0.38, diferencia: 508394, numMesadas: 10.00, totalRetroactivas: 5083940 },
     { anio: 2005, smlmv: 381500, reajusteSmlmv: 5.50, proyeccion: 679969, numSmlmvProyeccion: 1.78, reajusteIpc: 5.50, mesadaPagada: 143613, numSmlmvPagado: 0.38, diferencia: 536356, numMesadas: 14.00, totalRetroactivas: 7508984 },
@@ -361,7 +359,7 @@ export default function PrecedenteSerpPage() {
                                                             <TableCell>{formatCurrency(row.totalRetroactivas)}</TableCell>
                                                         </TableRow>
                                                     ))}
-                                                    <TableRow className="font-bold bg-muted">
+                                                     <TableRow className="font-bold bg-muted">
                                                         <TableCell colSpan={10} className="text-right">TOTAL GENERAL RETROACTIVAS</TableCell>
                                                         <TableCell className="text-left">{formatCurrency(totalGeneralRetroactivas)}</TableCell>
                                                     </TableRow>
@@ -498,12 +496,12 @@ export default function PrecedenteSerpPage() {
                                                         const numMesadas = countMesadasInYear(year);
                                                         const smlmvAnual = datosConsolidados[year as keyof typeof datosConsolidados]?.smlmv || 0;
                                                         const numSmlmv = smlmvAnual > 0 ? pagadoEmpresa / smlmvAnual : 0;
-                                                        // Placeholder for other calculated values
+                                                        const tope5SMLMV = smlmvAnual * 5;
                                                         const rowData = antijuridicoData.find(d => d.anio === year) || { tope: 0, smlmv: 0, ajuste: 0, mesadaReajustada: 0, pensionVejez: 0, cargoEmpresa: 0, diferenciasInsolutas: 0, mesadas: 0, danoAntijuridico: 0, diferenciasAnuales: 0, indexacionDiferencias: 0, diferenciasIndexadas: 0, mesadasOrdinarias: 0, diferenciasOrdinarias: 0, descuentoSalud: 0, observacion: '', mesadaColpensiones: 0 };
                                                         return (
                                                             <TableRow key={year}>
                                                                 <TableCell>{year}</TableCell>
-                                                                <TableCell>{formatCurrency(rowData.tope)}</TableCell>
+                                                                <TableCell>{formatCurrency(tope5SMLMV)}</TableCell>
                                                                 <TableCell>{numSmlmv.toFixed(2)}</TableCell>
                                                                 <TableCell>{rowData.ajuste.toFixed(2)}%</TableCell>
                                                                 <TableCell>{formatCurrency(rowData.mesadaReajustada)}</TableCell>
