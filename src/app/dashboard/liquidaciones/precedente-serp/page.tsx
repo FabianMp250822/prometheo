@@ -82,22 +82,6 @@ export default function PrecedenteSerpPage() {
         fetchAllData();
     }, [fetchAllData]);
 
-    const getFirstPensionInYear = useCallback((year: number): number => {
-        const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
-        if (paymentsInYear.length > 0) {
-            const firstPayment = paymentsInYear.sort((a,b) => {
-                const dateA = parsePeriodoPago(a.periodoPago)?.startDate ?? new Date(9999,1,1);
-                const dateB = parsePeriodoPago(b.periodoPago)?.startDate ?? new Date(9999,1,1);
-                return dateA.getTime() - dateB.getTime();
-            })[0];
-            const mesada = firstPayment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
-            if (mesada && mesada.ingresos > 0) return mesada.ingresos;
-        }
-        const historicalRecord = historicalPayments.find(p => p.ANO_RET === year && p.VALOR_ACT);
-        if (historicalRecord) return parseFloat(historicalRecord.VALOR_ACT!.replace(/,/g, ''));
-        return 0;
-    }, [payments, historicalPayments]);
-
     const sharingDateInfo = useMemo(() => {
         if (!causanteRecords || causanteRecords.length === 0) return null;
         const sortedRecords = [...causanteRecords]
@@ -114,27 +98,15 @@ export default function PrecedenteSerpPage() {
         };
     }, [causanteRecords]);
     
-    const countMesadasInYear = useCallback((year: number): number => {
-        const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
-    
-        if (sharingDateInfo && year === sharingDateInfo.year) {
-            const paymentsInSharingYear = payments.filter(p => {
-                const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
-                return paymentDate && paymentDate.getFullYear() === year && (paymentDate.getMonth() + 1) <= sharingDateInfo.month;
-            });
-            
-            return paymentsInSharingYear.reduce((count, p) => {
-                const hasMesada = p.detalles.some(detail =>
-                    (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional'))
-                );
-                 const hasMesada14 = p.detalles.some(detail =>
-                    (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) ||
-                    (detail.nombre === '285-Mesada Adicional')
-                );
-                return count + (hasMesada ? 1 : 0) + (hasMesada14 ? 1 : 0);
-            }, 0);
-        }
-    
+    const countMesadasInYear = useCallback((year: number, startMonth = 1, endMonth = 12): number => {
+        const paymentsInYear = payments.filter(p => {
+            const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
+            return paymentDate && 
+                   paymentDate.getFullYear() === year &&
+                   (paymentDate.getMonth() + 1) >= startMonth &&
+                   (paymentDate.getMonth() + 1) <= endMonth;
+        });
+
         if (paymentsInYear.length > 0) {
              return paymentsInYear.reduce((count, p) => {
                  const hasMesada = p.detalles.some(detail =>
@@ -148,11 +120,39 @@ export default function PrecedenteSerpPage() {
             }, 0);
         }
         
+        // Fallback for historical data if no recent payments
         const historicalRecordsForYear = historicalPayments.filter(rec => rec.ANO_RET === year);
-        if (historicalRecordsForYear.length > 0) return 14; 
+        if (historicalRecordsForYear.length > 0) {
+            const totalMonths = endMonth - startMonth + 1;
+            // Simple approximation: assume 14 mesadas for a full year, prorate for partial
+            return Math.round(14 * (totalMonths / 12));
+        } 
         
         return 0;
-    }, [payments, historicalPayments, sharingDateInfo]);
+    }, [payments, historicalPayments]);
+
+    const getFirstPensionInYear = useCallback((year: number, month?: number): number => {
+        const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
+        if (paymentsInYear.length > 0) {
+            const sortedPayments = paymentsInYear.sort((a,b) => {
+                const dateA = parsePeriodoPago(a.periodoPago)?.startDate ?? new Date(9999,1,1);
+                const dateB = parsePeriodoPago(b.periodoPago)?.startDate ?? new Date(9999,1,1);
+                return dateA.getTime() - dateB.getTime();
+            });
+
+            // Find first payment in a specific month if provided
+            const targetPayment = month 
+                ? sortedPayments.find(p => (parsePeriodoPago(p.periodoPago)?.startDate?.getMonth() ?? -1) + 1 === month)
+                : sortedPayments[0];
+
+            const mesada = targetPayment?.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
+            if (mesada && mesada.ingresos > 0) return mesada.ingresos;
+        }
+        const historicalRecord = historicalPayments.find(p => p.ANO_RET === year && p.VALOR_ACT);
+        if (historicalRecord) return parseFloat(historicalRecord.VALOR_ACT!.replace(/,/g, ''));
+        return 0;
+    }, [payments, historicalPayments]);
+
 
     const tabla1Data = useMemo(() => {
         if (!selectedPensioner) return [];
@@ -251,23 +251,49 @@ export default function PrecedenteSerpPage() {
         };
     }, [causanteRecords, tabla1Data, sharingDateInfo]);
     
-    const anioRange = useMemo(() => {
-        if (payments.length === 0 && historicalPayments.length === 0) return [];
-    
-        const paymentYears = payments.map(p => parseInt(p.año, 10));
-        const historicalYears = historicalPayments.map(p => p.ANO_RET || 0);
-        const allYears = [...paymentYears, ...historicalYears].filter(y => y > 0);
-    
-        if (allYears.length === 0) return [];
-    
-        const firstYearData = Math.min(...allYears);
+    const calculationPeriods = useMemo(() => {
+        const firstYear = tabla1Data[0]?.año || new Date().getFullYear();
         const lastYear = new Date().getFullYear();
-    
-        if (firstYearData > lastYear) return [];
-    
-        return Array.from({ length: lastYear - firstYearData + 1 }, (_, i) => firstYearData + i);
-    }, [payments, historicalPayments]);
+        const years = Array.from({ length: lastYear - firstYear + 1 }, (_, i) => firstYear + i);
+        
+        const periods: { year: number; startMonth: number; endMonth: number; }[] = [];
 
+        for (const year of years) {
+            const paymentsInYear = payments
+                .filter(p => parseInt(p.año, 10) === year)
+                .sort((a, b) => (parsePeriodoPago(a.periodoPago)?.startDate?.getTime() ?? 0) - (parsePeriodoPago(b.periodoPago)?.startDate?.getTime() ?? 0));
+
+            if (paymentsInYear.length === 0) {
+                periods.push({ year, startMonth: 1, endMonth: 12 });
+                continue;
+            }
+
+            let lastMesada = -1;
+            let splitMonth = -1;
+
+            for (const payment of paymentsInYear) {
+                const mesadaDetail = payment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
+                const currentMesada = mesadaDetail?.ingresos || 0;
+                
+                if (lastMesada > 0 && currentMesada > 0 && currentMesada < lastMesada * 0.5) {
+                    splitMonth = (parsePeriodoPago(payment.periodoPago)?.startDate?.getMonth() ?? 0) + 1;
+                    break;
+                }
+                if(currentMesada > 0) {
+                    lastMesada = currentMesada;
+                }
+            }
+
+            if (splitMonth !== -1) {
+                periods.push({ year, startMonth: 1, endMonth: splitMonth - 1 });
+                periods.push({ year, startMonth: splitMonth, endMonth: 12 });
+            } else {
+                periods.push({ year, startMonth: 1, endMonth: 12 });
+            }
+        }
+        return periods;
+
+    }, [payments, tabla1Data]);
 
     const renderPreliquidacionTable = (title: string, data: { label: string; value: string | number; sublabel?: string }[]) => (
         <div className="mb-6">
@@ -491,16 +517,19 @@ export default function PrecedenteSerpPage() {
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
-                                                    {anioRange.map((year) => {
-                                                        const pagadoEmpresa = getFirstPensionInYear(year);
-                                                        const numMesadas = countMesadasInYear(year);
-                                                        const smlmvAnual = datosConsolidados[year as keyof typeof datosConsolidados]?.smlmv || 0;
+                                                    {calculationPeriods.map((period, index) => {
+                                                        const pagadoEmpresa = getFirstPensionInYear(period.year, period.startMonth);
+                                                        const numMesadas = countMesadasInYear(period.year, period.startMonth, period.endMonth);
+                                                        const smlmvAnual = datosConsolidados[period.year as keyof typeof datosConsolidados]?.smlmv || 0;
                                                         const numSmlmv = smlmvAnual > 0 ? pagadoEmpresa / smlmvAnual : 0;
                                                         const tope5SMLMV = smlmvAnual * 5;
-                                                        const rowData = antijuridicoData.find(d => d.anio === year) || { tope: 0, smlmv: 0, ajuste: 0, mesadaReajustada: 0, pensionVejez: 0, cargoEmpresa: 0, diferenciasInsolutas: 0, mesadas: 0, danoAntijuridico: 0, diferenciasAnuales: 0, indexacionDiferencias: 0, diferenciasIndexadas: 0, mesadasOrdinarias: 0, diferenciasOrdinarias: 0, descuentoSalud: 0, observacion: '', mesadaColpensiones: 0 };
+                                                        const rowData = antijuridicoData.find(d => d.anio === period.year) || { tope: 0, smlmv: 0, ajuste: 0, mesadaReajustada: 0, pensionVejez: 0, cargoEmpresa: 0, diferenciasInsolutas: 0, mesadas: 0, danoAntijuridico: 0, diferenciasAnuales: 0, indexacionDiferencias: 0, diferenciasIndexadas: 0, mesadasOrdinarias: 0, diferenciasOrdinarias: 0, descuentoSalud: 0, observacion: '', mesadaColpensiones: 0 };
+                                                        
+                                                        const yearDisplay = period.startMonth > 1 ? `${period.year} (M${period.startMonth}-M${period.endMonth})` : period.year;
+
                                                         return (
-                                                            <TableRow key={year}>
-                                                                <TableCell>{year}</TableCell>
+                                                            <TableRow key={`${period.year}-${period.startMonth}`}>
+                                                                <TableCell>{yearDisplay}</TableCell>
                                                                 <TableCell>{formatCurrency(tope5SMLMV)}</TableCell>
                                                                 <TableCell>{numSmlmv.toFixed(2)}</TableCell>
                                                                 <TableCell>{rowData.ajuste.toFixed(2)}%</TableCell>
