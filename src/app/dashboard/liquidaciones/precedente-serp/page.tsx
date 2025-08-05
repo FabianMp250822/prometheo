@@ -167,8 +167,7 @@ export default function PrecedenteSerpPage() {
             if (prevMesada > 0 && currentMesada > 0 && currentMesada < prevMesada * 0.5) {
                 const splitDate = parsePeriodoPago(sortedPayments[i].periodoPago)?.startDate;
                 if (splitDate) {
-                     // El mes de quiebre es el siguiente al del cambio
-                     return { splitMonth: splitDate.getMonth() + 2 };
+                     return { splitMonth: splitDate.getMonth() + 1 };
                 }
             }
         }
@@ -239,6 +238,24 @@ export default function PrecedenteSerpPage() {
             });
             return totalIndexado;
         };
+        
+        const countActualMesadasInYear = (year: number): { ordinarias: number; extras: number } => {
+            const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
+            if (paymentsInYear.length === 0) return { ordinarias: 0, extras: 0 };
+            
+            let ordinarias = 0;
+            let extras = 0;
+            
+            paymentsInYear.forEach(p => {
+                const hasMesada = p.detalles.some(d => d.codigo === 'MESAD' || d.nombre?.includes('Mesada Pensional'));
+                const hasMesada14 = p.detalles.some(d => d.codigo === 'MESAD14' || d.nombre?.includes('Mesada Adicional'));
+                if (hasMesada) ordinarias++;
+                if (hasMesada14) extras++;
+            });
+            
+            return { ordinarias, extras };
+        };
+
 
         return calculationPeriods.map((period, index) => {
             const pagadoEmpresa = period.mesada;
@@ -246,10 +263,13 @@ export default function PrecedenteSerpPage() {
             const tope5SMLMV = smlmvAnual * 5;
             
             const ipcAnual = datosIPC[period.year - 1 as keyof typeof datosIPC] || 0;
+
+            const ingresoTotalAnteriorPeriodo = pensionVejezAnterior > 0 ? (mesadaReajustadaAnterior + pensionVejezAnterior) : mesadaReajustadaAnterior;
+
+            const numSmlmvTotalAnterior = smlmvAnual > 0 ? ingresoTotalAnteriorPeriodo / smlmvAnual : 0;
             
             let porcentajeAjuste = 0;
             if (index > 0) {
-                const numSmlmvTotalAnterior = smlmvAnual > 0 ? ingresoTotalAnterior / smlmvAnual : 0;
                 porcentajeAjuste = calculateAjustePorcentaje(numSmlmvTotalAnterior, ipcAnual);
             }
 
@@ -260,8 +280,6 @@ export default function PrecedenteSerpPage() {
                 mesadaReajustada = mesadaReajustadaAnterior * (1 + porcentajeAjuste / 100);
             }
 
-            const numSmlmv = smlmvAnual > 0 ? mesadaReajustadaAnterior / smlmvAnual : 0;
-
             const causanteRecordForPeriod = causanteRecords.find(rec => {
                 if (!rec.fecha_desde) return false;
                 const recordDate = new Date(formatFirebaseTimestamp(rec.fecha_desde, 'yyyy-MM-dd'));
@@ -271,21 +289,29 @@ export default function PrecedenteSerpPage() {
             let pensionVejez = 0;
             if (causanteRecordForPeriod) {
                 pensionVejez = causanteRecordForPeriod.valor_iss || 0;
-            } else if (pensionVejezAnterior > 0) {
-                const ipcAnterior = datosIPC[period.year - 1 as keyof typeof datosIPC] || 0;
-                pensionVejez = pensionVejezAnterior * (1 + ipcAnterior / 100);
+                 if (pensionVejez === 0) {
+                    const ipcAnterior = datosIPC[period.year - 1 as keyof typeof datosIPC] || 0;
+                    pensionVejez = pensionVejezAnterior > 0 ? pensionVejezAnterior * (1 + ipcAnterior / 100) : 0;
+                }
             }
             
             const cargoEmpresa = mesadaReajustada - pensionVejez;
             const diferenciasInsolutas = cargoEmpresa > 0 ? cargoEmpresa - pagadoEmpresa : 0;
             
+            let numMesadasOrdinarias, numMesadas;
             const mesesEnPeriodo = period.endMonth - period.startMonth + 1;
-            const numMesadasOrdinarias = mesesEnPeriodo;
-            let numMesadasExtra = 0;
-            if (period.startMonth <= 6 && period.endMonth >= 6) numMesadasExtra++;
-            if (period.startMonth <= 12 && period.endMonth >= 12 && mesesEnPeriodo === 12) numMesadasExtra++; // Prima de diciembre solo para año completo
             
-            const numMesadas = numMesadasOrdinarias + numMesadasExtra;
+            if (index === 0 && period.year === 1999) {
+                 const conteoReal = countActualMesadasInYear(period.year);
+                 numMesadasOrdinarias = conteoReal.ordinarias;
+                 numMesadas = conteoReal.ordinarias + conteoReal.extras;
+            } else {
+                 numMesadasOrdinarias = mesesEnPeriodo;
+                 let numMesadasExtra = 0;
+                 if (period.startMonth <= 6 && period.endMonth >= 6) numMesadasExtra++;
+                 if (period.startMonth <= 12 && period.endMonth >= 12 && mesesEnPeriodo === 12) numMesadasExtra++;
+                 numMesadas = numMesadasOrdinarias + numMesadasExtra;
+            }
 
             const diferenciasAnuales = diferenciasInsolutas > 0 ? diferenciasInsolutas * numMesadas : 0;
             
@@ -308,7 +334,7 @@ export default function PrecedenteSerpPage() {
             return {
                 ...period,
                 tope5SMLMV,
-                numSmlmv,
+                numSmlmv: numSmlmvTotalAnterior,
                 porcentajeAjuste,
                 mesadaReajustada,
                 pensionVejez,
@@ -324,7 +350,7 @@ export default function PrecedenteSerpPage() {
                 descuentoSalud,
             };
         });
-    }, [calculationPeriods, causanteRecords, ipcDaneData]);
+    }, [calculationPeriods, causanteRecords, ipcDaneData, payments]);
 
     const { dataAntesComparticion, dataDespuesComparticion } = useMemo(() => {
         const splitIndex = antijuridicoData.findIndex(row => row.pensionVejez > 0);
