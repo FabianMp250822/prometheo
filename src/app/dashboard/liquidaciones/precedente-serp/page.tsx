@@ -13,6 +13,7 @@ import { db } from '@/lib/firebase';
 import type { Payment, PagosHistoricoRecord, CausanteRecord } from '@/lib/data';
 import { datosConsolidados, datosIPC } from '../anexo-ley-4/page';
 
+
 const anexo2Data3 = [
     { anio: 2004, smlmv: 358000, reajusteSmlmv: 0.00, proyeccion: 644520, numSmlmvProyeccion: 1.80, reajusteIpc: 6.49, mesadaPagada: 136126, numSmlmvPagado: 0.38, diferencia: 508394, numMesadas: 10.00, totalRetroactivas: 5083940 },
     { anio: 2005, smlmv: 381500, reajusteSmlmv: 5.50, proyeccion: 679969, numSmlmvProyeccion: 1.78, reajusteIpc: 5.50, mesadaPagada: 143613, numSmlmvPagado: 0.38, diferencia: 536356, numMesadas: 14.00, totalRetroactivas: 7508984 },
@@ -279,7 +280,7 @@ export default function PrecedenteSerpPage() {
         };
     }, [causanteRecords, tabla1Data, sharingDateInfo]);
     
-    const calculationPeriods = useMemo(() => {
+     const calculationPeriods = useMemo(() => {
         const firstYearData = tabla1Data[0];
         if (!firstYearData) return [];
 
@@ -298,17 +299,20 @@ export default function PrecedenteSerpPage() {
                 periods.push({ year, startMonth: 1, endMonth: 12, mesada: getFirstPensionInYear(year) });
                 continue;
             }
-
+            
             let lastMesada = -1;
             let lastPeriodStartMonth = 1;
 
+            // Iterate through the year month by month to find a drop
             for (let month = 1; month <= 12; month++) {
                 const mesadaForMonth = getFirstPensionInYear(year, month);
-
-                if (lastMesada < 0 && mesadaForMonth > 0) { // First payment of the year
+                
+                if (lastMesada < 0 && mesadaForMonth > 0) {
                     lastMesada = mesadaForMonth;
-                } else if (mesadaForMonth > 0 && lastMesada > 0 && mesadaForMonth < lastMesada * 0.5) {
-                    // Drop detected. Finalize previous period.
+                }
+                
+                if (mesadaForMonth > 0 && lastMesada > 0 && mesadaForMonth < lastMesada * 0.5) {
+                    // Drop detected, finalize previous period
                     periods.push({ year, startMonth: lastPeriodStartMonth, endMonth: month - 1, mesada: lastMesada });
                     // Start new period
                     lastPeriodStartMonth = month;
@@ -561,14 +565,14 @@ export default function PrecedenteSerpPage() {
                                                         let pensionVejez = 0;
                                                         if (isAfterSharing) {
                                                             if (period.year === sharingDateInfo.year && period.startMonth === sharingDateInfo.month) {
-                                                                // First period of sharing
+                                                                // First period of sharing, use the initial value
                                                                 pensionVejez = sharingDateInfo.initialValue;
                                                             } else {
-                                                                // Subsequent periods, apply IPC
+                                                                // Subsequent periods, apply IPC to the previous value
                                                                 const ipcAnterior = datosIPC[period.year - 1 as keyof typeof datosIPC] || 0;
                                                                 pensionVejez = pensionVejezAnterior * (1 + ipcAnterior / 100);
                                                             }
-                                                            pensionVejezAnterior = pensionVejez;
+                                                            pensionVejezAnterior = pensionVejez; // Update the running total for the next iteration
                                                         } else {
                                                             pensionVejezAnterior = 0; // Reset if before sharing
                                                         }
