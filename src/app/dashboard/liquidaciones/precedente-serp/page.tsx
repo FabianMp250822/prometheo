@@ -13,15 +13,6 @@ import { db } from '@/lib/firebase';
 import type { Payment, PagosHistoricoRecord, CausanteRecord } from '@/lib/data';
 import { datosConsolidados, datosIPC } from '../anexo-ley-4/page';
 
-const anexo2Data3 = [
-    { anio: 2004, smlmv: 358000, reajusteSmlmv: 0.00, proyeccion: 644520, numSmlmvProyeccion: 1.80, reajusteIpc: 6.49, mesadaPagada: 136126, numSmlmvPagado: 0.38, diferencia: 508394, numMesadas: 10.00, totalRetroactivas: 5083940 },
-    { anio: 2005, smlmv: 381500, reajusteSmlmv: 5.50, proyeccion: 679969, numSmlmvProyeccion: 1.78, reajusteIpc: 5.50, mesadaPagada: 143613, numSmlmvPagado: 0.38, diferencia: 536356, numMesadas: 14.00, totalRetroactivas: 7508984 },
-];
-const anexo2Data4 = [
-    { anio: 2004, smlmv: 358000, reajusteSmlmv: 0.00, proyeccion: 1199822, numSmlmvProyeccion: 3.35, reajusteIpc: 6.49, mesadaPagada: 1199822, numSmlmvPagado: 3.35, diferencia: 0, numMesadas: 10.00, totalRetroactivas: 0 },
-    { anio: 2005, smlmv: 381500, reajusteSmlmv: 5.50, proyeccion: 1255812, numSmlmvProyeccion: 3.32, reajusteIpc: 5.50, mesadaPagada: 1265812, numSmlmvPagado: 3.32, diferencia: 0, numMesadas: 14.00, totalRetroactivas: 0 },
-];
-
 export default function PrecedenteSerpPage() {
     const { selectedPensioner } = usePensioner();
     const [isLoading, setIsLoading] = useState(false);
@@ -306,11 +297,12 @@ export default function PrecedenteSerpPage() {
 
             for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
                 const mesadaActual = mesadasPorMes[monthIndex];
-
-                if (lastMesada < 0 && mesadaActual !== null) {
+                
+                if (lastMesada < 0 && mesadaActual !== null) { // First payment of a period
                     lastMesada = mesadaActual;
                 }
                 
+                // Split if current payment is significantly lower than the last one
                 if (mesadaActual !== null && lastMesada > 0 && mesadaActual < lastMesada * 0.5) {
                     periods.push({ year, startMonth: lastPeriodStartMonth, endMonth: monthIndex, mesada: lastMesada });
                     lastPeriodStartMonth = monthIndex + 1;
@@ -373,7 +365,7 @@ export default function PrecedenteSerpPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                       <Tabs defaultValue="anexo2" className="w-full">
+                       <Tabs defaultValue="antijuridico" className="w-full">
                             <TabsList className="grid w-full grid-cols-3">
                                 <TabsTrigger value="anexo2">Anexo 2</TabsTrigger>
                                 <TabsTrigger value="preliquidación">Preliquidación</TabsTrigger>
@@ -456,14 +448,14 @@ export default function PrecedenteSerpPage() {
                                     <CardHeader><CardTitle className="text-base">3. Reajuste de Mesada Cuota Parte de Empresa (Fiduprevisora)</CardTitle></CardHeader>
                                     <CardContent><Table>
                                         <TableHeader><TableRow><TableHead>Año</TableHead><TableHead>SMLMV</TableHead><TableHead>% Reajuste SMLMV</TableHead><TableHead>Proyección Mesada</TableHead><TableHead># SMLMV</TableHead><TableHead>% Reajuste IPC</TableHead><TableHead>Mesada Pagada</TableHead><TableHead># SMLMV</TableHead><TableHead>Diferencias</TableHead><TableHead># Mesadas</TableHead><TableHead>Total Retroactivas</TableHead></TableRow></TableHeader>
-                                        <TableBody>{anexo2Data3.map(row => (<TableRow key={row.anio}><TableCell>{row.anio}</TableCell><TableCell>{formatCurrency(row.smlmv)}</TableCell><TableCell>{row.reajusteSmlmv.toFixed(2)}%</TableCell><TableCell>{formatCurrency(row.proyeccion)}</TableCell><TableCell>{row.numSmlmvProyeccion.toFixed(2)}</TableCell><TableCell>{row.reajusteIpc.toFixed(2)}%</TableCell><TableCell>{formatCurrency(row.mesadaPagada)}</TableCell><TableCell>{row.numSmlmvPagado.toFixed(2)}</TableCell><TableCell>{formatCurrency(row.diferencia)}</TableCell><TableCell>{row.numMesadas.toFixed(2)}</TableCell><TableCell>{formatCurrency(row.totalRetroactivas)}</TableCell></TableRow>))}</TableBody>
+                                        <TableBody>{[] /* Placeholder for table 3 data */ .map((row: any) => (<TableRow key={row.anio}><TableCell>{row.anio}</TableCell><TableCell>{formatCurrency(row.smlmv)}</TableCell><TableCell>{row.reajusteSmlmv.toFixed(2)}%</TableCell><TableCell>{formatCurrency(row.proyeccion)}</TableCell><TableCell>{row.numSmlmvProyeccion.toFixed(2)}</TableCell><TableCell>{row.reajusteIpc.toFixed(2)}%</TableCell><TableCell>{formatCurrency(row.mesadaPagada)}</TableCell><TableCell>{row.numSmlmvPagado.toFixed(2)}</TableCell><TableCell>{formatCurrency(row.diferencia)}</TableCell><TableCell>{row.numMesadas.toFixed(2)}</TableCell><TableCell>{formatCurrency(row.totalRetroactivas)}</TableCell></TableRow>))}</TableBody>
                                     </Table></CardContent>
                                 </Card>
                                 <Card>
                                     <CardHeader><CardTitle className="text-base">4. Reajuste de Mesada Cuota Parte de Colpensiones</CardTitle></CardHeader>
                                     <CardContent><Table>
                                         <TableHeader><TableRow><TableHead>Año</TableHead><TableHead>SMLMV</TableHead><TableHead>% Reajuste SMLMV</TableHead><TableHead>Proyección Mesada</TableHead><TableHead># SMLMV</TableHead><TableHead>% Reajuste IPC</TableHead><TableHead>Mesada Pagada</TableHead><TableHead># SMLMV</TableHead><TableHead>Diferencias</TableHead><TableHead># Mesadas</TableHead><TableHead>Total Retroactivas</TableHead></TableRow></TableHeader>
-                                        <TableBody>{anexo2Data4.map(row => (<TableRow key={row.anio}><TableCell>{row.anio}</TableCell><TableCell>{formatCurrency(row.smlmv)}</TableCell><TableCell>{row.reajusteSmlmv.toFixed(2)}%</TableCell><TableCell>{formatCurrency(row.proyeccion)}</TableCell><TableCell>{row.numSmlmvProyeccion.toFixed(2)}</TableCell><TableCell>{row.reajusteIpc.toFixed(2)}%</TableCell><TableCell>{formatCurrency(row.mesadaPagada)}</TableCell><TableCell>{row.numSmlmvPagado.toFixed(2)}</TableCell><TableCell>{formatCurrency(row.diferencia)}</TableCell><TableCell>{row.numMesadas.toFixed(2)}</TableCell><TableCell>{formatCurrency(row.totalRetroactivas)}</TableCell></TableRow>))}</TableBody>
+                                        <TableBody>{[] /* Placeholder for table 4 data */ .map((row: any) => (<TableRow key={row.anio}><TableCell>{row.anio}</TableCell><TableCell>{formatCurrency(row.smlmv)}</TableCell><TableCell>{row.reajusteSmlmv.toFixed(2)}%</TableCell><TableCell>{formatCurrency(row.proyeccion)}</TableCell><TableCell>{row.numSmlmvProyeccion.toFixed(2)}</TableCell><TableCell>{row.reajusteIpc.toFixed(2)}%</TableCell><TableCell>{formatCurrency(row.mesadaPagada)}</TableCell><TableCell>{row.numSmlmvPagado.toFixed(2)}</TableCell><TableCell>{formatCurrency(row.diferencia)}</TableCell><TableCell>{row.numMesadas.toFixed(2)}</TableCell><TableCell>{formatCurrency(row.totalRetroactivas)}</TableCell></TableRow>))}</TableBody>
                                     </Table></CardContent>
                                 </Card>
                             </TabsContent>
