@@ -177,7 +177,8 @@ export default function PrecedenteSerpPage() {
         return {
             date: sharingDate,
             year: sharingDate.getFullYear(),
-            month: sharingDate.getMonth() + 1
+            month: sharingDate.getMonth() + 1,
+            initialValue: sortedRecords[0].valor_iss || 0,
         };
     }, [causanteRecords]);
     
@@ -299,30 +300,29 @@ export default function PrecedenteSerpPage() {
             }
 
             let lastMesada = -1;
-            let splitMonth = 0;
             let lastPeriodStartMonth = 1;
 
-            for (const payment of paymentsInYear) {
-                const mesadaDetail = payment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
-                const currentMesada = mesadaDetail?.ingresos || 0;
-                const currentMonth = (parsePeriodoPago(payment.periodoPago)?.startDate?.getMonth() ?? -1) + 1;
+            for (let month = 1; month <= 12; month++) {
+                const mesadaForMonth = getFirstPensionInYear(year, month);
 
-                if (lastMesada > 0 && currentMesada > 0 && currentMesada < lastMesada * 0.5) {
-                    splitMonth = currentMonth;
-                    periods.push({ year, startMonth: lastPeriodStartMonth, endMonth: splitMonth -1, mesada: lastMesada });
-                    lastPeriodStartMonth = splitMonth;
-                }
-
-                if (currentMesada > 0) {
-                    lastMesada = currentMesada;
+                if (lastMesada < 0 && mesadaForMonth > 0) { // First payment of the year
+                    lastMesada = mesadaForMonth;
+                } else if (mesadaForMonth > 0 && lastMesada > 0 && mesadaForMonth < lastMesada * 0.5) {
+                    // Drop detected. Finalize previous period.
+                    periods.push({ year, startMonth: lastPeriodStartMonth, endMonth: month - 1, mesada: lastMesada });
+                    // Start new period
+                    lastPeriodStartMonth = month;
+                    lastMesada = mesadaForMonth;
                 }
             }
-            
+            // Add the final period for the year
             periods.push({ year, startMonth: lastPeriodStartMonth, endMonth: 12, mesada: lastMesada });
         }
         return periods.filter(p => p.mesada >= 0);
 
     }, [payments, tabla1Data, getFirstPensionInYear]);
+    
+    let pensionVejezAnterior = 0; // State for progressive calculation
 
     const renderPreliquidacionTable = (title: string, data: { label: string; value: string | number; sublabel?: string }[]) => (
         <div className="mb-6">
@@ -553,7 +553,27 @@ export default function PrecedenteSerpPage() {
                                                         const smlmvAnual = datosConsolidados[period.year as keyof typeof datosConsolidados]?.smlmv || 0;
                                                         const numSmlmv = smlmvAnual > 0 ? pagadoEmpresa / smlmvAnual : 0;
                                                         const tope5SMLMV = smlmvAnual * 5;
-                                                        const rowData = antijuridicoData.find(d => d.anio === period.year) || { tope: 0, smlmv: 0, ajuste: 0, mesadaReajustada: 0, pensionVejez: 0, cargoEmpresa: 0, diferenciasInsolutas: 0, mesadas: 0, danoAntijuridico: 0, diferenciasAnuales: 0, indexacionDiferencias: 0, diferenciasIndexadas: 0, mesadasOrdinarias: 0, diferenciasOrdinarias: 0, descuentoSalud: 0, observacion: '', mesadaColpensiones: 0 };
+                                                        
+                                                        const isAfterSharing = sharingDateInfo && 
+                                                            (period.year > sharingDateInfo.year || 
+                                                            (period.year === sharingDateInfo.year && period.startMonth >= sharingDateInfo.month));
+
+                                                        let pensionVejez = 0;
+                                                        if (isAfterSharing) {
+                                                            if (period.year === sharingDateInfo.year && period.startMonth === sharingDateInfo.month) {
+                                                                // First period of sharing
+                                                                pensionVejez = sharingDateInfo.initialValue;
+                                                            } else {
+                                                                // Subsequent periods, apply IPC
+                                                                const ipcAnterior = datosIPC[period.year - 1 as keyof typeof datosIPC] || 0;
+                                                                pensionVejez = pensionVejezAnterior * (1 + ipcAnterior / 100);
+                                                            }
+                                                            pensionVejezAnterior = pensionVejez;
+                                                        } else {
+                                                            pensionVejezAnterior = 0; // Reset if before sharing
+                                                        }
+
+                                                        const rowData = antijuridicoData.find(d => d.anio === period.year) || { tope: 0, smlmv: 0, ajuste: 0, mesadaReajustada: 0, cargoEmpresa: 0, diferenciasInsolutas: 0, mesadas: 0, danoAntijuridico: 0, diferenciasAnuales: 0, indexacionDiferencias: 0, diferenciasIndexadas: 0, mesadasOrdinarias: 0, diferenciasOrdinarias: 0, descuentoSalud: 0, observacion: '', mesadaColpensiones: 0 };
                                                         
                                                         const yearDisplay = period.startMonth > 1 || period.endMonth < 12 ? `${period.year} (M${period.startMonth}-M${period.endMonth})` : period.year;
 
@@ -564,7 +584,7 @@ export default function PrecedenteSerpPage() {
                                                                 <TableCell>{numSmlmv.toFixed(2)}</TableCell>
                                                                 <TableCell>{rowData.ajuste.toFixed(2)}%</TableCell>
                                                                 <TableCell>{formatCurrency(rowData.mesadaReajustada)}</TableCell>
-                                                                <TableCell>{formatCurrency(rowData.pensionVejez)}</TableCell>
+                                                                <TableCell>{formatCurrency(pensionVejez)}</TableCell>
                                                                 <TableCell>{formatCurrency(rowData.cargoEmpresa)}</TableCell>
                                                                 <TableCell>{formatCurrency(pagadoEmpresa)}</TableCell>
                                                                 <TableCell>{formatCurrency(rowData.diferenciasInsolutas)}</TableCell>
