@@ -25,7 +25,7 @@ const anexo2Data4 = [
 ];
 
 const antijuridicoData = [
-  { anio: 1999, tope: 0, smlmv: 0.00, ajuste: 0.00, mesadaReajustada: 916964, pensionVejez: 0, cargoEmpresa: 916964, pagadoEmpresa: 916964, diferenciasInsolutas: 0, mesadas: 14.00, danoAntijuridico: 0, diferenciasAnuales: 0, indexacionDiferencias: 0, diferenciasIndexadas: 0, mesadasOrdinarias: 0, diferenciasOrdinarias: 0, descuentoSalud: 0, observacion: 'Incremento salarial IPC 16.70%', mesadaColpensiones: 0 },
+  { anio: 1999, tope: 0, smlmv: 0.00, ajuste: 15.00, mesadaReajustada: 916964, pensionVejez: 0, cargoEmpresa: 916964, pagadoEmpresa: 916964, diferenciasInsolutas: 0, mesadas: 14.00, danoAntijuridico: 0, diferenciasAnuales: 0, indexacionDiferencias: 0, diferenciasIndexadas: 0, mesadasOrdinarias: 0, diferenciasOrdinarias: 0, descuentoSalud: 0, observacion: 'Incremento salarial IPC 16.70%', mesadaColpensiones: 0 },
   { anio: 2000, tope: 1182300, smlmv: 3.88, ajuste: 15.00, mesadaReajustada: 1054509, pensionVejez: 0, cargoEmpresa: 1054509, pagadoEmpresa: 1001600, diferenciasInsolutas: 52909, mesadas: 14.00, danoAntijuridico: 0, diferenciasAnuales: 740726, indexacionDiferencias: 1844018, diferenciasIndexadas: 2584744, mesadasOrdinarias: 12, diferenciasOrdinarias: 634908, descuentoSalud: 76189, observacion: 'Incremento salarial IPC 8.75%', mesadaColpensiones: 0 },
   { anio: 2001, tope: 1300500, smlmv: 4.05, ajuste: 15.00, mesadaReajustada: 1212685, pensionVejez: 0, cargoEmpresa: 1212685, pagadoEmpresa: 1089240, diferenciasInsolutas: 123445, mesadas: 14.00, danoAntijuridico: 0, diferenciasAnuales: 1728230, indexacionDiferencias: 3857310, diferenciasIndexadas: 5585540, mesadasOrdinarias: 12, diferenciasOrdinarias: 1481340, descuentoSalud: 177761, observacion: 'Incremento salarial IPC 7.65%', mesadaColpensiones: 0 },
   { anio: 2002, tope: 1430000, smlmv: 4.24, ajuste: 15.00, mesadaReajustada: 1394588, pensionVejez: 0, cargoEmpresa: 1394588, pagadoEmpresa: 1172567, diferenciasInsolutas: 222021, mesadas: 14.00, danoAntijuridico: 0, diferenciasAnuales: 3108294, indexacionDiferencias: 6329369, diferenciasIndexadas: 9437663, mesadasOrdinarias: 12, diferenciasOrdinarias: 2664252, descuentoSalud: 319710, observacion: 'Incremento salarial IPC 6.99%', mesadaColpensiones: 0 },
@@ -254,15 +254,21 @@ export default function PrecedenteSerpPage() {
     }, [causanteRecords, tabla1Data, sharingDateInfo]);
 
     const anioRange = useMemo(() => {
-        if (historicalPayments.length === 0 && payments.length === 0) return [];
-        const firstPaymentYear = historicalPayments.reduce((min, p) => p.ANO_RET && p.ANO_RET < min ? p.ANO_RET : min, new Date().getFullYear());
-        const firstRecentPaymentYear = payments.reduce((min, p) => parseInt(p.año, 10) < min ? parseInt(p.año, 10) : min, new Date().getFullYear());
-        const firstYearData = Math.min(firstPaymentYear, firstRecentPaymentYear);
-
-        if (!firstYearData || firstYearData > new Date().getFullYear()) return [];
+        if (payments.length === 0 && historicalPayments.length === 0) return [];
+    
+        const paymentYears = payments.map(p => parseInt(p.año, 10));
+        const historicalYears = historicalPayments.map(p => p.ANO_RET || 0);
+        const allYears = [...paymentYears, ...historicalYears].filter(y => y > 0);
+    
+        if (allYears.length === 0) return [];
+    
+        const firstYearData = Math.min(...allYears);
         const lastYear = new Date().getFullYear();
+    
+        if (firstYearData > lastYear) return [];
+    
         return Array.from({ length: lastYear - firstYearData + 1 }, (_, i) => firstYearData + i);
-    }, [historicalPayments, payments]);
+    }, [payments, historicalPayments]);
 
 
     const renderPreliquidacionTable = (title: string, data: { label: string; value: string | number; sublabel?: string }[]) => (
@@ -490,13 +496,15 @@ export default function PrecedenteSerpPage() {
                                                     {anioRange.map((year) => {
                                                         const pagadoEmpresa = getFirstPensionInYear(year);
                                                         const numMesadas = countMesadasInYear(year);
+                                                        const smlmvAnual = datosConsolidados[year as keyof typeof datosConsolidados]?.smlmv || 0;
+                                                        const numSmlmv = smlmvAnual > 0 ? pagadoEmpresa / smlmvAnual : 0;
                                                         // Placeholder for other calculated values
                                                         const rowData = antijuridicoData.find(d => d.anio === year) || { tope: 0, smlmv: 0, ajuste: 0, mesadaReajustada: 0, pensionVejez: 0, cargoEmpresa: 0, diferenciasInsolutas: 0, mesadas: 0, danoAntijuridico: 0, diferenciasAnuales: 0, indexacionDiferencias: 0, diferenciasIndexadas: 0, mesadasOrdinarias: 0, diferenciasOrdinarias: 0, descuentoSalud: 0, observacion: '', mesadaColpensiones: 0 };
                                                         return (
                                                             <TableRow key={year}>
                                                                 <TableCell>{year}</TableCell>
                                                                 <TableCell>{formatCurrency(rowData.tope)}</TableCell>
-                                                                <TableCell>{rowData.smlmv.toFixed(2)}</TableCell>
+                                                                <TableCell>{numSmlmv.toFixed(2)}</TableCell>
                                                                 <TableCell>{rowData.ajuste.toFixed(2)}%</TableCell>
                                                                 <TableCell>{formatCurrency(rowData.mesadaReajustada)}</TableCell>
                                                                 <TableCell>{formatCurrency(rowData.pensionVejez)}</TableCell>
@@ -539,3 +547,4 @@ export default function PrecedenteSerpPage() {
         </div>
     );
 }
+
