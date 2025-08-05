@@ -250,7 +250,7 @@ export default function PrecedenteSerpPage() {
             porcentajeEmpresa,
         };
     }, [causanteRecords, tabla1Data, sharingDateInfo]);
-
+    
     const anioRange = useMemo(() => {
         if (payments.length === 0 && historicalPayments.length === 0) return [];
     
