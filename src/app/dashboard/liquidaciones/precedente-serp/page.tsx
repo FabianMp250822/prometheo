@@ -419,6 +419,9 @@ export default function PrecedenteSerpPage() {
         
         const indexacionDiferencias = calcularIndexacionAcumulada(period.year, period.startMonth);
         const diferenciasIndexadas = diferenciasAnuales + indexacionDiferencias;
+        
+        const diferenciasOrdinarias = diferenciasInsolutas > 0 ? diferenciasInsolutas * numMesadasOrdinarias : 0;
+        const descuentoSalud = diferenciasOrdinarias * 0.12;
 
         for (let m = period.startMonth; m <= period.endMonth; m++) {
             if (diferenciasInsolutas > 0) {
@@ -444,7 +447,9 @@ export default function PrecedenteSerpPage() {
             diferenciasAnuales,
             numMesadasOrdinarias,
             indexacionDiferencias,
-            diferenciasIndexadas
+            diferenciasIndexadas,
+            diferenciasOrdinarias,
+            descuentoSalud,
         };
     });
 }, [calculationPeriods, causanteRecords, countMesadasInYear, countMesadasOrdinariasInPeriod, ipcDaneData]);
@@ -468,6 +473,8 @@ export default function PrecedenteSerpPage() {
         if (data.length === 0) return null;
 
         const totalDiferenciasAnuales = data.reduce((sum, row) => sum + row.diferenciasAnuales, 0);
+        const totalIndexacion = data.reduce((sum, row) => sum + row.indexacionDiferencias, 0);
+        const totalDescuentoSalud = data.reduce((sum, row) => sum + row.descuentoSalud, 0);
 
         return (
             <Card>
@@ -489,6 +496,9 @@ export default function PrecedenteSerpPage() {
                                 <TableHead className="text-xs">Diferencias Insolutas</TableHead>
                                 <TableHead className="text-xs"># Mesadas</TableHead>
                                 <TableHead className="text-xs">Diferencias Anuales</TableHead>
+                                <TableHead className="text-xs">Mesadas Ordinarias</TableHead>
+                                <TableHead className="text-xs">Diferencias Ordinarias</TableHead>
+                                <TableHead className="text-xs">Descuento Salud 12%</TableHead>
                                 <TableHead className="text-xs">Indexación de Diferencias</TableHead>
                                 <TableHead className="text-xs">Diferencias Indexadas</TableHead>
                             </TableRow>
@@ -509,6 +519,9 @@ export default function PrecedenteSerpPage() {
                                         <TableCell className="text-xs">{formatCurrency(row.diferenciasInsolutas)}</TableCell>
                                         <TableCell className="text-xs">{row.numMesadas}</TableCell>
                                         <TableCell className="text-xs font-bold bg-yellow-100">{formatCurrency(row.diferenciasAnuales)}</TableCell>
+                                        <TableCell className="text-xs">{row.numMesadasOrdinarias}</TableCell>
+                                        <TableCell className="text-xs">{formatCurrency(row.diferenciasOrdinarias)}</TableCell>
+                                        <TableCell className="text-xs">{formatCurrency(row.descuentoSalud)}</TableCell>
                                         <TableCell className="text-xs">{formatCurrency(row.indexacionDiferencias)}</TableCell>
                                         <TableCell className="text-xs font-bold bg-green-100">{formatCurrency(row.diferenciasIndexadas)}</TableCell>
                                     </TableRow>
@@ -518,6 +531,9 @@ export default function PrecedenteSerpPage() {
                                 <TableCell colSpan={10} className="text-right text-xs">TOTALES</TableCell>
                                 <TableCell className="text-xs font-bold bg-yellow-100">{formatCurrency(totalDiferenciasAnuales)}</TableCell>
                                 <TableCell colSpan={2}></TableCell>
+                                <TableCell className="text-xs font-bold">{formatCurrency(totalDescuentoSalud)}</TableCell>
+                                <TableCell className="text-xs font-bold">{formatCurrency(totalIndexacion)}</TableCell>
+                                <TableCell colSpan={1}></TableCell>
                             </TableRow>
                         </TableBody>
                     </Table>
