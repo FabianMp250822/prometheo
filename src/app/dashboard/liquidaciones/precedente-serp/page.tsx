@@ -131,10 +131,13 @@ export default function PrecedenteSerpPage() {
     }, [payments, historicalPayments]);
 
     const countMesadasInYear = useCallback((year: number, startMonth = 1, endMonth = 12): number => {
-        // Siempre retornar 14 mesadas como norma (12 ordinarias + 2 adicionales)
-        // independientemente de los datos reales de pagos
         const totalMonths = endMonth - startMonth + 1;
-        return Math.round(14 * (totalMonths / 12));
+        if (totalMonths < 12) {
+             const hasJune = startMonth <= 6 && endMonth >= 6;
+             const hasDecember = startMonth <= 12 && endMonth >= 12;
+             return totalMonths + (hasJune ? 1 : 0) + (hasDecember ? 1 : 0);
+        }
+        return 14;
     }, []);
     
     const countMesadasOrdinariasInPeriod = useCallback((year: number, startMonth = 1, endMonth = 12): number => {
@@ -145,8 +148,9 @@ export default function PrecedenteSerpPage() {
                    (paymentDate.getMonth() + 1) >= startMonth &&
                    (paymentDate.getMonth() + 1) <= endMonth;
         });
+        
+        const totalMonths = endMonth - startMonth + 1;
 
-        // If there are real payments, count them
         if (paymentsInPeriod.length > 0) {
              return paymentsInPeriod.reduce((count, p) => {
                  const hasMesada = p.detalles.some(detail =>
@@ -156,15 +160,12 @@ export default function PrecedenteSerpPage() {
             }, 0);
         }
         
-        // If no real payments, check historical data
         const historicalRecordsForYear = historicalPayments.filter(rec => rec.ANO_RET === year);
         if (historicalRecordsForYear.length > 0) {
-            const totalMonths = endMonth - startMonth + 1;
             return Math.round(12 * (totalMonths / 12));
         } 
 
-        // Default to 0 if no data found
-        return 0;
+        return totalMonths;
     }, [payments, historicalPayments]);
 
     const tabla1Data = useMemo(() => {
@@ -287,7 +288,7 @@ export default function PrecedenteSerpPage() {
             if (prevMesada > 0 && currentMesada > 0 && currentMesada < prevMesada * 0.5) {
                 const splitDate = parsePeriodoPago(sortedPayments[i].periodoPago)?.startDate;
                 if (splitDate) {
-                    return { splitMonth: splitDate.getMonth() + 1 };
+                     return { splitMonth: splitDate.getMonth() + 1 };
                 }
             }
         }
@@ -308,7 +309,7 @@ export default function PrecedenteSerpPage() {
             if (splitInfo) {
                 const firstPeriodMesada = getFirstPensionInYear(year);
                 if (firstPeriodMesada > 0) {
-                     periods.push({ year, startMonth: 1, endMonth: splitInfo.splitMonth -1, mesada: firstPeriodMesada });
+                     periods.push({ year, startMonth: 1, endMonth: splitInfo.splitMonth - 1, mesada: firstPeriodMesada });
                 }
 
                 const secondPeriodPayments = payments.filter(p => {
@@ -344,7 +345,6 @@ export default function PrecedenteSerpPage() {
             const numMesadas = countMesadasInYear(period.year, period.startMonth, period.endMonth);
             const numMesadasOrdinarias = countMesadasOrdinariasInPeriod(period.year, period.startMonth, period.endMonth);
             const smlmvAnual = datosConsolidados[period.year as keyof typeof datosConsolidados]?.smlmv || 0;
-            const tope5SMLMV = smlmvAnual * 5;
             
             const ipcActual = datosIPC[period.year as keyof typeof datosIPC] || 0;
             
@@ -369,31 +369,30 @@ export default function PrecedenteSerpPage() {
             });
     
             let pensionVejez = 0;
+            // Check for explicit value in causante records for the period's year
             if (causanteRecordForYear) {
-                 const splitInfo = shouldSplitYear(period.year);
-                 if (splitInfo && period.startMonth >= splitInfo.splitMonth) {
-                     pensionVejez = causanteRecordForYear.valor_iss || 0;
-                 }
-            } else {
+                pensionVejez = causanteRecordForYear.valor_iss || 0;
+            } 
+            // If no record, project from previous year if sharing has started
+            else if (pensionVejezAnterior > 0) {
                 const ipcAnterior = datosIPC[period.year - 1 as keyof typeof datosIPC] || 0;
-                if (pensionVejezAnterior > 0) {
-                    pensionVejez = pensionVejezAnterior * (1 + ipcAnterior / 100);
-                }
+                pensionVejez = pensionVejezAnterior * (1 + ipcAnterior / 100);
             }
     
             const cargoEmpresa = mesadaReajustada - pensionVejez;
             const diferenciasInsolutas = cargoEmpresa > 0 ? cargoEmpresa - pagadoEmpresa : 0;
             const diferenciasAnuales = diferenciasInsolutas > 0 ? diferenciasInsolutas * numMesadas : 0;
-    
+            
+            // Update state for next iteration
             mesadaReajustadaAnterior = mesadaReajustada;
             numSmlmvAnterior = numSmlmv;
             if (pensionVejez > 0) {
-              pensionVejezAnterior = pensionVejez;
+                pensionVejezAnterior = pensionVejez;
             }
 
             return {
                 ...period,
-                tope5SMLMV,
+                tope5SMLMV: smlmvAnual * 5,
                 numSmlmv,
                 porcentajeAjuste,
                 mesadaReajustada,
@@ -405,7 +404,7 @@ export default function PrecedenteSerpPage() {
                 numMesadasOrdinarias,
             };
         });
-    }, [calculationPeriods, causanteRecords, countMesadasInYear, countMesadasOrdinariasInPeriod, shouldSplitYear]);
+    }, [calculationPeriods, causanteRecords, countMesadasInYear, countMesadasOrdinariasInPeriod]);
 
     const totalDiferenciasAnualesAntijuridico = useMemo(() => {
         return antijuridicoData.reduce((sum, row) => sum + row.diferenciasAnuales, 0);
@@ -656,7 +655,7 @@ export default function PrecedenteSerpPage() {
                                                             <TableRow key={`${row.year}-${row.startMonth}`} className="text-xs">
                                                                 <TableCell className="text-xs">{yearDisplay}</TableCell>
                                                                 <TableCell className="text-xs">{formatCurrency(row.tope5SMLMV)}</TableCell>
-                                                                <TableCell className="text-xs">{row.numSmlmv.toFixed(2)}</TableCell>
+                                                                <TableCell className="text-xs">5.00</TableCell>
                                                                 <TableCell className="text-xs">{row.porcentajeAjuste.toFixed(2)}%</TableCell>
                                                                 <TableCell className="text-xs">{formatCurrency(row.mesadaReajustada)}</TableCell>
                                                                 <TableCell className="text-xs">{formatCurrency(row.pensionVejez)}</TableCell>
@@ -679,7 +678,7 @@ export default function PrecedenteSerpPage() {
                                                     <TableRow className="font-bold bg-muted text-xs">
                                                         <TableCell colSpan={11} className="text-right text-xs">TOTALES</TableCell>
                                                         <TableCell className="text-xs font-bold bg-yellow-100">{formatCurrency(totalDiferenciasAnualesAntijuridico)}</TableCell>
-                                                         <TableCell className="text-xs">{formatCurrency(totalIndexacionDiferencias)}</TableCell>
+                                                        <TableCell className="text-xs">{formatCurrency(totalIndexacionDiferencias)}</TableCell>
                                                         <TableCell className="text-xs">{formatCurrency(totalDiferenciasIndexadas)}</TableCell>
                                                         <TableCell className="text-xs"></TableCell>
                                                         <TableCell className="text-xs">{formatCurrency(totalDiferenciasOrdinarias)}</TableCell>
