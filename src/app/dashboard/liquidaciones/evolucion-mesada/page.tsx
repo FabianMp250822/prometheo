@@ -201,8 +201,6 @@ export default function EvolucionMesadaPage() {
             const perdidaSmlmv = numSmlmvSMLMV - numSmlmvIPC;
             const diferenciaMesadas = proyeccionMesadaSMLMV - mesadaPagada;
             
-            // This part is a placeholder for a more complex calculation based on business logic
-            // For now, let's assume 14 payments per year as a general rule.
             const numMesadas = 14; 
             const totalDiferenciasRetroactivas = diferenciaMesadas * numMesadas;
 
@@ -338,3 +336,4 @@ export default function EvolucionMesadaPage() {
     );
 }
 
+    
