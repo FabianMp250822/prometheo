@@ -148,7 +148,7 @@ export default function PrecedenteSerpPage() {
         return 0;
     }, [payments, historicalPayments]);
 
-     const countMesadasInYear = useCallback((year: number): { ordinarias: number; extras: number; totales: number } => {
+    const countMesadasInYear = useCallback((year: number): { ordinarias: number; extras: number; totales: number } => {
         if (year === 1999) {
             const paymentsIn1999 = payments.filter(p => parseInt(p.año, 10) === 1999);
             const mesadasOrdinarias = new Set<string>();
@@ -159,7 +159,7 @@ export default function PrecedenteSerpPage() {
                      if (d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD') {
                          mesadasOrdinarias.add(p.periodoPago);
                      }
-                     if (d.nombre?.includes('Mesada Adicional') || d.codigo === 'MESAD14') {
+                     if (d.nombre?.includes('Mesada Adicional') || d.codigo === 'MESAD14' || d.nombre?.includes('285-')) {
                          mesadasExtras++;
                      }
                  });
@@ -237,8 +237,8 @@ export default function PrecedenteSerpPage() {
         let mesadaReajustadaAnterior = valorInicialMesada;
         let ingresoTotalAnterior = valorInicialMesada;
         let pensionVejezAnterior = 0;
-    
-        const allYearsWithIpc = Object.keys(ipcDaneData).map(Number).filter(y => !isNaN(y));
+
+        const allYearsWithIpc = Object.keys(ipcDaneData).map(Number).filter(y => !isNaN(y) && y > 0);
         if (allYearsWithIpc.length === 0) return [];
     
         const latestYearWithIpc = Math.max(...allYearsWithIpc);
@@ -251,10 +251,10 @@ export default function PrecedenteSerpPage() {
                 break;
             }
         }
-        if (latestMonthIndex === -1) return []; // No IPC data found
+        if (latestMonthIndex === -1) return [];
     
         const ipcFinal = ipcDaneData[latestYearWithIpc][monthNames[latestMonthIndex]].valor1;
-        if (!ipcFinal || ipcFinal === 0) return []; // Cannot index
+        if (!ipcFinal || ipcFinal === 0) return [];
     
         return calculationPeriods.map((period, index) => {
             const smlmvAnual = datosConsolidados[period.year as keyof typeof datosConsolidados]?.smlmv || 0;
@@ -280,26 +280,25 @@ export default function PrecedenteSerpPage() {
             });
     
             if (causanteRecordForPeriod?.valor_iss && causanteRecordForPeriod.valor_iss > 0) {
-                pensionVejez = causanteRecordForPeriod.valor_iss;
-            } else if (pensionVejezAnterior > 0) {
-                const ipcAnterior = datosIPC[period.year - 1 as keyof typeof datosIPC] || 0;
-                pensionVejez = pensionVejezAnterior * (1 + ipcAnterior / 100);
+                 const causanteYear = new Date(formatFirebaseTimestamp(causanteRecordForPeriod.fecha_desde, 'yyyy-MM-dd')).getFullYear();
+                 if(period.year >= causanteYear) {
+                    let tempPensionVejez = causanteRecordForPeriod.valor_iss;
+                    for(let y = causanteYear; y < period.year; y++) {
+                        const ipcForYear = datosIPC[y as keyof typeof datosIPC] || 0;
+                        tempPensionVejez *= (1 + ipcForYear / 100);
+                    }
+                    pensionVejez = tempPensionVejez;
+                 }
             }
     
             const cargoEmpresa = mesadaReajustada - pensionVejez;
             const pagadoEmpresa = period.mesada;
             const diferenciasInsolutas = Math.max(0, cargoEmpresa - pagadoEmpresa);
     
-            const mesadasOrdinarias = period.endMonth - period.startMonth + 1;
-            let mesadasExtras = 0;
-            if (period.startMonth <= 6 && period.endMonth >= 6) mesadasExtras++;
-            if (period.startMonth <= 12 && period.endMonth >= 12) mesadasExtras++;
-    
-            const numMesadas = mesadasOrdinarias + mesadasExtras;
+            const { ordinarias: mesadasOrdinarias, totales: numMesadas } = countMesadasInYear(period.year);
             const diferenciasOrdinarias = diferenciasInsolutas * mesadasOrdinarias;
             const descuentoSalud = diferenciasOrdinarias * 0.12;
     
-            // Detailed Indexation
             let totalIndexacionAnual = 0;
             if (diferenciasInsolutas > 0) {
                 for (let mes = period.startMonth; mes <= period.endMonth; mes++) {
@@ -318,7 +317,6 @@ export default function PrecedenteSerpPage() {
     
             const diferenciasIndexadas = diferenciasOrdinarias + totalIndexacionAnual;
     
-            // Update values for next iteration
             mesadaReajustadaAnterior = mesadaReajustada;
             pensionVejezAnterior = pensionVejez > 0 ? pensionVejez : pensionVejezAnterior;
             ingresoTotalAnterior = pagadoEmpresa + pensionVejez;
@@ -334,14 +332,14 @@ export default function PrecedenteSerpPage() {
                 pagadoEmpresa,
                 diferenciasInsolutas,
                 numMesadas,
-                diferenciasOrdinarias, // Was 'Dano Antijuridico' and 'Diferencias Anuales'
+                diferenciasOrdinarias,
                 indexacionDiferencias: totalIndexacionAnual,
                 diferenciasIndexadas,
                 mesadasOrdinarias,
                 descuentoSalud,
             };
         });
-    }, [calculationPeriods, causanteRecords, ipcDaneData]);
+    }, [calculationPeriods, causanteRecords, ipcDaneData, countMesadasInYear]);
 
 
     const { dataAntesComparticion, dataDespuesComparticion } = useMemo(() => {
@@ -371,7 +369,7 @@ export default function PrecedenteSerpPage() {
                 <CardContent className="overflow-x-auto">
                     <Table className="text-xs">
                         <TableHeader>
-                             <TableRow>
+                            <TableRow>
                                 <TableHead className="text-xs align-top" rowSpan={2}>Año</TableHead>
                                 <TableHead className="text-xs align-top" rowSpan={2}>Tope 5 SMLMV</TableHead>
                                 <TableHead className="text-xs align-top" rowSpan={2}># SMLMV</TableHead>
@@ -380,6 +378,8 @@ export default function PrecedenteSerpPage() {
                                 <TableHead className="text-xs align-top" rowSpan={2}>Mesadas</TableHead>
                                 <TableHead className="text-xs align-top" rowSpan={2}>Diferencias Ordinarias</TableHead>
                                 <TableHead className="text-center text-xs align-top" colSpan={4}>Indexacion</TableHead>
+                                <TableHead className="text-xs align-top" rowSpan={2}>Mesadas Ordinarias</TableHead>
+                                <TableHead className="text-xs align-top" rowSpan={2}>Descuento Salud 12%</TableHead>
                             </TableRow>
                             <TableRow>
                                 <TableHead className="text-xs align-top">Mesada Reajustada</TableHead>
@@ -389,8 +389,6 @@ export default function PrecedenteSerpPage() {
                                 <TableHead className="text-xs align-top">Diferencias Insolutas</TableHead>
                                 <TableHead className="text-xs align-top">de Diferencias</TableHead>
                                 <TableHead className="text-xs align-top">Diferencias Indexadas</TableHead>
-                                <TableHead className="text-xs align-top">Mesadas Ordinarias</TableHead>
-                                <TableHead className="text-xs align-top">Descuento Salud 12%</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -489,6 +487,3 @@ export default function PrecedenteSerpPage() {
         </div>
     );
 }
-
-
-    
