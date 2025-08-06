@@ -216,25 +216,54 @@ export default function PrecedenteSerpPage() {
         let ingresoTotalAnterior = valorInicialMesada;
         let pensionVejezAnterior = 0;
         
-        const lastIpcYear = Math.max(...Object.keys(ipcDaneData).map(Number));
-        const lastIpcMonthData = ipcDaneData[lastIpcYear.toString()];
-        const ipcFinal = lastIpcMonthData?.['Dic']?.valor1 || 0;
+        const diferenciasAcumuladas: { año: number, mes: number, monto: number }[] = [];
 
-        if (ipcFinal === 0) {
-            console.error("IPC Final no encontrado, la indexación será 0.");
-        }
+        // Función para calcular la indexación mensual detallada
+        const calcularIndexacionMensualDetallada = (añoHasta: number, mesHasta: number = 12) => {
+            let totalIndexado = 0;
+            const añoActual = new Date().getFullYear();
+            const mesActual = new Date().getMonth() + 1;
+            
+            const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+            
+            const ipcFinalData = ipcDaneData[añoActual.toString()];
+            if (!ipcFinalData) return 0;
+
+            const ipcFinalStr = monthNames[mesActual - 1];
+            const ipcFinal = ipcFinalData[ipcFinalStr]?.valor1 || 0;
+            
+            if (ipcFinal === 0) return 0;
+
+            diferenciasAcumuladas.forEach(diff => {
+                if (diff.año > añoHasta || (diff.año === añoHasta && diff.mes > mesHasta)) {
+                    return;
+                }
+                
+                const ipcInicialData = ipcDaneData[diff.año.toString()];
+                const mesStr = monthNames[diff.mes - 1];
+                const ipcInicial = ipcInicialData?.[mesStr]?.valor1 || 0;
+                
+                if (ipcInicial > 0 && diff.monto > 0) {
+                    const valorIndexado = diff.monto * (ipcFinal / ipcInicial);
+                    totalIndexado += (valorIndexado - diff.monto);
+                }
+            });
+            
+            return totalIndexado;
+        };
+
 
         return calculationPeriods.map((period, index) => {
             const smlmvAnual = datosConsolidados[period.year as keyof typeof datosConsolidados]?.smlmv || 0;
             const tope5SMLMV = smlmvAnual * 5;
             
             const ipcAnual = datosIPC[period.year - 1 as keyof typeof datosIPC] || 0;
-
-            const numSmlmvTotalAnterior = smlmvAnual > 0 ? ingresoTotalAnterior / smlmvAnual : 0;
+            
+            const numSmlmv = smlmvAnual > 0 ? (ingresoTotalAnterior / smlmvAnual) : 0;
 
             let porcentajeAjuste = 0;
             if (index > 0) {
-                porcentajeAjuste = calculateAjustePorcentaje(numSmlmvTotalAnterior, ipcAnual);
+                porcentajeAjuste = calculateAjustePorcentaje(numSmlmv, ipcAnual);
             }
             
             const mesadaReajustada = index === 0 ? valorInicialMesada : mesadaReajustadaAnterior * (1 + porcentajeAjuste / 100);
@@ -246,46 +275,40 @@ export default function PrecedenteSerpPage() {
                 return recordDate.getFullYear() <= period.year;
             });
 
-            if (causanteRecordForPeriod) {
+            if (causanteRecordForPeriod && (causanteRecordForPeriod.valor_iss || 0) > 0) {
+                 pensionVejez = causanteRecordForPeriod.valor_iss || 0;
+            } else if (pensionVejezAnterior > 0) {
                 const ipcAnterior = datosIPC[period.year - 1 as keyof typeof datosIPC] || 0;
-                pensionVejez = (causanteRecordForPeriod.valor_iss || 0) > 0 ? (causanteRecordForPeriod.valor_iss || 0) : pensionVejezAnterior * (1 + ipcAnterior / 100);
+                pensionVejez = pensionVejezAnterior * (1 + ipcAnterior / 100);
             }
+
 
             const cargoEmpresa = mesadaReajustada - pensionVejez;
             const pagadoEmpresa = period.mesada;
             const diferenciasInsolutas = Math.max(0, cargoEmpresa - pagadoEmpresa);
-            
-            const mesesEnPeriodo = period.endMonth - period.startMonth + 1;
-            
-            const numMesadasOrdinarias = (period.year === 1999 && index === 0) 
-              ? payments.filter(p => parseInt(p.año) === 1999).length
-              : mesesEnPeriodo;
-              
-            let numMesadasExtra = 0;
-            if (period.year !== 1999 || index > 0) {
-              if (period.startMonth <= 6 && period.endMonth >= 6) numMesadasExtra++;
-              if (period.startMonth <= 12 && period.endMonth >= 12) numMesadasExtra++;
+
+            // Populate a.gregated differences for indexation
+            if (diferenciasInsolutas > 0) {
+                for(let m = period.startMonth; m <= period.endMonth; m++) {
+                    const pagosEsteMes = (m === 6 || m === 12) && (period.year !== 1999) ? 2 : 1;
+                    for (let p = 0; p < pagosEsteMes; p++) {
+                        diferenciasAcumuladas.push({ año: period.year, mes: m, monto: diferenciasInsolutas });
+                    }
+                }
             }
-            const numMesadas = numMesadasOrdinarias + numMesadasExtra;
+            
+            const indexacionAnual = calcularIndexacionMensualDetallada(period.year, period.endMonth);
+            
+            const numMesadasOrdinarias = period.endMonth - period.startMonth + 1;
+            const numMesadasExtra = (period.startMonth <= 6 && period.endMonth >= 6 ? 1 : 0) + (period.startMonth <= 12 && period.endMonth >= 12 ? 1 : 0);
+            const numMesadas = (period.year === 1999 && index === 0)
+              ? payments.filter(p => parseInt(p.año) === 1999).length
+              : numMesadasOrdinarias + numMesadasExtra;
 
             const diferenciasAnuales = diferenciasInsolutas * numMesadas;
             const diferenciasOrdinarias = diferenciasInsolutas * numMesadasOrdinarias;
             const descuentoSalud = diferenciasOrdinarias * 0.12;
             
-            let indexacionAnual = 0;
-            if (diferenciasInsolutas > 0 && ipcFinal > 0) {
-                for (let m = period.startMonth; m <= period.endMonth; m++) {
-                    const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-                    const mesStr = monthNames[m - 1];
-                    const ipcInicial = ipcDaneData[period.year.toString()]?.[mesStr]?.valor1 || 0;
-
-                    if (ipcInicial > 0) {
-                        const pagosEsteMes = (m === 6 || m === 12) && (period.year !== 1999) ? 2 : 1;
-                        const indexacionMes = (diferenciasInsolutas * (ipcFinal / ipcInicial) - diferenciasInsolutas) * pagosEsteMes;
-                        indexacionAnual += indexacionMes;
-                    }
-                }
-            }
 
             mesadaReajustadaAnterior = mesadaReajustada;
             pensionVejezAnterior = pensionVejez > 0 ? pensionVejez : pensionVejezAnterior;
@@ -294,7 +317,7 @@ export default function PrecedenteSerpPage() {
             return {
                 ...period,
                 tope5SMLMV,
-                numSmlmv: numSmlmvTotalAnterior,
+                numSmlmv,
                 porcentajeAjuste,
                 mesadaReajustada,
                 pensionVejez,
