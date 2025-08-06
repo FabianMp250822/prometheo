@@ -306,7 +306,7 @@ export default function PrecedenteSerpPage() {
             const porcentajeAjuste = index === 0 ? 0 : calculateAjustePorcentaje(numSmlmvAnterior, ipcAnual);
             const mesadaReajustada = index === 0 ? valorInicialMesada : mesadaReajustadaAnterior * (1 + porcentajeAjuste / 100);
 
-            const cargoEmpresa = mesadaReajustada - pensionVejez;
+            const cargoEmpresa = pagadoEmpresa * (1 + porcentajeAjuste / 100);
             const diferenciasInsolutas = Math.max(0, cargoEmpresa - pagadoEmpresa);
 
             const countResult = countMesadasInYear(period.year, period.startMonth, period.endMonth);
