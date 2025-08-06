@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calculator, Scale, FileText, Percent, ArrowRight } from 'lucide-react';
+import { Calculator, Scale, FileText, Percent, ArrowRight, BarChart3 } from 'lucide-react';
 import Link from 'next/link';
 
 const liquidationTypes = [
@@ -36,6 +36,12 @@ const liquidationTypes = [
         description: 'Calcula únicamente el reajuste pensional aplicando la variación del IPC conforme a la Ley 100.',
         icon: <Percent className="h-8 w-8 text-primary" />,
         href: '/dashboard/liquidaciones/reajuste-ipc'
+    },
+    {
+        title: 'Evolución de la Mesada',
+        description: 'Visualiza la evolución y el comportamiento de la mesada pensional a lo largo del tiempo.',
+        icon: <BarChart3 className="h-8 w-8 text-primary" />,
+        href: '/dashboard/liquidaciones/evolucion-mesada'
     },
 ];
 
