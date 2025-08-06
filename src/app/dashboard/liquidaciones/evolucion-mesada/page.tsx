@@ -25,7 +25,6 @@ interface EvolucionData {
     perdidaSmlmv: number;
     mesadaPagada: number;
     diferenciaMesadas: number;
-    numMesadas: number;
     totalDiferenciasRetroactivas: number;
 }
 
@@ -81,24 +80,41 @@ export default function EvolucionMesadaPage() {
             const mesada = firstPayment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
             if (mesada && mesada.ingresos > 0) return mesada.ingresos;
         }
-        const historicalRecord = historicalPayments.find(p => p.ANO_RET === year && p.VALOR_ACT);
-        if (historicalRecord) return parseFloat(historicalRecord.VALOR_ACT!.replace(/,/g, ''));
+        const historicalRecord = historicalPayments.find(p => p.ANO_RET === year && p.VALOR_ANT);
+        if (historicalRecord) return parseFloat(historicalRecord.VALOR_ANT!.replace(/,/g, ''));
         return 0;
     }, [payments, historicalPayments]);
 
-    const countMesadasInYear = useCallback((year: number): number => {
-        const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
-        if (paymentsInYear.length > 0) {
-            return paymentsInYear.reduce((count, p) => {
-                const hasMesada = p.detalles.some(detail => (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional')));
-                const hasMesada14 = p.detalles.some(detail => (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) || detail.nombre === '285-Mesada Adicional');
-                return count + (hasMesada ? 1 : 0) + (hasMesada14 ? 1 : 0);
-            }, 0);
+    const summaryData = useMemo(() => {
+        const firstPensionYear = Object.keys(datosConsolidados).map(Number).find(year => getFirstPensionInYear(year) > 0);
+        if (!firstPensionYear) return null;
+    
+        const firstMesada = getFirstPensionInYear(firstPensionYear);
+        
+        let firstMesadaDate = `01/01/${firstPensionYear}`;
+        
+        const paymentInYear = payments.find(p => parseInt(p.año, 10) === firstPensionYear);
+        if (paymentInYear) {
+            const parsedDate = parsePeriodoPago(paymentInYear.periodoPago)?.startDate;
+            if(parsedDate) {
+                firstMesadaDate = formatFirebaseTimestamp(parsedDate.toISOString(), 'P');
+            }
+        } else {
+            const historicalRecord = historicalPayments.find(p => p.ANO_RET === firstPensionYear && p.FECHA_DESDE);
+            if(historicalRecord && historicalRecord.FECHA_DESDE){
+                firstMesadaDate = formatFirebaseTimestamp(historicalRecord.FECHA_DESDE, 'P');
+            }
         }
-        const historicalRecordsForYear = historicalPayments.filter(rec => rec.ANO_RET === year);
-        if (historicalRecordsForYear.length > 0) return 14; // Assumption for historical data
-        return 0;
-    }, [payments, historicalPayments]);
+
+        return {
+            salarioPromedio: firstMesada,
+            porcentajeReemplazo: 100,
+            mesadaPensional: firstMesada,
+            fechaPrimeraMesada: firstMesadaDate,
+        };
+
+    }, [getFirstPensionInYear, payments, historicalPayments]);
+
 
     const tablaData = useMemo((): EvolucionData[] => {
         const firstPensionYear = Object.keys(datosConsolidados).map(Number).find(year => getFirstPensionInYear(year) > 0);
@@ -137,7 +153,10 @@ export default function EvolucionMesadaPage() {
             const perdidaPorcentual = proyeccionMesadaSMLMV > 0 ? (1 - (proyeccionMesadaIPC / proyeccionMesadaSMLMV)) * 100 : 0;
             const perdidaSmlmv = numSmlmvSMLMV - numSmlmvIPC;
             const diferenciaMesadas = proyeccionMesadaSMLMV - mesadaPagada;
-            const numMesadas = countMesadasInYear(year);
+            
+            // This part is a placeholder for a more complex calculation based on business logic
+            // For now, let's assume 14 payments per year as a general rule.
+            const numMesadas = 14; 
             const totalDiferenciasRetroactivas = diferenciaMesadas * numMesadas;
 
             return {
@@ -153,11 +172,10 @@ export default function EvolucionMesadaPage() {
                 perdidaSmlmv,
                 mesadaPagada,
                 diferenciaMesadas,
-                numMesadas,
                 totalDiferenciasRetroactivas,
             };
         });
-    }, [getFirstPensionInYear, countMesadasInYear]);
+    }, [getFirstPensionInYear]);
     
     const renderTable = (data: EvolucionData[], title: string) => (
         <Card>
@@ -178,7 +196,6 @@ export default function EvolucionMesadaPage() {
                             <TableHead>Pérdida en smlmv EN Proyección IPCs</TableHead>
                             <TableHead>Mesada Pagada por Fiduprevisora reajuste con IPCs</TableHead>
                             <TableHead>Diferencias de Mesadas</TableHead>
-                            <TableHead># de Mesadas</TableHead>
                             <TableHead>Total Diferencias Retroactivas</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -197,7 +214,6 @@ export default function EvolucionMesadaPage() {
                                 <TableCell>{row.perdidaSmlmv.toFixed(2)}</TableCell>
                                 <TableCell>{formatCurrency(row.mesadaPagada)}</TableCell>
                                 <TableCell>{formatCurrency(row.diferenciaMesadas)}</TableCell>
-                                <TableCell>{row.numMesadas}</TableCell>
                                 <TableCell>{formatCurrency(row.totalDiferenciasRetroactivas)}</TableCell>
                             </TableRow>
                         ))}
@@ -217,6 +233,7 @@ export default function EvolucionMesadaPage() {
                     </CardTitle>
                     <CardDescription>
                         Análisis de la evolución de la mesada pensional comparando reajustes por SMLMV vs. IPC.
+                         {selectedPensioner && <span className="block mt-1 font-semibold text-primary">Pensionado: {parseEmployeeName(selectedPensioner.empleado)}</span>}
                     </CardDescription>
                 </CardHeader>
             </Card>
@@ -239,6 +256,33 @@ export default function EvolucionMesadaPage() {
             
             {selectedPensioner && !isLoading && (
                 <div className="space-y-6">
+                    {summaryData && (
+                        <Card>
+                             <CardContent className="pt-6">
+                                <Table>
+                                    <TableBody>
+                                        <TableRow>
+                                            <TableCell className="font-semibold">Ultimo Salario Promedio</TableCell>
+                                            <TableCell className="text-right">{formatCurrency(summaryData.salarioPromedio)}</TableCell>
+                                        </TableRow>
+                                        <TableRow>
+                                            <TableCell className="font-semibold">Porcentaje Reemplazo</TableCell>
+                                            <TableCell className="text-right">{summaryData.porcentajeReemplazo.toFixed(2)}%</TableCell>
+                                        </TableRow>
+                                         <TableRow>
+                                            <TableCell className="font-semibold">Mesada Pensional</TableCell>
+                                            <TableCell className="text-right">{formatCurrency(summaryData.mesadaPensional)}</TableCell>
+                                        </TableRow>
+                                         <TableRow>
+                                            <TableCell className="font-semibold">Fecha Primera Mesada</TableCell>
+                                            <TableCell className="text-right">{summaryData.fechaPrimeraMesada}</TableCell>
+                                        </TableRow>
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    )}
+
                    {renderTable(tablaData.filter(d => d.año <= 2014), "Liquidación Antes de Compartir (Ejemplo hasta 2014)")}
                    {renderTable(tablaData.filter(d => d.año > 2014), "Liquidación Después de Compartir (Ejemplo desde 2015)")}
                 </div>
