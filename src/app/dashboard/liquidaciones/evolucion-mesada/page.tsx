@@ -71,17 +71,36 @@ export default function EvolucionMesadaPage() {
 
     const getFirstPensionInYear = useCallback((year: number): number => {
         const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
+
         if (paymentsInYear.length > 0) {
-            const firstPayment = paymentsInYear.sort((a, b) => {
+            const sortedByDate = paymentsInYear.sort((a, b) => {
                 const dateA = parsePeriodoPago(a.periodoPago)?.startDate ?? new Date(9999, 1, 1);
                 const dateB = parsePeriodoPago(b.periodoPago)?.startDate ?? new Date(9999, 1, 1);
                 return dateA.getTime() - dateB.getTime();
-            })[0];
-            const mesada = firstPayment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
-            if (mesada && mesada.ingresos > 0) return mesada.ingresos;
+            });
+
+            const firstPaymentDate = parsePeriodoPago(sortedByDate[0].periodoPago)?.startDate;
+            if (!firstPaymentDate) return 0;
+            
+            const firstMonth = firstPaymentDate.getMonth();
+
+            const paymentsInFirstMonth = sortedByDate.filter(p => {
+                const pDate = parsePeriodoPago(p.periodoPago)?.startDate;
+                return pDate?.getMonth() === firstMonth;
+            });
+            
+            return paymentsInFirstMonth.reduce((totalMesada, payment) => {
+                const mesadaDetail = payment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
+                return totalMesada + (mesadaDetail?.ingresos || 0);
+            }, 0);
         }
+
         const historicalRecord = historicalPayments.find(p => p.ANO_RET === year && p.VALOR_ANT);
-        if (historicalRecord) return parseFloat(historicalRecord.VALOR_ANT!.replace(/,/g, ''));
+        if (historicalRecord) {
+            const valorAnt = parseFloat(historicalRecord.VALOR_ANT!.replace(/,/g, ''));
+            if (!isNaN(valorAnt)) return valorAnt;
+        }
+
         return 0;
     }, [payments, historicalPayments]);
 
