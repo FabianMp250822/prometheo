@@ -149,6 +149,7 @@ export default function PrecedenteSerpPage() {
     }, [payments, historicalPayments]);
 
     const countMesadasInYear = useCallback((year: number, startMonth: number, endMonth: number): { ordinarias: number; extras: number; totales: number } => {
+        // Special case for 1999: count from real data
         if (year === 1999) {
             const paymentsIn1999 = payments.filter(p => parseInt(p.año, 10) === 1999);
             const mesadasOrdinarias = new Set<string>();
@@ -167,13 +168,13 @@ export default function PrecedenteSerpPage() {
             const ordinarias = mesadasOrdinarias.size;
             return { ordinarias, extras: mesadasExtras, totales: ordinarias + mesadasExtras };
         }
-        
+    
         // For years other than 1999
         const mesesEnPeriodo = (endMonth - startMonth) + 1;
         let extras = 0;
         if (startMonth <= 6 && endMonth >= 6) extras++;
         if (startMonth <= 12 && endMonth >= 12) extras++;
-
+    
         return { ordinarias: mesesEnPeriodo, extras: extras, totales: mesesEnPeriodo + extras };
     }, [payments]);
     
@@ -240,11 +241,19 @@ export default function PrecedenteSerpPage() {
     const antijuridicoData = useMemo(() => {
     if (calculationPeriods.length === 0 || Object.keys(ipcDaneData).length === 0) return [];
 
-    const valorInicialMesada = calculationPeriods[0].mesada;
+    let valorInicialMesada = 0;
+    const firstPeriodWithMesada = calculationPeriods.find(p => p.mesada > 0);
+    if (firstPeriodWithMesada) {
+        valorInicialMesada = firstPeriodWithMesada.mesada;
+    } else {
+        return []; // No base pension found
+    }
+    
     let mesadaReajustadaAnterior = valorInicialMesada;
     let ingresoTotalAnterior = valorInicialMesada;
     let pensionVejezAnterior = 0;
-    
+    let numSmlmvAnterior = 0;
+
     const allYearsWithIpc = Object.keys(ipcDaneData).map(Number).filter(y => !isNaN(y) && y > 0);
     if (allYearsWithIpc.length === 0) return [];
     
@@ -276,14 +285,21 @@ export default function PrecedenteSerpPage() {
         }
 
         const numSmlmv = smlmvAnual > 0 ? (ingresoBaseCalculo / smlmvAnual) : 0;
-        const porcentajeAjuste = index === 0 ? 0 : calculateAjustePorcentaje(numSmlmv, ipcAnual);
+        
+        let porcentajeAjuste = 0;
+        if (index > 0) {
+            porcentajeAjuste = calculateAjustePorcentaje(numSmlmvAnterior, ipcAnual);
+        }
+
         const mesadaReajustada = index === 0 ? valorInicialMesada : mesadaReajustadaAnterior * (1 + porcentajeAjuste / 100);
 
         let pensionVejez = 0;
         const causanteRecordForPeriod = causanteRecords.find(rec => {
             if (!rec.fecha_desde) return false;
             const recordDate = new Date(formatFirebaseTimestamp(rec.fecha_desde, 'yyyy-MM-dd'));
-            return recordDate.getFullYear() <= period.year;
+            const recordYear = recordDate.getFullYear();
+            const recordMonth = recordDate.getMonth() + 1;
+            return recordYear < period.year || (recordYear === period.year && recordMonth <= period.startMonth);
         });
 
         if (causanteRecordForPeriod?.valor_iss && causanteRecordForPeriod.valor_iss > 0) {
@@ -327,6 +343,7 @@ export default function PrecedenteSerpPage() {
         mesadaReajustadaAnterior = mesadaReajustada;
         pensionVejezAnterior = pensionVejez > 0 ? pensionVejez : pensionVejezAnterior;
         ingresoTotalAnterior = pagadoEmpresa + pensionVejez;
+        numSmlmvAnterior = numSmlmv;
 
         return {
             ...period,
@@ -350,13 +367,21 @@ export default function PrecedenteSerpPage() {
 
 
     const { dataAntesComparticion, dataDespuesComparticion } = useMemo(() => {
-        const splitIndex = antijuridicoData.findIndex(row => row.pensionVejez > 0);
-        if (splitIndex === -1) {
-            return { dataAntesComparticion: antijuridicoData, dataDespuesComparticion: [] };
-        }
+        // Separar los datos basándose en si realmente hay pensión de vejez en cada período
+        const antesComparticion: any[] = [];
+        const despuesComparticion: any[] = [];
+        
+        antijuridicoData.forEach(row => {
+            if (row.pensionVejez > 0) {
+                despuesComparticion.push(row);
+            } else {
+                antesComparticion.push(row);
+            }
+        });
+        
         return {
-            dataAntesComparticion: antijuridicoData.slice(0, splitIndex),
-            dataDespuesComparticion: antijuridicoData.slice(splitIndex),
+            dataAntesComparticion: antesComparticion,
+            dataDespuesComparticion: despuesComparticion,
         };
     }, [antijuridicoData]);
 
