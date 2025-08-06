@@ -96,19 +96,47 @@ export default function EvolucionMesadaPage() {
         }
 
         const historicalRecord = historicalPayments.find(p => p.ANO_RET === year && p.VALOR_ANT);
-        if (historicalRecord) {
+        if (historicalRecord && historicalRecord.VALOR_ANT) {
             const valorAnt = parseFloat(historicalRecord.VALOR_ANT!.replace(/,/g, ''));
             if (!isNaN(valorAnt)) return valorAnt;
         }
 
         return 0;
     }, [payments, historicalPayments]);
+    
+    const getMonthlyPensionForYearAndMonth = useCallback((year: number, month: number): number => {
+        const paymentsInMonth = payments.filter(p => {
+            const pDate = parsePeriodoPago(p.periodoPago)?.startDate;
+            return pDate?.getFullYear() === year && pDate.getMonth() === month - 1;
+        });
+        
+        if (paymentsInMonth.length > 0) {
+            return paymentsInMonth.reduce((totalMesada, payment) => {
+                const mesadaDetail = payment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
+                return totalMesada + (mesadaDetail?.ingresos || 0);
+            }, 0);
+        }
+
+        const historicalRecordForYear = historicalPayments.find(p => p.ANO_RET === year);
+        if (historicalRecordForYear?.VALOR_ANT) {
+            const valor = parseFloat(historicalRecordForYear.VALOR_ANT.replace(/,/g, ''));
+            if (!isNaN(valor)) return valor;
+        }
+        
+        return 0;
+    }, [payments, historicalPayments]);
 
     const summaryData = useMemo(() => {
         const firstPensionYear = Object.keys(datosConsolidados).map(Number).find(year => getFirstPensionInYear(year) > 0);
         if (!firstPensionYear) return null;
-    
-        const firstMesada = getFirstPensionInYear(firstPensionYear);
+        
+        const yearForAvg = firstPensionYear + 1;
+        const januaryPension = getMonthlyPensionForYearAndMonth(yearForAvg, 1);
+        const februaryPension = getMonthlyPensionForYearAndMonth(yearForAvg, 2);
+        const marchPension = getMonthlyPensionForYearAndMonth(yearForAvg, 3);
+        
+        const validPensions = [januaryPension, februaryPension, marchPension].filter(p => p > 0);
+        const averageSalary = validPensions.length > 0 ? validPensions.reduce((a, b) => a + b, 0) / validPensions.length : 0;
         
         let firstMesadaDate = `01/01/${firstPensionYear}`;
         
@@ -126,13 +154,13 @@ export default function EvolucionMesadaPage() {
         }
 
         return {
-            salarioPromedio: firstMesada,
+            salarioPromedio: averageSalary,
             porcentajeReemplazo: 100,
-            mesadaPensional: firstMesada,
+            mesadaPensional: averageSalary,
             fechaPrimeraMesada: firstMesadaDate,
         };
 
-    }, [getFirstPensionInYear, payments, historicalPayments]);
+    }, [getFirstPensionInYear, getMonthlyPensionForYearAndMonth, payments, historicalPayments]);
 
 
     const tablaData = useMemo((): EvolucionData[] => {
@@ -309,3 +337,4 @@ export default function EvolucionMesadaPage() {
         </div>
     );
 }
+
