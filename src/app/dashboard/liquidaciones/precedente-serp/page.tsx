@@ -221,16 +221,18 @@ export default function PrecedenteSerpPage() {
         // Función para calcular la indexación mensual detallada
         const calcularIndexacionMensualDetallada = (añoHasta: number, mesHasta: number = 12) => {
             let totalIndexado = 0;
-            const añoActual = new Date().getFullYear();
-            const mesActual = new Date().getMonth() + 1;
             
+            const añosIpc = Object.keys(ipcDaneData).map(Number);
+            if (añosIpc.length === 0) return 0;
+            const añoActual = Math.max(...añosIpc);
+
+            const mesActual = new Date().getMonth() + 1;
             const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
             
             const ipcFinalData = ipcDaneData[añoActual.toString()];
             if (!ipcFinalData) return 0;
-
             const ipcFinalStr = monthNames[mesActual - 1];
-            const ipcFinal = ipcFinalData[ipcFinalStr]?.valor1 || 0;
+            const ipcFinal = ipcFinalData[ipcFinalStr]?.valor1 || ipcFinalData[monthNames[mesActual - 2]]?.valor1 || 0;
             
             if (ipcFinal === 0) return 0;
 
@@ -287,7 +289,7 @@ export default function PrecedenteSerpPage() {
             const pagadoEmpresa = period.mesada;
             const diferenciasInsolutas = Math.max(0, cargoEmpresa - pagadoEmpresa);
 
-            // Populate a.gregated differences for indexation
+            // Populate aggregated differences for indexation
             if (diferenciasInsolutas > 0) {
                 for(let m = period.startMonth; m <= period.endMonth; m++) {
                     const pagosEsteMes = (m === 6 || m === 12) && (period.year !== 1999) ? 2 : 1;
@@ -300,7 +302,13 @@ export default function PrecedenteSerpPage() {
             const indexacionAnual = calcularIndexacionMensualDetallada(period.year, period.endMonth);
             
             const numMesadasOrdinarias = period.endMonth - period.startMonth + 1;
-            const numMesadasExtra = (period.startMonth <= 6 && period.endMonth >= 6 ? 1 : 0) + (period.startMonth <= 12 && period.endMonth >= 12 ? 1 : 0);
+            
+            let numMesadasExtra = 0;
+            if (period.year !== 1999) {
+                if (period.startMonth <= 6 && period.endMonth >= 6) numMesadasExtra++;
+                if (period.startMonth <= 12 && period.endMonth >= 12) numMesadasExtra++;
+            }
+            
             const numMesadas = (period.year === 1999 && index === 0)
               ? payments.filter(p => parseInt(p.año) === 1999).length
               : numMesadasOrdinarias + numMesadasExtra;
@@ -350,8 +358,10 @@ export default function PrecedenteSerpPage() {
         if (data.length === 0) return null;
 
         const totalDiferenciasAnuales = data.reduce((sum, row) => sum + row.diferenciasAnuales, 0);
-        const totalIndexacion = data.reduce((sum, row) => sum + row.indexacionDiferencias, 0);
+        const totalIndexacion = data.length > 0 ? data[data.length - 1].indexacionDiferencias : 0;
         const totalDescuentoSalud = data.reduce((sum, row) => sum + row.descuentoSalud, 0);
+        const totalDiferenciasIndexadas = data.reduce((sum, row) => sum + row.diferenciasIndexadas, 0);
+
 
         return (
             <Card>
@@ -400,7 +410,7 @@ export default function PrecedenteSerpPage() {
                                         <TableCell className="text-xs">{formatCurrency(row.diferenciasOrdinarias)}</TableCell>
                                         <TableCell className="text-xs">{formatCurrency(row.descuentoSalud)}</TableCell>
                                         <TableCell className="text-xs">{formatCurrency(row.indexacionDiferencias)}</TableCell>
-                                        <TableCell className="text-xs font-bold bg-green-100">{formatCurrency(row.diferenciasAnuales + row.indexacionDiferencias)}</TableCell>
+                                        <TableCell className="text-xs font-bold bg-green-100">{formatCurrency(row.diferenciasIndexadas)}</TableCell>
                                     </TableRow>
                                 )
                             })}
@@ -410,7 +420,7 @@ export default function PrecedenteSerpPage() {
                                 <TableCell colSpan={2}></TableCell>
                                 <TableCell className="text-xs font-bold">{formatCurrency(totalDescuentoSalud)}</TableCell>
                                 <TableCell className="text-xs font-bold">{formatCurrency(totalIndexacion)}</TableCell>
-                                <TableCell colSpan={1}></TableCell>
+                                <TableCell className="text-xs font-bold bg-green-100">{formatCurrency(totalDiferenciasIndexadas)}</TableCell>
                             </TableRow>
                         </TableBody>
                     </Table>
