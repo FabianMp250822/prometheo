@@ -211,6 +211,34 @@ export default function PrecedenteSerpPage() {
     
     }, [getFirstPensionInYear, shouldSplitYear, getMesadaForPeriod]);
     
+    const countMesadasInYear = useCallback((year: number, startMonth: number, endMonth: number): { ordinarias: number; extras: number; totales: number } => {
+        if (year === 1999) {
+            const paymentsIn1999 = payments.filter(p => parseInt(p.año, 10) === 1999);
+            const mesadasOrdinarias = new Set<string>();
+            let mesadasExtras = 0;
+            
+            paymentsIn1999.forEach(p => {
+                 p.detalles.forEach(d => {
+                     if (d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD') {
+                         mesadasOrdinarias.add(p.periodoPago);
+                     }
+                     if (d.nombre?.includes('Mesada Adicional') || d.codigo === 'MESAD14' || d.nombre?.includes('285-')) {
+                         mesadasExtras++;
+                     }
+                 });
+            });
+            const ordinarias = mesadasOrdinarias.size;
+            return { ordinarias, extras: mesadasExtras, totales: ordinarias + mesadasExtras };
+        }
+    
+        const mesesEnPeriodo = (endMonth - startMonth) + 1;
+        let extras = 0;
+        if (startMonth <= 6 && endMonth >= 6) extras++;
+        if (startMonth <= 12 && endMonth >= 12) extras++;
+    
+        return { ordinarias: mesesEnPeriodo, extras: extras, totales: mesesEnPeriodo + extras };
+    }, [payments]);
+
     const antijuridicoData = useMemo(() => {
         if (calculationPeriods.length === 0 || Object.keys(ipcDaneData).length === 0) return [];
         
@@ -220,6 +248,7 @@ export default function PrecedenteSerpPage() {
 
         const allYearsWithIpc = Object.keys(ipcDaneData).map(Number).filter(y => !isNaN(y) && y > 0);
         if (allYearsWithIpc.length === 0) return [];
+
         const latestYearWithIpc = Math.max(...allYearsWithIpc);
         const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
         
@@ -274,28 +303,21 @@ export default function PrecedenteSerpPage() {
             // Conditional #SMLMV Calculation
             let ingresoParaCalculoSmlmv = 0;
             if (pensionVejez > 0) {
-                // AFTER SHARING
+                // AFTER SHARING: Pensión de Vejez + Pagado por Empresa
                 ingresoParaCalculoSmlmv = pensionVejez + pagadoEmpresa;
             } else {
-                // BEFORE SHARING
+                // BEFORE SHARING: Only Pagado por Empresa
                 ingresoParaCalculoSmlmv = pagadoEmpresa;
             }
             const numSmlmv = smlmvAnual > 0 ? ingresoParaCalculoSmlmv / smlmvAnual : 0;
             
             let numMesadas = 0;
             let mesadasOrdinarias = 0;
-            if (period.year === 1999) {
-                const countResult = countMesadasInYear(period.year, period.startMonth, period.endMonth);
-                numMesadas = countResult.totales;
-                mesadasOrdinarias = countResult.ordinarias;
-            } else {
-                mesadasOrdinarias = (period.endMonth - period.startMonth) + 1;
-                let extras = 0;
-                if (period.startMonth <= 6 && period.endMonth >= 6) extras++;
-                if (period.startMonth <= 12 && period.endMonth >= 12) extras++;
-                numMesadas = mesadasOrdinarias + extras;
-            }
-            
+
+            const countResult = countMesadasInYear(period.year, period.startMonth, period.endMonth);
+            numMesadas = countResult.totales;
+            mesadasOrdinarias = countResult.ordinarias;
+
             const diferenciasOrdinarias = diferenciasInsolutas * mesadasOrdinarias;
             const descuentoSalud = diferenciasOrdinarias * 0.12;
             
@@ -303,15 +325,16 @@ export default function PrecedenteSerpPage() {
             if (diferenciasInsolutas > 0) {
                 const diferenciaMensual = diferenciasInsolutas; 
                 for (let mes = period.startMonth; mes <= period.endMonth; mes++) {
-                    const pagosEnMes = (mes === 6 || mes === 12) ? 2 : 1;
                     const ipcInicialData = ipcDaneData[period.year.toString()];
                     const mesStr = monthNames[mes - 1];
                     const ipcInicial = ipcInicialData?.[mesStr]?.valor1 || 0;
 
                     if (ipcInicial > 0) {
                         const valorIndexado = diferenciaMensual * (ipcFinal / ipcInicial);
-                        const indexacionMes = (valorIndexado - diferenciaMensual) * pagosEnMes;
-                        totalIndexacionAnual += indexacionMes;
+                        const indexacionMes = valorIndexado - diferenciaMensual;
+
+                        const pagosEnMes = (mes === 6 || mes === 12) ? 2 : 1;
+                        totalIndexacionAnual += (indexacionMes * pagosEnMes);
                     }
                 }
             }
@@ -444,35 +467,6 @@ export default function PrecedenteSerpPage() {
         )
     };
     
-    // Nueva función para contar mesadas en 1999
-    const countMesadasInYear = useCallback((year: number, startMonth: number, endMonth: number): { ordinarias: number; extras: number; totales: number } => {
-        if (year === 1999) {
-            const paymentsIn1999 = payments.filter(p => parseInt(p.año, 10) === 1999);
-            const mesadasOrdinarias = new Set<string>();
-            let mesadasExtras = 0;
-            
-            paymentsIn1999.forEach(p => {
-                 p.detalles.forEach(d => {
-                     if (d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD') {
-                         mesadasOrdinarias.add(p.periodoPago);
-                     }
-                     if (d.nombre?.includes('Mesada Adicional') || d.codigo === 'MESAD14' || d.nombre?.includes('285-')) {
-                         mesadasExtras++;
-                     }
-                 });
-            });
-            const ordinarias = mesadasOrdinarias.size;
-            return { ordinarias, extras: mesadasExtras, totales: ordinarias + mesadasExtras };
-        }
-    
-        const mesesEnPeriodo = (endMonth - startMonth) + 1;
-        let extras = 0;
-        if (startMonth <= 6 && endMonth >= 6) extras++;
-        if (startMonth <= 12 && endMonth >= 12) extras++;
-    
-        return { ordinarias: mesesEnPeriodo, extras: extras, totales: mesesEnPeriodo + extras };
-    }, [payments]);
-
     return (
         <div className="p-4 md:p-8 space-y-6">
             <Card>
@@ -531,5 +525,7 @@ export default function PrecedenteSerpPage() {
         </div>
     );
 }
+
+    
 
     
