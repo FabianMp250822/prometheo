@@ -1,17 +1,24 @@
+
 'use client';
 
-import React, { useState, useEffect, useCallback, useTransition } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Search, Eye, BellRing, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Loader2, Search, Eye, BellRing, AlertTriangle, RefreshCw, Calendar as CalendarIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { collection, getDocs, query, where, or, limit, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where, limit, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { NotificationsByDemandanteModal } from '@/components/dashboard/notifications/notifications-by-demandante-modal';
 import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format, isValid } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+
 
 interface Notification {
     id: string;
@@ -20,6 +27,7 @@ interface Notification {
     demandante: string;
     demandante_lower: string;
     demandado: string;
+    demandado_lower: string;
     descripcion: string;
     proceso: string;
     radicacion: string;
@@ -52,6 +60,10 @@ export default function NotificacionesPage() {
     const [error, setError] = useState<string | null>(null);
 
     const [searchTerm, setSearchTerm] = useState('');
+    const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+        from: undefined,
+        to: undefined,
+    });
     const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
     const [selectedDemandante, setSelectedDemandante] = useState<GroupedNotification | null>(null);
@@ -63,7 +75,6 @@ export default function NotificacionesPage() {
         const notificationsMap = new Map<string, { demandante: string; demandante_lower: string; notifications: Notification[] }>();
         
         docs.forEach(doc => {
-            // Check if it's a Firestore doc or a plain object
             const notif = doc.data ? { id: doc.id, ...doc.data() } as Notification : doc as Notification;
             const key = notif.demandante_lower;
 
@@ -85,21 +96,34 @@ export default function NotificacionesPage() {
             };
         });
         
-        // Sort alphabetically by demandante name
-        grouped.sort((a, b) => a.demandante.localeCompare(b.demandante));
+        grouped.sort((a, b) => new Date(b.lastNotificationDate).getTime() - new Date(a.lastNotificationDate).getTime());
         setGroupedNotifications(grouped);
 
     }, []);
 
-    const fetchAllNotifications = useCallback(async () => {
+    const fetchNotifications = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
-            const q = query(
-                collection(db, "provired_notifications"),
-                orderBy("fechaPublicacion", "desc"),
-                limit(2000) // Fetch a larger set for grouping
-            );
+            const notificationsRef = collection(db, "provired_notifications");
+            let q = query(notificationsRef, orderBy("fechaPublicacion", "desc"));
+            
+            // Text search filter
+            if (debouncedSearchTerm.length >= 3) {
+                 q = query(q, where("demandante_lower", ">=", debouncedSearchTerm.toLowerCase()), where("demandante_lower", "<=", debouncedSearchTerm.toLowerCase() + '\uf8ff'));
+            }
+
+            // Date range filter
+            if (dateRange.from && isValid(dateRange.from)) {
+                q = query(q, where("fechaPublicacion", ">=", format(dateRange.from, 'yyyy-MM-dd')));
+            }
+            if (dateRange.to && isValid(dateRange.to)) {
+                q = query(q, where("fechaPublicacion", "<=", format(dateRange.to, 'yyyy-MM-dd')));
+            }
+            
+            // Limit the query to prevent fetching too much data at once
+            q = query(q, limit(1000));
+            
             const snapshot = await getDocs(q);
             processAndSetNotifications(snapshot.docs);
         } catch (err: any) {
@@ -108,51 +132,24 @@ export default function NotificacionesPage() {
         } finally {
             setIsLoading(false);
         }
-    }, [processAndSetNotifications]);
+    }, [processAndSetNotifications, debouncedSearchTerm, dateRange]);
     
-    const searchNotificationsInFirebase = useCallback(async (searchVal: string) => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const notificationsRef = collection(db, "provired_notifications");
-            const searchLower = searchVal.toLowerCase();
-            
-            const demandanteQuery = query(notificationsRef, where("demandante_lower", ">=", searchLower), where("demandante_lower", "<=", searchLower + '\uf8ff'), limit(50));
-            const demandadoQuery = query(notificationsRef, where("demandado_lower", ">=", searchLower), where("demandado_lower", "<=", searchLower + '\uf8ff'), limit(50));
-
-            const [demandanteSnap, demandadoSnap] = await Promise.all([
-                getDocs(demandanteQuery),
-                getDocs(demandadoQuery),
-            ]);
-
-            const resultsMap = new Map<string, any>();
-            demandanteSnap.docs.forEach(doc => resultsMap.set(doc.id, { id: doc.id, ...doc.data() }));
-            demandadoSnap.docs.forEach(doc => resultsMap.set(doc.id, { id: doc.id, ...doc.data() }));
-
-            processAndSetNotifications(Array.from(resultsMap.values()));
-
-        } catch (err: any) {
-            console.error("Error searching notifications:", err);
-            setError("Ocurrió un error al buscar. Es posible que falten índices para los campos de búsqueda.");
-            toast({ variant: 'destructive', title: 'Error de Búsqueda', description: err.message });
-        } finally {
-            setIsLoading(false);
-        }
-    }, [toast, processAndSetNotifications]);
-
-
     useEffect(() => {
-        if (debouncedSearchTerm.length >= 3) {
-            searchNotificationsInFirebase(debouncedSearchTerm);
-        } else if (debouncedSearchTerm.length === 0) {
-            fetchAllNotifications();
-        }
-    }, [debouncedSearchTerm, fetchAllNotifications, searchNotificationsInFirebase]);
+        fetchNotifications();
+    }, [fetchNotifications]);
+
 
     const handleViewDetails = (group: GroupedNotification) => {
         setSelectedDemandante(group);
         setIsModalOpen(true);
     };
+
+    const clearFilters = () => {
+        setSearchTerm('');
+        setDateRange({ from: undefined, to: undefined });
+        // The useEffect on fetchNotifications will re-fetch data
+    };
+
 
     return (
         <>
@@ -165,24 +162,47 @@ export default function NotificacionesPage() {
                                 Archivo de Notificaciones
                             </CardTitle>
                             <CardDescription>
-                                Explore el historial de notificaciones agrupado por demandante.
+                                Explore el historial de notificaciones. Los resultados se muestran ordenados por fecha más reciente.
                             </CardDescription>
                         </div>
-                         <Button onClick={fetchAllNotifications} disabled={isLoading}>
-                            <RefreshCw className="mr-2 h-4 w-4" />
-                            Refrescar Datos
-                        </Button>
                     </CardHeader>
-                    <CardContent>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <CardContent className="space-y-4">
+                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             <Input
-                                placeholder="Buscar por demandante o demandado (mín. 3 caracteres)..."
+                                placeholder="Buscar por demandante (mín. 3 caracteres)..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10"
+                                className="lg:col-span-1"
                             />
-                        </div>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant={"outline"} className={cn("justify-start text-left font-normal", !dateRange.from && "text-muted-foreground")}>
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {dateRange.from ? format(dateRange.from, "d 'de' LLL, y", { locale: es }) : <span>Desde</span>}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={dateRange.from} onSelect={(d) => setDateRange(prev => ({...prev, from: d}))} /></PopoverContent>
+                            </Popover>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant={"outline"} className={cn("justify-start text-left font-normal", !dateRange.to && "text-muted-foreground")}>
+                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                        {dateRange.to ? format(dateRange.to, "d 'de' LLL, y", { locale: es }) : <span>Hasta</span>}
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={dateRange.to} onSelect={(d) => setDateRange(prev => ({...prev, to: d}))} /></PopoverContent>
+                            </Popover>
+                         </div>
+                         <div className="flex gap-2">
+                             <Button onClick={fetchNotifications} disabled={isLoading}>
+                                <Search className="mr-2 h-4 w-4" />
+                                Aplicar Filtros
+                             </Button>
+                             <Button onClick={clearFilters} variant="ghost" disabled={isLoading}>
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                                Limpiar y Refrescar
+                            </Button>
+                         </div>
                     </CardContent>
                 </Card>
 
@@ -190,7 +210,7 @@ export default function NotificacionesPage() {
                     <CardHeader>
                         <CardTitle>Demandantes con Actuaciones</CardTitle>
                         <CardDescription>
-                             {isLoading ? 'Cargando...' : `${groupedNotifications.length} demandantes encontrados.`}
+                             {isLoading ? 'Cargando...' : `${groupedNotifications.length} demandantes encontrados con los filtros actuales.`}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -234,7 +254,7 @@ export default function NotificacionesPage() {
                                         ) : (
                                             <TableRow>
                                                 <TableCell colSpan={6} className="h-24 text-center">
-                                                    {searchTerm ? "No se encontraron resultados para su búsqueda." : "No hay notificaciones para mostrar."}
+                                                    No se encontraron resultados para los filtros aplicados.
                                                 </TableCell>
                                             </TableRow>
                                         )}
