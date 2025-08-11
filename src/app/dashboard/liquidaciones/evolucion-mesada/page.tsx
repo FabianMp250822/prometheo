@@ -185,11 +185,13 @@ export default function EvolucionMesadaPage() {
 
             let proyeccionMesadaSMLMV = 0;
             let proyeccionMesadaIPC = 0;
+            
             if (index === 0) {
-                proyeccionMesadaSMLMV = mesadaPagada;
-                proyeccionMesadaIPC = mesadaPagada;
+                proyeccionMesadaSMLMV = summaryData?.mesadaPensional || mesadaPagada;
+                proyeccionMesadaIPC = summaryData?.mesadaPensional || mesadaPagada;
             } else {
-                proyeccionMesadaSMLMV = proyeccionSMLMVAnterior * (1 + reajusteSMLMV / 100);
+                const reajusteMayor = Math.max(reajusteSMLMV, reajusteIPC);
+                proyeccionMesadaSMLMV = proyeccionSMLMVAnterior * (1 + reajusteMayor / 100);
                 proyeccionMesadaIPC = proyeccionIPCAnterior * (1 + reajusteIPC / 100);
             }
             proyeccionSMLMVAnterior = proyeccionMesadaSMLMV;
@@ -220,7 +222,7 @@ export default function EvolucionMesadaPage() {
                 totalDiferenciasRetroactivas,
             };
         });
-    }, [getFirstPensionInYear]);
+    }, [getFirstPensionInYear, summaryData]);
     
     const renderTable = (data: EvolucionData[], title: string) => (
         <Card>
@@ -335,5 +337,3 @@ export default function EvolucionMesadaPage() {
         </div>
     );
 }
-
-    
