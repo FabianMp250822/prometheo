@@ -166,7 +166,7 @@ export default function EvolucionMesadaPage() {
 
     const tablaData = useMemo((): EvolucionData[] => {
         const firstPensionYear = Object.keys(datosConsolidados).map(Number).find(year => getFirstPensionInYear(year) > 0);
-        if (!firstPensionYear) return [];
+        if (!firstPensionYear || !summaryData) return [];
 
         const endYear = new Date().getFullYear();
         const years = Object.keys(datosConsolidados)
@@ -180,7 +180,7 @@ export default function EvolucionMesadaPage() {
         return years.map((year, index) => {
             const smlmv = datosConsolidados[year]?.smlmv || 0;
             const reajusteSMLMV = datosConsolidados[year]?.reajusteSMLMV || 0;
-            const reajusteIPC = datosConsolidados[year]?.ipc || 0;
+            const reajusteIPC = datosConsolidados[year - 1]?.ipc || 0;
 
             const mesadaPagada = getFirstPensionInYear(year);
 
@@ -191,9 +191,9 @@ export default function EvolucionMesadaPage() {
                  proyeccionMesadaSMLMV = summaryData?.mesadaPensional || 0;
                  proyeccionMesadaIPC = summaryData?.mesadaPensional || 0;
             } else {
-                const reajusteMayor = Math.max(reajusteSMLMV, datosConsolidados[year - 1]?.ipc || 0);
+                const reajusteMayor = Math.max(reajusteSMLMV, reajusteIPC);
                 proyeccionMesadaSMLMV = proyeccionSMLMVAnterior * (1 + reajusteMayor / 100);
-                proyeccionMesadaIPC = proyeccionIPCAnterior * (1 + (datosConsolidados[year]?.ipc || 0) / 100);
+                proyeccionMesadaIPC = proyeccionIPCAnterior * (1 + reajusteIPC / 100);
             }
             proyeccionSMLMVAnterior = proyeccionMesadaSMLMV > 0 ? proyeccionMesadaSMLMV : mesadaPagada;
             proyeccionIPCAnterior = proyeccionMesadaIPC > 0 ? proyeccionMesadaIPC : mesadaPagada;
@@ -339,8 +339,8 @@ export default function EvolucionMesadaPage() {
                         </Card>
                     )}
 
-                   {renderTable(tablaData.filter(d => d.año <= 2024), "Liquidación Antes de Compartir")}
-                   {renderTable(tablaData.filter(d => d.año > 2024), "Liquidación Después de Compartir")}
+                   {renderTable(tablaData.filter(d => d.año <= 2024), "Liquidación Antes de Compartir (Ejemplo hasta 2014)")}
+                   {renderTable(tablaData.filter(d => d.año > 2024), "Liquidación Después de Compartir (Ejemplo desde 2015)")}
                 </div>
             )}
         </div>
