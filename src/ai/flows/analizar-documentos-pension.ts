@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Extracts structured pension and legal data from a set of documents.
@@ -85,7 +86,7 @@ const prompt = ai.definePrompt({
 
     The documents are provided below:
     {{#each documentos}}
-    - Document {{index + 1}}: {{media url=this}}
+    - Document {{@index}}: {{media url=this}}
     {{/each}}
 
     **Analysis Instructions:**
