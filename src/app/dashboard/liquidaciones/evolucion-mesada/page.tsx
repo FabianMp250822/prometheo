@@ -25,6 +25,7 @@ interface EvolucionData {
     perdidaSmlmv: number;
     mesadaPagada: number;
     diferenciaMesadas: number;
+    numMesadas: number;
     totalDiferenciasRetroactivas: number;
 }
 
@@ -73,7 +74,7 @@ export default function EvolucionMesadaPage() {
         const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
 
         if (paymentsInYear.length > 0) {
-            const sortedByDate = paymentsInYear.sort((a, b) => {
+             const sortedByDate = paymentsInYear.sort((a, b) => {
                 const dateA = parsePeriodoPago(a.periodoPago)?.startDate ?? new Date(9999, 1, 1);
                 const dateB = parsePeriodoPago(b.periodoPago)?.startDate ?? new Date(9999, 1, 1);
                 return dateA.getTime() - dateB.getTime();
@@ -187,21 +188,22 @@ export default function EvolucionMesadaPage() {
             let proyeccionMesadaIPC = 0;
             
             if (index === 0) {
-                 proyeccionMesadaSMLMV = mesadaPagada > 0 ? mesadaPagada : (summaryData?.mesadaPensional || 0);
-                 proyeccionMesadaIPC = mesadaPagada > 0 ? mesadaPagada : (summaryData?.mesadaPensional || 0);
+                 proyeccionMesadaSMLMV = summaryData?.mesadaPensional || 0;
+                 proyeccionMesadaIPC = summaryData?.mesadaPensional || 0;
             } else {
                 const reajusteMayor = Math.max(reajusteSMLMV, datosConsolidados[year - 1]?.ipc || 0);
                 proyeccionMesadaSMLMV = proyeccionSMLMVAnterior * (1 + reajusteMayor / 100);
-                proyeccionMesadaIPC = proyeccionIPCAnterior * (1 + (datosConsolidados[year -1]?.ipc || 0) / 100);
+                proyeccionMesadaIPC = proyeccionIPCAnterior * (1 + (datosConsolidados[year]?.ipc || 0) / 100);
             }
-            proyeccionSMLMVAnterior = proyeccionMesadaSMLMV;
-            proyeccionIPCAnterior = proyeccionMesadaIPC;
+            proyeccionSMLMVAnterior = proyeccionMesadaSMLMV > 0 ? proyeccionMesadaSMLMV : mesadaPagada;
+            proyeccionIPCAnterior = proyeccionMesadaIPC > 0 ? proyeccionMesadaIPC : mesadaPagada;
 
             const numSmlmvSMLMV = smlmv > 0 ? proyeccionMesadaSMLMV / smlmv : 0;
             const numSmlmvIPC = smlmv > 0 ? proyeccionMesadaIPC / smlmv : 0;
             const perdidaPorcentual = proyeccionMesadaSMLMV > 0 ? (1 - (proyeccionMesadaIPC / proyeccionMesadaSMLMV)) * 100 : 0;
             const perdidaSmlmv = numSmlmvSMLMV - numSmlmvIPC;
-            const diferenciaMesadas = proyeccionMesadaSMLMV - mesadaPagada;
+            
+            const diferenciaMesadas = Math.max(0, proyeccionMesadaSMLMV - mesadaPagada);
             
             const numMesadas = 14; 
             const totalDiferenciasRetroactivas = diferenciaMesadas * numMesadas;
@@ -219,6 +221,7 @@ export default function EvolucionMesadaPage() {
                 perdidaSmlmv,
                 mesadaPagada,
                 diferenciaMesadas,
+                numMesadas,
                 totalDiferenciasRetroactivas,
             };
         });
@@ -243,6 +246,7 @@ export default function EvolucionMesadaPage() {
                             <TableHead>Pérdida en smlmv EN Proyección IPCs</TableHead>
                             <TableHead>Mesada Pagada por Fiduprevisora reajuste con IPCs</TableHead>
                             <TableHead>Diferencias de Mesadas</TableHead>
+                             <TableHead># de Mesadas</TableHead>
                             <TableHead>Total Diferencias Retroactivas</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -261,11 +265,12 @@ export default function EvolucionMesadaPage() {
                                 <TableCell>{row.perdidaSmlmv.toFixed(2)}</TableCell>
                                 <TableCell>{formatCurrency(row.mesadaPagada)}</TableCell>
                                 <TableCell>{formatCurrency(row.diferenciaMesadas)}</TableCell>
+                                <TableCell>{row.numMesadas}</TableCell>
                                 <TableCell>{formatCurrency(row.totalDiferenciasRetroactivas)}</TableCell>
                             </TableRow>
                         ))}
                          <TableRow className="font-bold bg-muted">
-                            <TableCell colSpan={12} className="text-right">TOTAL GENERAL RETROACTIVAS</TableCell>
+                            <TableCell colSpan={13} className="text-right">TOTAL GENERAL RETROACTIVAS</TableCell>
                             <TableCell className="text-right font-bold">{formatCurrency(data.reduce((sum, row) => sum + row.totalDiferenciasRetroactivas, 0))}</TableCell>
                         </TableRow>
                     </TableBody>
