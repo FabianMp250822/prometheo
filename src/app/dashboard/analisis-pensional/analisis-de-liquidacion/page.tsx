@@ -7,11 +7,8 @@ import { Button } from '@/components/ui/button';
 import { useDropzone } from 'react-dropzone';
 import { FileUp, Loader2, Sparkles, AlertTriangle, FileText, CheckCircle, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { usePensioner } from '@/context/pensioner-provider';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { type AnalizarDocumentosPensionOutput, analizarDocumentosPension } from '@/ai/flows/analizar-documentos-pension';
-import { db } from '@/lib/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const MAX_FILES = 5;
 
@@ -58,10 +55,8 @@ const ResultTable = ({ data }: { data: any }) => {
 
 export default function AnalisisLiquidacionPage() {
     const { toast } = useToast();
-    const { selectedPensioner } = usePensioner();
     const [files, setFiles] = useState<File[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
     const [analysisResult, setAnalysisResult] = useState<AnalizarDocumentosPensionOutput | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -91,11 +86,7 @@ export default function AnalisisLiquidacionPage() {
             toast({ variant: 'destructive', title: 'Error', description: 'Por favor, suba al menos un documento.' });
             return;
         }
-        if (!selectedPensioner) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Debe seleccionar un pensionado antes de analizar.' });
-            return;
-        }
-
+        
         setIsAnalyzing(true);
         setError(null);
         setAnalysisResult(null);
@@ -114,27 +105,6 @@ export default function AnalisisLiquidacionPage() {
         }
     };
     
-    const handleSaveChanges = async () => {
-        if (!analysisResult || !selectedPensioner) {
-             toast({ variant: 'destructive', title: 'Error', description: 'No hay análisis para guardar o no se ha seleccionado un pensionado.' });
-            return;
-        }
-        setIsSaving(true);
-        try {
-            const docRef = doc(db, 'pensionados', selectedPensioner.id, 'analisisPensional', `analisis_${Date.now()}`);
-            await setDoc(docRef, {
-                ...analysisResult,
-                createdAt: serverTimestamp(),
-                documentNames: files.map(f => f.name),
-            });
-            toast({ title: "Guardado Exitoso", description: "El resultado del análisis ha sido guardado en el perfil del pensionado." });
-        } catch (err: any) {
-             toast({ variant: 'destructive', title: 'Error al Guardar', description: err.message });
-        } finally {
-            setIsSaving(false);
-        }
-    }
-
 
     return (
         <div className="p-4 md:p-8 space-y-6">
@@ -187,12 +157,8 @@ export default function AnalisisLiquidacionPage() {
                     <CardHeader className="flex flex-row justify-between items-start">
                         <div>
                             <CardTitle className="flex items-center gap-2"><CheckCircle className="h-6 w-6 text-green-600" /> Resultados del Análisis</CardTitle>
-                            <CardDescription>Revise los datos extraídos por la IA y guárdelos si son correctos.</CardDescription>
+                            <CardDescription>Revise los datos extraídos por la IA.</CardDescription>
                         </div>
-                         <Button onClick={handleSaveChanges} disabled={isSaving}>
-                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                            Guardar Análisis
-                        </Button>
                     </CardHeader>
                     <CardContent>
                         <ResultTable data={analysisResult} />
@@ -202,4 +168,3 @@ export default function AnalisisLiquidacionPage() {
         </div>
     );
 }
-
