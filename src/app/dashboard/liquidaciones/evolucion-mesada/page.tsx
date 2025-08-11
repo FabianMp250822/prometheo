@@ -328,8 +328,8 @@ export default function EvolucionMesadaPage() {
                         </Card>
                     )}
 
-                   {renderTable(tablaData.filter(d => d.año <= 2014), "Liquidación Antes de Compartir (Ejemplo hasta 2014)")}
-                   {renderTable(tablaData.filter(d => d.año > 2014), "Liquidación Después de Compartir (Ejemplo desde 2015)")}
+                   {renderTable(tablaData.filter(d => d.año <= 2014), "Liquidación Antes de Compartir")}
+                   {renderTable(tablaData.filter(d => d.año > 2014), "Liquidación Después de Compartir")}
                 </div>
             )}
         </div>
