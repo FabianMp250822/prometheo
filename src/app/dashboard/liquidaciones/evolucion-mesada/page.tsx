@@ -280,7 +280,7 @@ export default function EvolucionMesadaPage() {
                     </CardTitle>
                     <CardDescription>
                         Análisis de la evolución de la mesada pensional comparando reajustes por SMLMV vs. IPC.
-                         {selectedPensioner && <span className="block mt-1 font-semibold text-primary">Pensionado: {parseEmployeeName(selectedPensioner.empleado)}</span>}
+                         {selectedPensioner && <span className="block mt-1 font-semibold text-primary">{parseEmployeeName(selectedPensioner.empleado)}</span>}
                     </CardDescription>
                 </CardHeader>
             </Card>
