@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-provider';
 import { auth, db } from '@/lib/firebase';
 import { SidebarProvider, Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarFooter, SidebarSeparator, SidebarMenuSub, SidebarMenuSubButton, SidebarMenuSubItem } from '@/components/ui/sidebar';
-import { Scale, LayoutGrid, TrendingUp, Banknote, BarChart2, Settings, LogOut, User as UserIcon, Gavel, Database, FileUp, FileClock, BookUser, UserSquare, CalendarClock, ListTodo, CalendarPlus, CalendarSearch, Percent, Calculator, Ribbon, Wallet, Receipt, History, PlusCircle, UserCog, BarChartHorizontal, FileText, UserPlus, UserMinus, Landmark, BellRing, Network, Search as SearchIcon, ShieldQuestion, Users as UsersIcon, MailCheck } from 'lucide-react';
+import { Scale, LayoutGrid, TrendingUp, Banknote, BarChart2, Settings, LogOut, User as UserIcon, Gavel, Database, FileUp, FileClock, BookUser, UserSquare, CalendarClock, ListTodo, CalendarPlus, CalendarSearch, Percent, Calculator, Ribbon, Wallet, Receipt, History, PlusCircle, UserCog, BarChartHorizontal, FileText, UserPlus, UserMinus, Landmark, BellRing, Network, Search as SearchIcon, ShieldQuestion, Users as UsersIcon, MailCheck, FlaskConical, TestTubeDiagonal } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -241,6 +241,31 @@ export default function DashboardLayout({
                     </SidebarMenuSub>
                   </CollapsibleContent>
                 </Collapsible>
+              </SidebarMenuItem>
+               <SidebarMenuItem>
+                  <Collapsible>
+                    <CollapsibleTrigger asChild>
+                       <SidebarMenuButton tooltip="Análisis Pensional" className="w-full justify-between">
+                         <div className="flex items-center gap-2">
+                          <FlaskConical />
+                          <span className="group-data-[collapsible=icon]:hidden">Análisis Pensional</span>
+                        </div>
+                        <ChevronDown className="h-4 w-4 group-data-[collapsible=icon]:hidden group-data-[state=open]:rotate-180 transition-transform" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                       <SidebarMenuSub>
+                          <SidebarMenuSubItem>
+                             <SidebarMenuSubButton asChild>
+                              <Link href="/dashboard/analisis-pensional/analisis-de-liquidacion">
+                                <TestTubeDiagonal />
+                                <span>Análisis de Liquidación</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                       </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </Collapsible>
               </SidebarMenuItem>
                <SidebarMenuItem>
                   <Collapsible>
@@ -483,5 +508,3 @@ export default function DashboardLayout({
     </SidebarProvider>
   )
 }
-
-    
