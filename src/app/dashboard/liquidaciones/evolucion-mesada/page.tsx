@@ -27,6 +27,7 @@ interface EvolucionData {
     diferenciaMesadas: number;
     numMesadas: number;
     totalDiferenciasRetroactivas: number;
+    pensionVejez?: number; // Add this to handle post-sharing values
 }
 
 
@@ -35,11 +36,13 @@ export default function EvolucionMesadaPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [payments, setPayments] = useState<Payment[]>([]);
     const [historicalPayments, setHistoricalPayments] = useState<PagosHistoricoRecord[]>([]);
+    const [causanteRecords, setCausanteRecords] = useState<CausanteRecord[]>([]);
 
     const fetchAllData = useCallback(async () => {
         if (!selectedPensioner) {
             setPayments([]);
             setHistoricalPayments([]);
+            setCausanteRecords([]);
             return;
         }
         setIsLoading(true);
@@ -59,6 +62,15 @@ export default function EvolucionMesadaPage() {
             } else {
                 setHistoricalPayments([]);
             }
+
+            const causanteQuery = query(collection(db, 'causante'), where('cedula_causante', '==', selectedPensioner.documento));
+            const causanteSnapshot = await getDocs(causanteQuery);
+            if (!causanteSnapshot.empty && causanteSnapshot.docs[0].data()?.records) {
+                setCausanteRecords(causanteSnapshot.docs[0].data().records as CausanteRecord[]);
+            } else {
+                 setCausanteRecords([]);
+            }
+
         } catch (error) {
             console.error("Error fetching data:", error);
         } finally {
@@ -74,7 +86,7 @@ export default function EvolucionMesadaPage() {
         const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
 
         if (paymentsInYear.length > 0) {
-             const sortedByDate = paymentsInYear.sort((a, b) => {
+            const sortedByDate = paymentsInYear.sort((a, b) => {
                 const dateA = parsePeriodoPago(a.periodoPago)?.startDate ?? new Date(9999, 1, 1);
                 const dateB = parsePeriodoPago(b.periodoPago)?.startDate ?? new Date(9999, 1, 1);
                 return dateA.getTime() - dateB.getTime();
@@ -82,14 +94,14 @@ export default function EvolucionMesadaPage() {
 
             const firstPaymentDate = parsePeriodoPago(sortedByDate[0].periodoPago)?.startDate;
             if (!firstPaymentDate) return 0;
-            
+
             const firstMonth = firstPaymentDate.getMonth();
 
             const paymentsInFirstMonth = sortedByDate.filter(p => {
                 const pDate = parsePeriodoPago(p.periodoPago)?.startDate;
                 return pDate?.getMonth() === firstMonth;
             });
-            
+
             return paymentsInFirstMonth.reduce((totalMesada, payment) => {
                 const mesadaDetail = payment.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
                 return totalMesada + (mesadaDetail?.ingresos || 0);
@@ -101,10 +113,16 @@ export default function EvolucionMesadaPage() {
             const valorAnt = parseFloat(historicalRecord.VALOR_ANT!.replace(/,/g, ''));
             if (!isNaN(valorAnt)) return valorAnt;
         }
+        
+        const causanteRecordForYear = causanteRecords.find(rec => rec.fecha_desde && new Date(formatFirebaseTimestamp(rec.fecha_desde, 'yyyy-MM-dd')).getFullYear() === year);
+        if(causanteRecordForYear?.valor_empresa) {
+            return causanteRecordForYear.valor_empresa;
+        }
+
 
         return 0;
-    }, [payments, historicalPayments]);
-    
+    }, [payments, historicalPayments, causanteRecords]);
+
     const getMonthlyPensionForYearAndMonth = useCallback((year: number, month: number): number => {
         const paymentsInMonth = payments.filter(p => {
             const pDate = parsePeriodoPago(p.periodoPago)?.startDate;
@@ -162,11 +180,24 @@ export default function EvolucionMesadaPage() {
         };
 
     }, [getFirstPensionInYear, getMonthlyPensionForYearAndMonth, payments, historicalPayments]);
+    
+    const sharingDateInfo = useMemo(() => {
+        if (!causanteRecords || causanteRecords.length === 0) return null;
+        const issRecord = causanteRecords.find(r => r.tipo_aum === 'ISS' && r.fecha_desde);
+        if (!issRecord) return null;
+        
+        const sharingDate = new Date(formatFirebaseTimestamp(issRecord.fecha_desde, 'yyyy-MM-dd'));
+        return {
+            date: sharingDate,
+            year: sharingDate.getFullYear(),
+            month: sharingDate.getMonth() + 1
+        };
+    }, [causanteRecords]);
 
 
-    const tablaData = useMemo((): EvolucionData[] => {
+    const { tablaAntes, tablaDespues } = useMemo(() => {
         const firstPensionYear = Object.keys(datosConsolidados).map(Number).find(year => getFirstPensionInYear(year) > 0);
-        if (!firstPensionYear || !summaryData) return [];
+        if (!firstPensionYear || !summaryData) return { tablaAntes: [], tablaDespues: [] };
 
         const endYear = new Date().getFullYear();
         const years = Object.keys(datosConsolidados)
@@ -176,11 +207,12 @@ export default function EvolucionMesadaPage() {
 
         let proyeccionSMLMVAnterior = 0;
         let proyeccionIPCAnterior = 0;
+        let mesadaPlenaComparticion = 0;
 
-        return years.map((year, index) => {
+        const allData = years.map((year, index) => {
             const smlmv = datosConsolidados[year]?.smlmv || 0;
             const reajusteSMLMV = datosConsolidados[year]?.reajusteSMLMV || 0;
-            const reajusteIPC = datosConsolidados[year - 1]?.ipc || 0;
+            const reajusteIPC = datosConsolidados[year]?.ipc || 0;
 
             const mesadaPagada = getFirstPensionInYear(year);
 
@@ -205,27 +237,44 @@ export default function EvolucionMesadaPage() {
             
             const diferenciaMesadas = Math.max(0, proyeccionMesadaSMLMV - mesadaPagada);
             
-            const numMesadas = 14; 
+            let numMesadas = 14; 
+            if(sharingDateInfo && year === sharingDateInfo.year) {
+                numMesadas = sharingDateInfo.month - 1;
+                mesadaPlenaComparticion = proyeccionMesadaSMLMV;
+            }
+
             const totalDiferenciasRetroactivas = diferenciaMesadas * numMesadas;
+            
+            let pensionVejez = 0;
+            if(sharingDateInfo && year >= sharingDateInfo.year){
+                const causanteRecord = causanteRecords.find(r => r.fecha_desde && new Date(formatFirebaseTimestamp(r.fecha_desde, 'yyyy-MM-dd')).getFullYear() === year);
+                pensionVejez = causanteRecord?.valor_iss || 0;
+            }
+
 
             return {
-                año: year,
-                smlmv,
-                reajusteSMLMV,
-                proyeccionMesadaSMLMV,
-                numSmlmvSMLMV,
-                reajusteIPC,
-                proyeccionMesadaIPC,
-                numSmlmvIPC,
-                perdidaPorcentual,
-                perdidaSmlmv,
-                mesadaPagada,
-                diferenciaMesadas,
-                numMesadas,
-                totalDiferenciasRetroactivas,
+                año: year, smlmv, reajusteSMLMV, proyeccionMesadaSMLMV, numSmlmvSMLMV, reajusteIPC,
+                proyeccionMesadaIPC, numSmlmvIPC, perdidaPorcentual, perdidaSmlmv, mesadaPagada,
+                diferenciaMesadas, numMesadas, totalDiferenciasRetroactivas, pensionVejez
             };
         });
-    }, [getFirstPensionInYear, summaryData]);
+        
+        const tablaAntes = sharingDateInfo ? allData.filter(d => d.año < sharingDateInfo.year) : allData;
+        const tablaDespues = sharingDateInfo ? allData.filter(d => d.año >= sharingDateInfo.year) : [];
+        
+        // Adjust "diferencia" and "retroactivo" for post-sharing period
+        if (sharingDateInfo && tablaDespues.length > 0) {
+            const porcentajeEmpresa = 1 - ((tablaDespues[0].pensionVejez || 0) / mesadaPlenaComparticion);
+            
+            tablaDespues.forEach(row => {
+                const mesadaProyectadaEmpresa = row.proyeccionMesadaSMLMV * porcentajeEmpresa;
+                row.diferenciaMesadas = Math.max(0, mesadaProyectadaEmpresa - row.mesadaPagada);
+                row.totalDiferenciasRetroactivas = row.diferenciaMesadas * 14;
+            })
+        }
+
+        return { tablaAntes, tablaDespues };
+    }, [getFirstPensionInYear, summaryData, sharingDateInfo, causanteRecords]);
     
     const renderTable = (data: EvolucionData[], title: string) => (
         <Card>
@@ -237,17 +286,17 @@ export default function EvolucionMesadaPage() {
                             <TableHead>Año</TableHead>
                             <TableHead>SMLMV</TableHead>
                             <TableHead>Reajuste en % SMLMV</TableHead>
-                            <TableHead>Proyeccion de Mesada Fiduprevisora con % SMLMV</TableHead>
-                            <TableHead># de SMLMV (En el Reajuste x SMLMV)</TableHead>
+                            <TableHead>Proyeccion de Mesada</TableHead>
+                            <TableHead># de SMLMV</TableHead>
                             <TableHead>Reajuste en % IPCs</TableHead>
-                            <TableHead>Proyección de Mesada Fiduprevisora reajuste con IPCs</TableHead>
-                            <TableHead># de SMLMV (En el Reajuste x IPC)</TableHead>
-                            <TableHead>Pérdida Porcentual en Proyección IPCs</TableHead>
-                            <TableHead>Pérdida en smlmv EN Proyección IPCs</TableHead>
-                            <TableHead>Mesada Pagada por Fiduprevisora reajuste con IPCs</TableHead>
-                            <TableHead>Diferencias de Mesadas</TableHead>
-                             <TableHead># de Mesadas</TableHead>
-                            <TableHead>Total Diferencias Retroactivas</TableHead>
+                            <TableHead>Proyección Mesada (IPC)</TableHead>
+                            <TableHead># de SMLMV (IPC)</TableHead>
+                            <TableHead>Pérdida %</TableHead>
+                            <TableHead>Pérdida SMLMV</TableHead>
+                            <TableHead>Mesada Pagada</TableHead>
+                            <TableHead>Diferencias</TableHead>
+                            <TableHead># Mesadas</TableHead>
+                            <TableHead>Total Retroactivas</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -266,7 +315,7 @@ export default function EvolucionMesadaPage() {
                                 <TableCell>{formatCurrency(row.mesadaPagada)}</TableCell>
                                 <TableCell>{formatCurrency(row.diferenciaMesadas)}</TableCell>
                                 <TableCell>{row.numMesadas}</TableCell>
-                                <TableCell>{formatCurrency(row.totalDiferenciasRetroactivas)}</TableCell>
+                                <TableCell className="font-bold">{formatCurrency(row.totalDiferenciasRetroactivas)}</TableCell>
                             </TableRow>
                         ))}
                          <TableRow className="font-bold bg-muted">
@@ -339,8 +388,8 @@ export default function EvolucionMesadaPage() {
                         </Card>
                     )}
 
-                   {renderTable(tablaData.filter(d => d.año <= 2024), "Liquidación Antes de Compartir (Ejemplo hasta 2014)")}
-                   {renderTable(tablaData.filter(d => d.año > 2024), "Liquidación Después de Compartir (Ejemplo desde 2015)")}
+                   {renderTable(tablaAntes, "Liquidación Antes de Compartir")}
+                   {renderTable(tablaDespues, "Liquidación Después de Compartir")}
                 </div>
             )}
         </div>
