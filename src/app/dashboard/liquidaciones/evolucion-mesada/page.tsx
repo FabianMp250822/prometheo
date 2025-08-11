@@ -179,7 +179,7 @@ export default function EvolucionMesadaPage() {
         return years.map((year, index) => {
             const smlmv = datosConsolidados[year]?.smlmv || 0;
             const reajusteSMLMV = datosConsolidados[year]?.reajusteSMLMV || 0;
-            const reajusteIPC = datosConsolidados[year - 1]?.ipc || 0;
+            const reajusteIPC = datosConsolidados[year]?.ipc || 0;
 
             const mesadaPagada = getFirstPensionInYear(year);
 
@@ -187,12 +187,12 @@ export default function EvolucionMesadaPage() {
             let proyeccionMesadaIPC = 0;
             
             if (index === 0) {
-                proyeccionMesadaSMLMV = summaryData?.mesadaPensional || mesadaPagada;
-                proyeccionMesadaIPC = summaryData?.mesadaPensional || mesadaPagada;
+                 proyeccionMesadaSMLMV = mesadaPagada > 0 ? mesadaPagada : (summaryData?.mesadaPensional || 0);
+                 proyeccionMesadaIPC = mesadaPagada > 0 ? mesadaPagada : (summaryData?.mesadaPensional || 0);
             } else {
-                const reajusteMayor = Math.max(reajusteSMLMV, reajusteIPC);
+                const reajusteMayor = Math.max(reajusteSMLMV, datosConsolidados[year - 1]?.ipc || 0);
                 proyeccionMesadaSMLMV = proyeccionSMLMVAnterior * (1 + reajusteMayor / 100);
-                proyeccionMesadaIPC = proyeccionIPCAnterior * (1 + reajusteIPC / 100);
+                proyeccionMesadaIPC = proyeccionIPCAnterior * (1 + (datosConsolidados[year -1]?.ipc || 0) / 100);
             }
             proyeccionSMLMVAnterior = proyeccionMesadaSMLMV;
             proyeccionIPCAnterior = proyeccionMesadaIPC;
@@ -264,6 +264,10 @@ export default function EvolucionMesadaPage() {
                                 <TableCell>{formatCurrency(row.totalDiferenciasRetroactivas)}</TableCell>
                             </TableRow>
                         ))}
+                         <TableRow className="font-bold bg-muted">
+                            <TableCell colSpan={12} className="text-right">TOTAL GENERAL RETROACTIVAS</TableCell>
+                            <TableCell className="text-right font-bold">{formatCurrency(data.reduce((sum, row) => sum + row.totalDiferenciasRetroactivas, 0))}</TableCell>
+                        </TableRow>
                     </TableBody>
                 </Table>
             </CardContent>
@@ -330,8 +334,8 @@ export default function EvolucionMesadaPage() {
                         </Card>
                     )}
 
-                   {renderTable(tablaData.filter(d => d.año <= 2014), "Liquidación Antes de Compartir")}
-                   {renderTable(tablaData.filter(d => d.año > 2014), "Liquidación Después de Compartir")}
+                   {renderTable(tablaData.filter(d => d.año <= 2024), "Liquidación Antes de Compartir")}
+                   {renderTable(tablaData.filter(d => d.año > 2024), "Liquidación Después de Compartir")}
                 </div>
             )}
         </div>
