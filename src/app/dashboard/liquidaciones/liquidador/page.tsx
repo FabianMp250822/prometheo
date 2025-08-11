@@ -3,7 +3,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calculator, Scale, FileText, Percent, ArrowRight, BarChart3 } from 'lucide-react';
+import { Calculator, Scale, FileText, Percent, ArrowRight, BarChart3, FlaskConical } from 'lucide-react';
 import Link from 'next/link';
 
 const liquidationTypes = [
@@ -42,6 +42,12 @@ const liquidationTypes = [
         description: 'Visualiza la evolución y el comportamiento de la mesada pensional a lo largo del tiempo.',
         icon: <BarChart3 className="h-8 w-8 text-primary" />,
         href: '/dashboard/liquidaciones/evolucion-mesada'
+    },
+    {
+        title: 'Simulador de Liquidación',
+        description: 'Crea escenarios y proyecciones de liquidación con diferentes variables.',
+        icon: <FlaskConical className="h-8 w-8 text-primary" />,
+        href: '/dashboard/liquidaciones/simulador'
     },
 ];
 
