@@ -124,13 +124,10 @@ export default function AnexoLey4Page() {
     
     const sharingDateInfo = useMemo(() => {
         if (!causanteRecords || causanteRecords.length === 0) return null;
-        const sortedRecords = [...causanteRecords]
-            .filter(r => r.fecha_desde)
-            .sort((a, b) => formatFirebaseTimestamp(a.fecha_desde!, 't') - formatFirebaseTimestamp(b.fecha_desde!, 't'));
-
-        if (sortedRecords.length === 0) return null;
+        const issRecord = causanteRecords.find(r => r.tipo_aum === 'ISS' && r.fecha_desde);
+        if (!issRecord) return null;
         
-        const sharingDate = new Date(formatFirebaseTimestamp(sortedRecords[0].fecha_desde, 'yyyy-MM-dd'));
+        const sharingDate = new Date(formatFirebaseTimestamp(issRecord.fecha_desde, 'yyyy-MM-dd'));
         return {
             date: sharingDate,
             year: sharingDate.getFullYear(),
@@ -145,32 +142,23 @@ export default function AnexoLey4Page() {
             const paymentsInYear = payments.filter(p => parseInt(p.año, 10) === year);
         
             if (sharingDateInfo && year === sharingDateInfo.year) {
-                const paymentsInSharingYear = payments.filter(p => {
+                // Count only up to the month before sharing
+                const paymentsBeforeSharing = payments.filter(p => {
                     const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
-                    return paymentDate && paymentDate.getFullYear() === year && (paymentDate.getMonth() + 1) <= sharingDateInfo.month;
+                    return paymentDate && paymentDate.getFullYear() === year && (paymentDate.getMonth() + 1) < sharingDateInfo.month;
                 });
                 
-                return paymentsInSharingYear.reduce((count, p) => {
-                    const hasMesada = p.detalles.some(detail =>
-                        (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional'))
-                    );
-                     const hasMesada14 = p.detalles.some(detail =>
-                        (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) ||
-                        (detail.nombre === '285-Mesada Adicional')
-                    );
+                return paymentsBeforeSharing.reduce((count, p) => {
+                    const hasMesada = p.detalles.some(detail => (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional')));
+                    const hasMesada14 = p.detalles.some(detail => (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) || (detail.nombre === '285-Mesada Adicional'));
                     return count + (hasMesada ? 1 : 0) + (hasMesada14 ? 1 : 0);
                 }, 0);
             }
         
             if (paymentsInYear.length > 0) {
                  return paymentsInYear.reduce((count, p) => {
-                     const hasMesada = p.detalles.some(detail =>
-                        (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional'))
-                    );
-                     const hasMesada14 = p.detalles.some(detail =>
-                        (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) ||
-                        (detail.nombre === '285-Mesada Adicional')
-                    );
+                     const hasMesada = p.detalles.some(detail => (detail.codigo === 'MESAD' || detail.nombre?.includes('Mesada Pensional')));
+                     const hasMesada14 = p.detalles.some(detail => (detail.codigo === 'MESAD14' || detail.nombre?.includes('Mesada Adicional 14_Junio')) || (detail.nombre === '285-Mesada Adicional'));
                     return count + (hasMesada ? 1 : 0) + (hasMesada14 ? 1 : 0);
                 }, 0);
             }
@@ -268,10 +256,7 @@ export default function AnexoLey4Page() {
         const lastRowTabla1 = tabla1Data[tabla1Data.length - 1];
         if (!lastRowTabla1) return null;
 
-        const initialSharingRecord = [...causanteRecords]
-            .filter(r => r.fecha_desde)
-            .sort((a,b) => formatFirebaseTimestamp(a.fecha_desde!, 't') - formatFirebaseTimestamp(b.fecha_desde!, 't'))[0];
-
+        const initialSharingRecord = causanteRecords.find(r => r.tipo_aum === 'ISS' && r.fecha_desde);
         if (!initialSharingRecord) return null;
 
         const mesadaColpensiones = initialSharingRecord.valor_iss || 0;
@@ -282,9 +267,7 @@ export default function AnexoLey4Page() {
         const porcentajeColpensiones = mesadaPlena > 0 ? (mesadaColpensiones / mesadaPlena) * 100 : 0;
         const porcentajeEmpresa = mesadaPlena > 0 ? (mayorValorEmpresa / mesadaPlena) * 100 : 0;
 
-        const sharingDate = initialSharingRecord.fecha_desde
-            ? formatFirebaseTimestamp(initialSharingRecord.fecha_desde, 'dd/MM/yyyy')
-            : 'N/A';
+        const sharingDate = formatFirebaseTimestamp(initialSharingRecord.fecha_desde, 'dd/MM/yyyy');
             
         const totalSmlmvPlena = lastRowTabla1.numSmlmvMesadaPlena;
         const smlmvEmpresa = totalSmlmvPlena * (porcentajeEmpresa / 100);
@@ -325,24 +308,13 @@ export default function AnexoLey4Page() {
             }
             proyeccionAnterior = proyeccionMesada;
 
-            let mesadaPagada = 0;
-            if (year === sharingDateInfo.year) {
-                const firstPaymentAfterSharing = payments.find(p => {
-                    const paymentDate = parsePeriodoPago(p.periodoPago)?.startDate;
-                    return paymentDate && paymentDate.getFullYear() === year && (paymentDate.getMonth() + 1) > sharingDateInfo.month;
-                });
-                if (firstPaymentAfterSharing) {
-                    const mesadaDetail = firstPaymentAfterSharing.detalles.find(d => d.nombre?.includes('Mesada Pensional') || d.codigo === 'MESAD');
-                    mesadaPagada = mesadaDetail?.ingresos || 0;
-                }
-            } else {
-                const causanteRecordForYear = causanteRecords.find(r => r.fecha_desde && new Date(formatFirebaseTimestamp(r.fecha_desde, 'yyyy-MM-dd')).getFullYear() === year);
-                mesadaPagada = (causanteRecordForYear?.valor_empresa || 0) + (causanteRecordForYear?.valor_iss || 0);
-            }
+            const causanteRecordForYear = causanteRecords.find(r => r.fecha_desde && new Date(formatFirebaseTimestamp(r.fecha_desde, 'yyyy-MM-dd')).getFullYear() === year);
+            const mesadaPagadaEmpresa = causanteRecordForYear?.valor_empresa || 0;
 
             const numSmlmvProyectado = sharingData.smlmvEmpresa;
-            const numSmlmvPagado = smlmv > 0 ? mesadaPagada / smlmv : 0;
-            const diferencia = proyeccionMesada > 0 ? proyeccionMesada - mesadaPagada : 0;
+            const numSmlmvPagado = smlmv > 0 ? mesadaPagadaEmpresa / smlmv : 0;
+            
+            const diferencia = (proyeccionMesada * (sharingData.porcentajeEmpresa / 100)) - mesadaPagadaEmpresa;
             const numMesadas = year === sharingDateInfo.year ? (14 - sharingDateInfo.month) : 14;
             const totalRetroactivas = diferencia > 0 ? diferencia * numMesadas : 0;
 
@@ -350,10 +322,10 @@ export default function AnexoLey4Page() {
                 año: year,
                 smlmv,
                 reajusteSMLMV,
-                proyeccionMesada,
+                proyeccionMesada: proyeccionMesada * (sharingData.porcentajeEmpresa / 100),
                 numSmlmvProyectado,
                 reajusteIPC,
-                mesadaPagada,
+                mesadaPagada: mesadaPagadaEmpresa,
                 numSmlmvPagado,
                 diferencia,
                 numMesadas,
@@ -419,7 +391,7 @@ export default function AnexoLey4Page() {
                 <>
                  <Card>
                     <CardHeader>
-                        <CardTitle>1. Reajuste de Mesada a Cargo de la Empresa (Antes de Compartir)</CardTitle>
+                        <CardTitle>1. Reajuste de Mesada (Antes de Compartir)</CardTitle>
                     </CardHeader>
                     <CardContent>
                         {isLoading ? (
@@ -487,11 +459,6 @@ export default function AnexoLey4Page() {
                         <CardContent>
                              <Table>
                                 <TableBody>
-                                     <TableRow className="hidden">
-                                        <TableCell className="font-semibold bg-muted/30">MESADA PLENA DE LA PENSION CONVENCIONAL</TableCell>
-                                        <TableCell className="text-right font-bold">{formatCurrency(sharingData.mesadaPlena)}</TableCell>
-                                        <TableCell className="text-right font-bold">100.00%</TableCell>
-                                    </TableRow>
                                     <TableRow className="bg-green-500/10">
                                         <TableCell colSpan={3} className="text-center font-semibold text-green-800">CUOTAS PARTES EN QUE SE DISTRIBUYE EL MONTO DE MESADA PENSIONAL A PARTIR DE LA COMPARTICION</TableCell>
                                     </TableRow>
@@ -519,7 +486,7 @@ export default function AnexoLey4Page() {
                  {tabla3Data.length > 0 && (
                     <Card>
                         <CardHeader>
-                            <CardTitle>3. PROYECCIÓN COMPARATIVA CONTINUADA DESDE {sharingDateInfo?.year} EN ADELANTE</CardTitle>
+                            <CardTitle>3. Reajuste de Mesada (Después de Compartir)</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="overflow-x-auto">
@@ -529,14 +496,14 @@ export default function AnexoLey4Page() {
                                             <TableHead>Año</TableHead>
                                             <TableHead>SMLMV</TableHead>
                                             <TableHead>% Reajuste SMLMV</TableHead>
-                                            <TableHead>Proyección de Mesada Fiduprevisora con % SMLMV</TableHead>
-                                            <TableHead># de SMLMV (En el Reajuste x SMLMV)</TableHead>
+                                            <TableHead>Proyección Mesada (Parte Empresa)</TableHead>
+                                            <TableHead># de SMLMV (Parte Empresa)</TableHead>
                                             <TableHead>% Reajuste IPC</TableHead>
-                                            <TableHead>Mesada Pagada Fiduprevisora reajuste con IPCs</TableHead>
-                                            <TableHead># de SMLMV (En el Reajuste x IPC)</TableHead>
-                                            <TableHead>Diferencias de Mesadas</TableHead>
+                                            <TableHead>Mesada Pagada (Parte Empresa)</TableHead>
+                                            <TableHead># de SMLMV Pagado</TableHead>
+                                            <TableHead>Diferencias</TableHead>
                                             <TableHead># de Mesadas</TableHead>
-                                            <TableHead>Total Diferencias Retroactivas</TableHead>
+                                            <TableHead>Total Retroactivas</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
