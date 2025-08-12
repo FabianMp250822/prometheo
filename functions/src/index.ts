@@ -1,4 +1,5 @@
 
+
 /* eslint-disable max-len */
 /**
  * @fileOverview Cloud Functions for Prometeo app.
@@ -20,6 +21,7 @@ import {getAuth} from "firebase-admin/auth";
 import {queryDatabase} from "./mysql.js";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as webpush from "web-push";
+import type { PushSubscription } from "web-push";
 
 // Type definitions moved from @/lib/data to resolve import issue
 export interface Anotacion {
@@ -984,7 +986,7 @@ export const sendAgendaReminders = onSchedule(
       });
 
       for (const doc of subscriptionsSnapshot.docs) {
-        const subscription = doc.data();
+        const subscription = doc.data() as PushSubscription;
         try {
           await webpush.sendNotification(subscription, payload);
           logger.info(`Push notification sent to user ${userId}`);
@@ -1080,5 +1082,6 @@ export const savePushSubscription = onCall({cors: ALLOWED_ORIGINS}, async (reque
     throw new HttpsError("internal", "Could not save push subscription.");
   }
 });
+
 
 
