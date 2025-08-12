@@ -20,6 +20,29 @@ import {getAuth} from "firebase-admin/auth";
 import {queryDatabase} from "./mysql.js";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 
+interface Tarea {
+    id?: string;
+    detalle: string;
+    fecha_limite: string;
+    fecha_limite_ordenable: string;
+    hora_limite: string;
+    ubicacion?: string;
+    notification24hSent?: boolean;
+    notificationTodaySent?: boolean;
+}
+
+interface Anotacion {
+    id?: string;
+    detalle: string;
+    fecha_limite: string;
+    fecha_limite_ordenable: string;
+    hora_limite: string;
+    ubicacion?: string;
+    notification24hSent?: boolean;
+    notificationTodaySent?: boolean;
+}
+
+
 const ALLOWED_ORIGINS = [
   "https://9000-firebase-studio-1751988148835.cluster-joak5ukfbnbyqspg4tewa33d24.cloudworkstations.dev",
   "https://studio--prometeo-ffd3w.us-central1.hosted.app",
@@ -870,4 +893,102 @@ export const scheduledSync = onSchedule(
       throw error; // Re-throw to indicate failure for potential retries
     }
   },
+);
+
+// =====================================
+// Scheduled Function: Agenda Reminders
+// =====================================
+export const sendAgendaReminders = onSchedule(
+    {
+      schedule: "every 1 hours",
+      timeZone: "America/Bogota",
+    },
+    async () => {
+        logger.info("Running hourly agenda reminder check.");
+        const now = new Date();
+        const in24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+        // Helper to convert DD-MM-YYYY from ordenable field to a Date object
+        const parseDate = (dateStr: string): Date | null => {
+            if (!dateStr || dateStr.length !== 10) return null;
+            const parts = dateStr.split("-");
+            if (parts.length !== 3) return null;
+            // YYYY-MM-DD format from 'ordenable' field
+            const date = new Date(`${parts[0]}-${parts[1]}-${parts[2]}T00:00:00Z`); // Use Z for UTC
+            return isNaN(date.getTime()) ? null : date;
+        };
+
+        const sendReminderEmail = async (task: Tarea | Anotacion, type: "24h" | "today") => {
+            const subject = type === "24h" ?
+                `Recordatorio: Tarea para Mañana - ${task.detalle.substring(0, 50)}` :
+                `Recordatorio: Tarea para Hoy - ${task.detalle.substring(0, 50)}`;
+
+            const mailOptions = {
+                from: "\"Dajusticia - Agenda\" <noreply@tecnosalud.cloud>",
+                to: "director.dajusticia@gmail.com", // Target email
+                subject: subject,
+                html: `
+                    <h1>Recordatorio de Agenda</h1>
+                    <p>Este es un recordatorio para la siguiente tarea:</p>
+                    <h2>${task.detalle}</h2>
+                    <p><strong>Fecha Límite:</strong> ${task.fecha_limite} a las ${task.hora_limite || "todo el día"}</p>
+                    ${task.ubicacion ? `<p><strong>Ubicación/URL:</strong> <a href="${task.ubicacion}">${task.ubicacion}</a></p>` : ""}
+                    <p>Este es un correo automático, por favor no responda.</p>
+                `,
+            };
+
+            try {
+                await transporter.sendMail(mailOptions);
+                logger.info(`Reminder email sent for task ${task.id}. Type: ${type}`);
+                return true;
+            } catch (error) {
+                logger.error("Error sending reminder email:", error);
+                return false;
+            }
+        };
+
+        const processTasks = async (snapshot: FirebaseFirestore.QuerySnapshot, getCollectionPath: (doc: FirebaseFirestore.QueryDocumentSnapshot) => string) => {
+            for (const doc of snapshot.docs) {
+                const task = {id: doc.id, ...doc.data()} as Tarea | Anotacion;
+                const taskDate = parseDate(task.fecha_limite_ordenable);
+                if (!taskDate) continue;
+
+                const isDueIn24Hours = taskDate > now && taskDate <= in24Hours;
+                const isDueToday = taskDate.toDateString() === now.toDateString();
+                
+                // 24-hour reminder
+                if (isDueIn24Hours && !task.notification24hSent) {
+                    if (await sendReminderEmail(task, "24h")) {
+                        const path = getCollectionPath(doc);
+                        await db.doc(path).update({notification24hSent: true});
+                    }
+                }
+
+                // Same-day reminder (at 7 AM Bogota time)
+                const bogotaTime = new Date(now.toLocaleString("en-US", {timeZone: "America/Bogota"}));
+                if (isDueToday && bogotaTime.getHours() >= 7 && !task.notificationTodaySent) {
+                    if (await sendReminderEmail(task, "today")) {
+                        const path = getCollectionPath(doc);
+                        await db.doc(path).update({notificationTodaySent: true});
+                    }
+                }
+            }
+        };
+
+        try {
+            // Process general tasks
+            const tasksQuery = db.collection("tareas").where("fecha_limite_ordenable", "<=", in24Hours.toISOString().split("T")[0]);
+            const tasksSnapshot = await tasksQuery.get();
+            await processTasks(tasksSnapshot, (doc) => `tareas/${doc.id}`);
+
+            // Process annotations from processes
+            const anotacionesQuery = db.collectionGroup("anotaciones").where("fecha_limite_ordenable", "<=", in24Hours.toISOString().split("T")[0]);
+            const anotacionesSnapshot = await anotacionesQuery.get();
+            await processTasks(anotacionesSnapshot, (doc) => `procesos/${doc.ref.parent.parent!.id}/anotaciones/${doc.id}`);
+
+            logger.info("Agenda reminder check completed.");
+        } catch (error) {
+            logger.error("Error running agenda reminder function:", error);
+        }
+    },
 );
