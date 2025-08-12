@@ -47,7 +47,7 @@ export interface Tarea {
     hora_limite: string;
     ubicacion?: string;
     creadoEn: Timestamp;
-    type: 'GENERAL';
+    type: "GENERAL";
     resumen?: string;
     notification24hSent?: boolean;
     notificationTodaySent?: boolean;
@@ -1080,5 +1080,6 @@ export const savePushSubscription = onCall({cors: ALLOWED_ORIGINS}, async (reque
     throw new HttpsError("internal", "Could not save push subscription.");
   }
 });
+
 
 
