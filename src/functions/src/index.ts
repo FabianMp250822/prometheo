@@ -13,12 +13,14 @@ import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import * as logger from "firebase-functions/logger";
 import {initializeApp, getApps} from "firebase-admin/app";
 import {getFirestore, Timestamp} from "firebase-admin/firestore";
-import {HttpsError, onCall} from "firebase-functions/v2/httpshttps";
+import {HttpsError, onCall} from "firebase-functions/v2/https";
 import * as nodemailer from "nodemailer";
 import fetch from "node-fetch";
 import {getAuth} from "firebase-admin/auth";
 import {queryDatabase} from "./mysql.js";
 import {onSchedule} from "firebase-functions/v2/scheduler";
+import { Tarea, Anotacion } from "@/lib/data";
+
 
 const ALLOWED_ORIGINS = [
   "https://9000-firebase-studio-1751988148835.cluster-joak5ukfbnbyqspg4tewa33d24.cloudworkstations.dev",
@@ -420,67 +422,30 @@ export const scheduledProviredSync = onSchedule(
 // =====================================
 // User Management Functions
 // =====================================
-
-const defaultPermissions = {
-  // Admin has all permissions
-  Administrador: {
-    canViewDashboard: true,
-    canViewBuscador: true,
-    canViewHojaDeVida: true,
-    canViewAgenda: true,
-    canViewLiquidaciones: true,
-    canViewPagosSentencias: true,
-    canViewContabilidad: true,
-    canViewProcesosEnLinea: true,
-    canViewReportes: true,
-    canViewGestionDemandas: true,
-    canManageUsers: true,
-    canAccessConfiguracion: true,
+const defaultPermissionsByRole: { [key: string]: { [key: string]: boolean } } = {
+  "Administrador": {
+    canViewDashboard: true, canViewBuscador: true, canViewHojaDeVida: true,
+    canViewAgenda: true, canViewLiquidaciones: true, canViewPagosSentencias: true,
+    canViewContabilidad: true, canViewProcesosEnLinea: true, canViewReportes: true,
+    canViewGestionDemandas: true, canManageUsers: true, canAccessConfiguracion: true,
   },
-  // Default for a lawyer
   "Abogado Titular": {
-    canViewDashboard: true,
-    canViewBuscador: true,
-    canViewHojaDeVida: true,
-    canViewAgenda: true,
-    canViewLiquidaciones: true,
-    canViewPagosSentencias: true,
-    canViewContabilidad: false,
-    canViewProcesosEnLinea: true,
-    canViewReportes: false,
-    canViewGestionDemandas: true,
-    canManageUsers: false,
-    canAccessConfiguracion: false,
+    canViewDashboard: true, canViewBuscador: true, canViewHojaDeVida: true,
+    canViewAgenda: true, canViewLiquidaciones: true, canViewPagosSentencias: true,
+    canViewContabilidad: false, canViewProcesosEnLinea: true, canViewReportes: false,
+    canViewGestionDemandas: true, canManageUsers: false, canAccessConfiguracion: false,
   },
-  // Default for an external lawyer
   "Abogado Externo": {
-    canViewDashboard: true,
-    canViewBuscador: true,
-    canViewHojaDeVida: true,
-    canViewAgenda: true,
-    canViewLiquidaciones: false,
-    canViewPagosSentencias: false,
-    canViewContabilidad: false,
-    canViewProcesosEnLinea: true,
-    canViewReportes: false,
-    canViewGestionDemandas: true,
-    canManageUsers: false,
-    canAccessConfiguracion: false,
+    canViewDashboard: true, canViewBuscador: true, canViewHojaDeVida: true,
+    canViewAgenda: true, canViewLiquidaciones: false, canViewPagosSentencias: false,
+    canViewContabilidad: false, canViewProcesosEnLinea: true, canViewReportes: false,
+    canViewGestionDemandas: true, canManageUsers: false, canAccessConfiguracion: false,
   },
-  // Default for an accountant
-  Contador: {
-    canViewDashboard: true,
-    canViewBuscador: true,
-    canViewHojaDeVida: false,
-    canViewAgenda: false,
-    canViewLiquidaciones: true,
-    canViewPagosSentencias: true,
-    canViewContabilidad: true,
-    canViewProcesosEnLinea: false,
-    canViewReportes: true,
-    canViewGestionDemandas: false,
-    canManageUsers: false,
-    canAccessConfiguracion: true,
+  "Contador": {
+    canViewDashboard: true, canViewBuscador: true, canViewHojaDeVida: false,
+    canViewAgenda: false, canViewLiquidaciones: true, canViewPagosSentencias: true,
+    canViewContabilidad: true, canViewProcesosEnLinea: false, canViewReportes: true,
+    canViewGestionDemandas: false, canManageUsers: false, canAccessConfiguracion: true,
   },
 };
 
@@ -510,7 +475,7 @@ export const createUser = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
   }
 
   // Get default permissions for the role
-  const permissions = defaultPermissions[role as keyof typeof defaultPermissions] || {};
+  const permissions = defaultPermissionsByRole[role as keyof typeof defaultPermissionsByRole] || {};
 
   try {
     // 3. Create user in Firebase Authentication
@@ -690,11 +655,15 @@ export const submitPublicForm = onCall({cors: ALLOWED_ORIGINS}, async (request) 
 });
 
 /**
- * Syncs all legal process data from an external MySQL database.
- * This function is callable by an authenticated user from the client.
- * @param {object} request The request object.
+ * @fileOverview This function connects directly to an external MySQL database
+ * to sync legal process data. It replaces the previous method of calling
+ * intermediary PHP scripts.
+ *
+ * It is triggered by a user action in the frontend and returns a comprehensive
+ * dataset containing processes and their related sub-collections.
+ * @param {object} request - The request object from the client. Must be authenticated.
  * @return {Promise<{success: boolean, data?: object, error?: string}>}
- * An object indicating success and containing the fetched data, or an error.
+ * An object indicating success and containing the fetched data or an error message.
  */
 export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
   if (!request.auth) {
@@ -753,6 +722,7 @@ export const syncExternalData = onCall({cors: ALLOWED_ORIGINS}, async (request) 
 /**
  * Saves synced data from the external source to Firestore.
  * This function is callable from the client.
+ * @return {Promise<{success: boolean, message: string}>} A confirmation object.
  */
 export const saveSyncedData = onCall({cors: ALLOWED_ORIGINS}, async (request) => {
   if (!request.auth) {
@@ -903,3 +873,349 @@ export const scheduledSync = onSchedule(
     }
   },
 );
+
+// =====================================
+// Scheduled Function: Agenda Reminders
+// =====================================
+export const sendAgendaReminders = onSchedule(
+    {
+      schedule: "every 1 hours",
+      timeZone: "America/Bogota",
+    },
+    async () => {
+      logger.info("Running hourly agenda reminder check.");
+      const now = new Date();
+      const in24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  
+      // Helper to convert DD-MM-YYYY to a Date object
+      const parseDate = (dateStr: string): Date | null => {
+        const parts = dateStr.split("-");
+        if (parts.length !== 3) return null;
+        // YYYY-MM-DD format from 'ordenable' field
+        const date = new Date(`${parts[0]}-${parts[1]}-${parts[2]}T00:00:00`);
+        return isNaN(date.getTime()) ? null : date;
+      };
+  
+      const sendReminderEmail = async (task: Tarea | Anotacion, type: "24h" | "today") => {
+        const subject = type === "24h" ?
+          `Recordatorio: Tarea para Mañana - ${task.detalle.substring(0, 50)}` :
+          `Recordatorio: Tarea para Hoy - ${task.detalle.substring(0, 50)}`;
+  
+        const mailOptions = {
+          from: "\"Dajusticia - Agenda\" <noreply@tecnosalud.cloud>",
+          to: "director.dajusticia@gmail.com", // Target email
+          subject: subject,
+          html: `
+            <h1>Recordatorio de Agenda</h1>
+            <p>Este es un recordatorio para la siguiente tarea:</p>
+            <h2>${task.detalle}</h2>
+            <p><strong>Fecha Límite:</strong> ${task.fecha_limite} a las ${task.hora_limite || "todo el día"}</p>
+            ${task.ubicacion ? `<p><strong>Ubicación/URL:</strong> <a href="${task.ubicacion}">${task.ubicacion}</a></p>` : ""}
+            <p>Este es un correo automático, por favor no responda.</p>
+          `,
+        };
+  
+        try {
+          await transporter.sendMail(mailOptions);
+          logger.info(`Reminder email sent for task ${task.id}. Type: ${type}`);
+          return true;
+        } catch (error) {
+          logger.error("Error sending reminder email:", error);
+          return false;
+        }
+      };
+  
+      const processTasks = async (snapshot: FirebaseFirestore.QuerySnapshot, collectionPath?: (docId: string) => string) => {
+        for (const doc of snapshot.docs) {
+          const task = {id: doc.id, ...doc.data()} as Tarea | Anotacion;
+          const taskDate = parseDate(task.fecha_limite_ordenable);
+          if (!taskDate) continue;
+  
+          const isDueIn24Hours = taskDate > now && taskDate <= in24Hours;
+          const isDueToday = taskDate.toDateString() === now.toDateString();
+  
+          // 24-hour reminder
+          if (isDueIn24Hours && !task.notification24hSent) {
+            if (await sendReminderEmail(task, "24h")) {
+                const path = collectionPath ? collectionPath(doc.ref.parent.parent!.id) : "tareas";
+                await db.collection(path).doc(doc.id).update({notification24hSent: true});
+            }
+          }
+  
+          // Same-day reminder (at 7 AM)
+          if (isDueToday && now.getHours() >= 7 && !task.notificationTodaySent) {
+            if (await sendReminderEmail(task, "today")) {
+                const path = collectionPath ? collectionPath(doc.ref.parent.parent!.id) : "tareas";
+                await db.collection(path).doc(doc.id).update({notificationTodaySent: true});
+            }
+          }
+        }
+      };
+  
+      try {
+        // Process general tasks
+        const tasksQuery = db.collection("tareas").where("fecha_limite_ordenable", "<=", in24Hours.toISOString().split("T")[0]);
+        const tasksSnapshot = await tasksQuery.get();
+        await processTasks(tasksSnapshot);
+  
+        // Process annotations from processes
+        const anotacionesQuery = db.collectionGroup("anotaciones").where("fecha_limite_ordenable", "<=", in24Hours.toISOString().split("T")[0]);
+        const anotacionesSnapshot = await anotacionesQuery.get();
+        await processTasks(anotacionesSnapshot, (procesoId) => `procesos/${procesoId}/anotaciones`);
+
+        logger.info("Agenda reminder check completed.");
+      } catch (error) {
+        logger.error("Error running agenda reminder function:", error);
+      }
+    },
+  );
+  
+  
+  
+
+```
+  </change>
+  <change>
+    <file>src/lib/data.ts</file>
+    <content><![CDATA[
+
+import type { Timestamp } from 'firebase/firestore';
+
+export type PaymentStatus = "Analizado" | "Pendiente" | "Pagado";
+export type LegalConcept = "Costas Procesales" | "Retro Mesada Adicional" | "Procesos y Sentencia Judiciales";
+
+export interface Sentence {
+  id: string;
+  description: string;
+  date: string; // "YYYY-MM-DD"
+  amount: number;
+  paymentPeriod: string; // "1 ene. 2023 a 31 dic. 2023"
+}
+
+export interface PaymentRecord {
+  id: string;
+  period: string;
+  amount: number;
+  documentRef: string;
+}
+
+export interface UserPayment {
+  id: string;
+  user: {
+    name: string;
+    document: string;
+    avatarUrl: string;
+  };
+  department: string;
+  uploadDate: string; // Consider converting to Timestamp on write
+  status: PaymentStatus; // Legacy status, prefer `analyzedAt`
+  analyzedAt: Timestamp | string | null; // Can be string, null, or Firestore Timestamp
+  concepts: {
+    "Costas Procesales"?: number;
+    "Retro Mesada Adicional"?: number;
+    "Procesos y Sentencia Judiciales"?: number;
+  };
+  totalAmount: number;
+  sentences: Sentence[];
+  paymentHistory: PaymentRecord[];
+}
+
+
+export const dependencies: string[] = ["Dependencia A", "Dependencia B", "Dependencia C"];
+export const legalConcepts: LegalConcept[] = ["Costas Procesales", "Retro Mesada Adicional", "Procesos y Sentencia Judiciales"];
+export const statuses: PaymentStatus[] = ["Analizado", "Pendiente", "Pagado"];
+
+
+// New types for Pagos section
+export interface Pensioner {
+  id: string; // document id which is the same as documento
+  documento: string;
+  empleado: string;
+  dependencia1: string;
+  centroCosto: string;
+  ano_jubilacion?: string; // Add this optional field
+  fechaPensionado?: string; // Optional field for retirement date
+}
+
+export interface PaymentDetail {
+  codigo: string | null;
+  nombre: string;
+  ingresos: number;
+  egresos: number;
+}
+
+export interface Payment {
+  id:string;
+  año: string;
+  periodoPago: string;
+  fechaLiquidacion?: string;
+  fechaProcesado?: string; // Can be a string from older data
+  detalles: PaymentDetail[];
+}
+
+// New type for Procesos Cancelados
+export interface ProcesoCanceladoConcepto {
+    codigo: string;
+    egresos: number;
+    ingresos: number;
+    nombre: string;
+}
+
+export interface ProcesoCancelado {
+    id: string;
+    año: string;
+    conceptos: ProcesoCanceladoConcepto[];
+    creadoEn: string; 
+    fechaLiquidacion: string;
+    pagoId: string;
+    pensionadoId: string;
+    periodoPago: string;
+    pensionerInfo?: {
+        name: string;
+        document: string;
+        department: string;
+    };
+    pagoOriginal?: Payment | null;
+}
+
+// Types for Gestion de Demandas
+export interface Anotacion {
+    id?: string; // Document ID from Firebase
+    auto: string;
+    num_registro: string;
+    fecha: string;
+    fecha_limite: string;
+    fecha_limite_ordenable: string; // YYYY-MM-DD for querying
+    hora_limite: string;
+    detalle: string;
+    clase: string;
+    nombre_documento: string | null;
+    archivo_url: string | null;
+    resumen?: string;
+    notification24hSent?: boolean;
+    notificationTodaySent?: boolean;
+    ubicacion?: string;
+}
+
+// Type for general tasks
+export interface Tarea {
+    id?: string;
+    detalle: string;
+    fecha_limite: string;
+    fecha_limite_ordenable: string; // YYYY-MM-DD for sorting
+    hora_limite: string;
+    ubicacion?: string; // URL for Meet, Zoom, etc.
+    creadoEn: Timestamp;
+    type: 'GENERAL'; // To distinguish from process annotations
+    resumen?: string;
+    notification24hSent?: boolean;
+    notificationTodaySent?: boolean;
+}
+
+// Types for Provired Notifications
+export interface ProviredNotification {
+  id: string;
+  descripcion: string;
+  fechaPublicacion: string;
+  proceso: string;
+  radicacion: string;
+  demandante: string;
+  demandante_lower: string;
+  demandado_lower: string;
+  rutaAuto: string;
+}
+
+
+// Types for Pensioner Profile Page
+export interface Parris1 {
+  id: string;
+  fe_adquiere: string; 
+  fe_causa: string; 
+  fe_ingreso: string; 
+  fe_nacido: string;
+  fe_vinculado: string;
+  semanas: number;
+  res_nro: string;
+  res_ano: number;
+  mesada: number;
+  ciudad_iss: string;
+  dir_iss: string;
+  telefono_iss: number;
+  regimen: number;
+  riesgo: string;
+  seguro: number;
+  tranci: boolean;
+}
+
+export interface PagosHistoricoRecord {
+  ANO_RET?: number;
+  CEDULA?: number;
+  TIPO_AUM?: string;
+  PORCENTAJE?: string;
+  VALOR_ACT?: string;
+  VALOR_ANT?: string;
+}
+
+export interface CausanteRecord {
+  cedula_beneficiario?: string;
+  fecha_desde?: string;
+  fecha_hasta?: string;
+  observacion?: string;
+  tipo_aum?: string;
+  valor_empresa?: number;
+  valor_iss?: number;
+}
+
+export interface Causante {
+  id: string;
+  cedula_causante: string;
+  records: CausanteRecord[];
+}
+
+export interface LegalProcess {
+    id: string;
+    num_radicado_ini: string;
+    clase_proceso: string;
+    estado: string;
+}
+
+export interface DajusticiaClient {
+  id: string;
+  apellidos: string;
+  cedula: string;
+  celular: string;
+  correo: string;
+  cuotaMensual: string;
+  direccion: string;
+  grupo: string;
+  multiplicadorSalario: number;
+  nombres: string;
+  plazoMeses: string;
+  salario: number;
+  telefonoFijo: string;
+  archivos: { [key: string]: string };
+  estado?: 'activo' | 'inactivo';
+}
+
+export interface DajusticiaPayment {
+  id: string;
+  descuento: number;
+  empresa: number;
+  fecha: string;
+  monto: number;
+  montoNeto: number;
+  soporteURL: string;
+  vendedor: number;
+}
+
+export interface PensionerProfileData {
+    payments: Payment[];
+    legalProcesses: LegalProcess[];
+    parris1Data: Parris1 | null;
+    causanteData: Causante | null;
+    historicalPayment: PagosHistoricoRecord | null;
+    historicalPayments: PagosHistoricoRecord[]; // Add this
+    dajusticiaClientData: DajusticiaClient | null;
+    dajusticiaPayments: DajusticiaPayment[];
+    lastNotification: ProviredNotification | null;
+}

@@ -1,5 +1,3 @@
-
-
 import type { Timestamp } from 'firebase/firestore';
 
 export type PaymentStatus = "Analizado" | "Pendiente" | "Pagado";
@@ -106,13 +104,16 @@ export interface Anotacion {
     num_registro: string;
     fecha: string;
     fecha_limite: string;
-    fecha_limite_ordenable?: string; // YYYY-MM-DD for querying
+    fecha_limite_ordenable: string; // YYYY-MM-DD for querying
     hora_limite: string;
     detalle: string;
     clase: string;
     nombre_documento: string | null;
     archivo_url: string | null;
     resumen?: string;
+    notification24hSent?: boolean;
+    notificationTodaySent?: boolean;
+    ubicacion?: string;
 }
 
 // Type for general tasks
@@ -126,6 +127,8 @@ export interface Tarea {
     creadoEn: Timestamp;
     type: 'GENERAL'; // To distinguish from process annotations
     resumen?: string;
+    notification24hSent?: boolean;
+    notificationTodaySent?: boolean;
 }
 
 // Types for Provired Notifications
