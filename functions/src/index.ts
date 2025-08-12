@@ -21,7 +21,7 @@ import {getAuth} from "firebase-admin/auth";
 import {queryDatabase} from "./mysql.js";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as webpush from "web-push";
-import type { PushSubscription } from "web-push";
+import type {PushSubscription} from "web-push";
 
 // Type definitions moved from @/lib/data to resolve import issue
 export interface Anotacion {
@@ -1082,6 +1082,5 @@ export const savePushSubscription = onCall({cors: ALLOWED_ORIGINS}, async (reque
     throw new HttpsError("internal", "Could not save push subscription.");
   }
 });
-
 
 
