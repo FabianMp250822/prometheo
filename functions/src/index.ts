@@ -19,28 +19,8 @@ import fetch from "node-fetch";
 import {getAuth} from "firebase-admin/auth";
 import {queryDatabase} from "./mysql.js";
 import {onSchedule} from "firebase-functions/v2/scheduler";
-
-interface Tarea {
-    id?: string;
-    detalle: string;
-    fecha_limite: string;
-    fecha_limite_ordenable: string;
-    hora_limite: string;
-    ubicacion?: string;
-    notification24hSent?: boolean;
-    notificationTodaySent?: boolean;
-}
-
-interface Anotacion {
-    id?: string;
-    detalle: string;
-    fecha_limite: string;
-    fecha_limite_ordenable: string;
-    hora_limite: string;
-    ubicacion?: string;
-    notification24hSent?: boolean;
-    notificationTodaySent?: boolean;
-}
+import { Tarea, Anotacion } from "@/lib/data";
+import * as webpush from 'web-push';
 
 
 const ALLOWED_ORIGINS = [
@@ -59,6 +39,19 @@ if (getApps().length === 0) {
 
 const db = getFirestore();
 const auth = getAuth();
+
+// ============================
+// Web Push Configuration
+// ============================
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(
+        'mailto:director.dajusticia@gmail.com',
+        process.env.VAPID_PUBLIC_KEY,
+        process.env.VAPID_PRIVATE_KEY
+    );
+} else {
+    logger.warn("VAPID keys not set. Push notifications will be disabled.");
+}
 
 // ============================
 // Nodemailer Configuration
@@ -918,33 +911,61 @@ export const sendAgendaReminders = onSchedule(
       return isNaN(date.getTime()) ? null : date;
     };
 
-    const sendReminderEmail = async (task: Tarea | Anotacion, type: "24h" | "today") => {
-      const subject = type === "24h" ?
-        `Recordatorio: Tarea para Mañana - ${task.detalle.substring(0, 50)}` :
-        `Recordatorio: Tarea para Hoy - ${task.detalle.substring(0, 50)}`;
+    const sendReminder = async (task: Tarea | Anotacion, type: "24h" | "today", targetEmail: string) => {
+        const subject = type === "24h" ?
+            `Recordatorio: Tarea para Mañana - ${task.detalle.substring(0, 50)}` :
+            `Recordatorio: Tarea para Hoy - ${task.detalle.substring(0, 50)}`;
 
-      const mailOptions = {
-        from: "\"Dajusticia - Agenda\" <noreply@tecnosalud.cloud>",
-        to: "director.dajusticia@gmail.com", // Target email
-        subject: subject,
-        html: `
-                    <h1>Recordatorio de Agenda</h1>
-                    <p>Este es un recordatorio para la siguiente tarea:</p>
-                    <h2>${task.detalle}</h2>
-                    <p><strong>Fecha Límite:</strong> ${task.fecha_limite} a las ${task.hora_limite || "todo el día"}</p>
-                    ${task.ubicacion ? `<p><strong>Ubicación/URL:</strong> <a href="${task.ubicacion}">${task.ubicacion}</a></p>` : ""}
-                    <p>Este es un correo automático, por favor no responda.</p>
-                `,
-      };
+        const mailOptions = {
+            from: "\"Dajusticia - Agenda\" <noreply@tecnosalud.cloud>",
+            to: targetEmail,
+            subject: subject,
+            html: `
+                <h1>Recordatorio de Agenda</h1>
+                <p>Este es un recordatorio para la siguiente tarea:</p>
+                <h2>${task.detalle}</h2>
+                <p><strong>Fecha Límite:</strong> ${task.fecha_limite} a las ${task.hora_limite || "todo el día"}</p>
+                ${task.ubicacion ? `<p><strong>Ubicación/URL:</strong> <a href="${task.ubicacion}">${task.ubicacion}</a></p>` : ""}
+                <p>Este es un correo automático, por favor no responda.</p>
+            `,
+        };
 
-      try {
-        await transporter.sendMail(mailOptions);
-        logger.info(`Reminder email sent for task ${task.id}. Type: ${type}`);
-        return true;
-      } catch (error) {
-        logger.error("Error sending reminder email:", error);
-        return false;
-      }
+        try {
+            await transporter.sendMail(mailOptions);
+            logger.info(`Reminder email sent for task ${task.id} to ${targetEmail}. Type: ${type}`);
+            return true;
+        } catch (error) {
+            logger.error(`Error sending reminder email for task ${task.id}:`, error);
+            return false;
+        }
+    };
+    
+    const sendPushNotification = async (task: Tarea | Anotacion, userId: string) => {
+        if (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) return;
+        
+        const subscriptionsSnapshot = await db.collection(`users/${userId}/pushSubscriptions`).get();
+        if (subscriptionsSnapshot.empty) return;
+        
+        const payload = JSON.stringify({
+            title: `Recordatorio de Agenda: ${task.detalle.substring(0, 30)}...`,
+            body: `Fecha límite: ${task.fecha_limite} ${task.hora_limite || ''}`,
+            icon: 'https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2Flogo-removebg-preview.png?alt=media&token=9a935e08-66dd-4edc-83f8-31320b0b2680'
+        });
+
+        for (const doc of subscriptionsSnapshot.docs) {
+            const subscription = doc.data();
+            try {
+                await webpush.sendNotification(subscription, payload);
+                logger.info(`Push notification sent to user ${userId}`);
+            } catch (error: any) {
+                logger.error(`Error sending push notification to ${userId}:`, error);
+                // If subscription is expired or invalid, delete it
+                if (error.statusCode === 404 || error.statusCode === 410) {
+                    await doc.ref.delete();
+                    logger.info(`Deleted expired subscription for user ${userId}`);
+                }
+            }
+        }
     };
 
     const processTasks = async (snapshot: FirebaseFirestore.QuerySnapshot, getCollectionPath: (doc: FirebaseFirestore.QueryDocumentSnapshot) => string) => {
@@ -955,10 +976,17 @@ export const sendAgendaReminders = onSchedule(
 
         const isDueIn24Hours = taskDate > now && taskDate <= in24Hours;
         const isDueToday = taskDate.toDateString() === now.toDateString();
+        
+        // This is a placeholder. In a real app, you would determine the user associated with the task.
+        // For now, we send to a default email and a hardcoded user ID for push.
+        const targetUserId = 'Q8bQ2sODa8M7MklkM2f8qD9bO9f2'; // Hardcoded Admin User ID
+        const targetEmail = "director.dajusticia@gmail.com";
 
         // 24-hour reminder
         if (isDueIn24Hours && !task.notification24hSent) {
-          if (await sendReminderEmail(task, "24h")) {
+          const emailSent = await sendReminder(task, "24h", targetEmail);
+          await sendPushNotification(task, targetUserId);
+          if (emailSent) {
             const path = getCollectionPath(doc);
             await db.doc(path).update({notification24hSent: true});
           }
@@ -967,7 +995,9 @@ export const sendAgendaReminders = onSchedule(
         // Same-day reminder (at 7 AM Bogota time)
         const bogotaTime = new Date(now.toLocaleString("en-US", {timeZone: "America/Bogota"}));
         if (isDueToday && bogotaTime.getHours() >= 7 && !task.notificationTodaySent) {
-          if (await sendReminderEmail(task, "today")) {
+          const emailSent = await sendReminder(task, "today", targetEmail);
+          await sendPushNotification(task, targetUserId);
+           if (emailSent) {
             const path = getCollectionPath(doc);
             await db.doc(path).update({notificationTodaySent: true});
           }
@@ -992,3 +1022,31 @@ export const sendAgendaReminders = onSchedule(
     }
   },
 );
+
+// =====================================
+// Push Notification Subscription Handler
+// =====================================
+export const savePushSubscription = onCall({ cors: ALLOWED_ORIGINS }, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError("unauthenticated", "Must be authenticated to save subscription.");
+    }
+    const subscription = request.data.subscription;
+    if (!subscription || !subscription.endpoint) {
+        throw new HttpsError("invalid-argument", "A valid subscription object is required.");
+    }
+
+    const uid = request.auth.uid;
+    const subscriptionCollection = db.collection(`users/${uid}/pushSubscriptions`);
+    
+    try {
+        // Use the endpoint as a unique identifier to prevent duplicate subscriptions
+        const docRef = subscriptionCollection.doc(Buffer.from(subscription.endpoint).toString('base64'));
+        await docRef.set(subscription, { merge: true });
+        logger.info(`Saved push subscription for user ${uid}`);
+        return { success: true };
+    } catch (error) {
+        logger.error(`Failed to save push subscription for user ${uid}`, error);
+        throw new HttpsError("internal", "Could not save push subscription.");
+    }
+});
+

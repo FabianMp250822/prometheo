@@ -16,6 +16,7 @@ import { usePensioner } from '@/context/pensioner-provider';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown } from 'lucide-react';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { PushNotificationManager } from '@/components/dashboard/push-notification-manager';
 
 export default function DashboardLayout({
   children,
@@ -502,6 +503,7 @@ export default function DashboardLayout({
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
+        <PushNotificationManager />
         <GlobalHeader />
         {children}
       </SidebarInset>
