@@ -60,11 +60,11 @@ const prompt = ai.definePrompt({
         - If there's data on "poder adquisitivo" (purchasing power), highlight the SMLMV loss. For example: "Se observa una pérdida de poder adquisitivo de <strong>X.XX SMLMV</strong> en el período analizado."
 
     3.  **<h4>Estado con DAJUSTICIA (Si aplica)</h4>**
-        - If the pensioner is a DAJUSTICIA client (`dajusticiaClientData`), summarize their account status.
+        - If the pensioner is a DAJUSTICIA client (\`dajusticiaClientData\`), summarize their account status.
         - State the "Monto total del acuerdo", "Total pagado a la fecha", and the "<strong>Saldo pendiente</strong>".
 
     4.  **<h4>Análisis de Procesos y Oportunidades</h4>**
-        - Review `legalProcesses` and `sentencePayments`.
+        - Review \`legalProcesses\` and \`sentencePayments\`.
         - Identify key legal actions taken. Example: "Tiene un proceso activo por <strong>Reajuste Pensional</strong>."
         - Highlight significant payments received from sentences (e.g., "Recibió un pago de <strong>$X.XXX.XXX</strong> por Costas Procesales.").
         - Based on all data, identify potential opportunities. Examples: "¿Hay indicios de una incorrecta liquidación que justifique un nuevo proceso de reliquidación? ¿Hay pagos por sentencias pendientes de cobro?". Be direct and pose questions for the case manager to consider.
