@@ -3,7 +3,7 @@
 import { collection, query, getDocs, where, documentId, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { ProcesoCancelado, Payment, Pensioner, LegalProcess, Parris1, Causante, DajusticiaClient, DajusticiaPayment, ProviredNotification, PagosHistoricoRecord, PensionerProfileData } from '@/lib/data';
-import { parseEmployeeName, parsePeriodoPago } from './helpers';
+import { parseEmployeeName, parsePeriodoPago } from '@/lib/helpers';
 
 const PROCESOS_CANCELADOS_COLLECTION = "procesoscancelados";
 
