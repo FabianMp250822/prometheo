@@ -8,10 +8,11 @@ import { Loader2, FileText, AlertTriangle, FolderSymlink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { DocumentViewerModal } from './document-viewer-modal';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
-// import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { app } from '@/lib/firebase';
 
-// const functions = getFunctions();
-// const getGoogleDriveFilesCallable = httpsCallable(functions, 'getGoogleDriveFiles');
+const functions = getFunctions(app);
+const getGoogleDriveFilesCallable = httpsCallable(functions, 'getGoogleDriveFiles');
 
 interface DriveFile {
   id: string;
@@ -35,30 +36,21 @@ export function SoportesDriveModal({ isOpen, onClose, documento, nombre }: Sopor
 
   const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [documentTitle, setDocumentTitle] = useState<string | null>(null);
+  const [folderWebViewLink, setFolderWebViewLink] = useState<string | null>(null);
 
   const fetchDriveFiles = useCallback(async () => {
     if (!documento) return;
     setIsLoading(true);
     setError(null);
     try {
-        // --- This is where the call to the Firebase Function would go ---
-        // const result = await getGoogleDriveFilesCallable({ folderName: documento });
-        // const driveFiles = result.data as DriveFile[];
+        const result = await getGoogleDriveFilesCallable({ folderName: documento });
+        const driveFiles = result.data as DriveFile[];
         
-        // --- Mocking the response for now ---
-        console.log(`Simulating fetch for folder: ${documento}`);
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
-        const mockFiles: DriveFile[] = [
-            { id: '1', name: 'Resolucion_Pension.pdf', webViewLink: '#', mimeType: 'application/pdf' },
-            { id: '2', name: 'Cedula_Ciudadania.pdf', webViewLink: '#', mimeType: 'application/pdf' },
-            { id: '3', name: 'Historia_Laboral.pdf', webViewLink: '#', mimeType: 'application/pdf' },
-        ];
-        // --- End of Mock ---
+        setFiles(driveFiles);
+        // Assuming the parent folder link could be part of the response in a real scenario
+        // For now, we'll use a placeholder or construct it if possible.
         
-        // Replace mockFiles with driveFiles when the function is ready
-        setFiles(mockFiles);
-
-        if (mockFiles.length === 0) {
+        if (driveFiles.length === 0) {
              toast({ title: 'Sin Archivos', description: 'No se encontraron documentos en Google Drive para este usuario.' });
         }
         
@@ -78,18 +70,21 @@ export function SoportesDriveModal({ isOpen, onClose, documento, nombre }: Sopor
   }, [isOpen, fetchDriveFiles]);
 
   const handleViewDocument = (file: DriveFile) => {
-    // This will need adjustment once real URLs are available.
-    // For now, it will likely not work as webViewLink is not a direct file link.
-    // The Firebase Function would need to return a direct-access or proxied URL.
+    // For many file types, webViewLink can be embedded. For others, it might force a download.
+    // For office docs, it opens in the editor. Adjusting this might be needed based on real behavior.
     setDocumentUrl(file.webViewLink); 
     setDocumentTitle(file.name);
   };
   
   const handleOpenFolder = () => {
       // This would open the folder directly in Google Drive.
-      // The link would ideally come from the Firebase Function.
-      const folderUrl = `https://drive.google.com/drive/u/0/folders/DRIVE_FOLDER_ID`; // Placeholder
-      window.open(folderUrl, '_blank');
+      // In a real implementation, the function could return the folder's webViewLink.
+      // For now, we don't have this link, so the button can be disabled or link to a generic search.
+      if (folderWebViewLink) {
+          window.open(folderWebViewLink, '_blank');
+      } else {
+          toast({ description: "El enlace directo a la carpeta no está disponible en esta vista."})
+      }
   };
 
   return (
@@ -138,7 +133,7 @@ export function SoportesDriveModal({ isOpen, onClose, documento, nombre }: Sopor
             )}
           </div>
           <DialogFooter className="flex-row justify-between w-full">
-            <Button variant="ghost" onClick={handleOpenFolder} className="flex items-center gap-2">
+            <Button variant="ghost" onClick={handleOpenFolder} className="flex items-center gap-2" disabled>
                 <FolderSymlink className="h-4 w-4"/>
                 Abrir Carpeta en Drive
             </Button>

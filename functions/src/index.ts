@@ -1,5 +1,4 @@
 
-
 /* eslint-disable max-len */
 /**
  * @fileOverview Cloud Functions for Prometeo app.
@@ -1082,5 +1081,3 @@ export const savePushSubscription = onCall({cors: ALLOWED_ORIGINS}, async (reque
     throw new HttpsError("internal", "Could not save push subscription.");
   }
 });
-
-

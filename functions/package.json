@@ -1,3 +1,4 @@
+
 {
   "name": "functions",
   "type": "module",
@@ -19,6 +20,7 @@
     "@types/web-push": "^3.6.3",
     "firebase-admin": "^12.2.0",
     "firebase-functions": "^5.0.1",
+    "googleapis": "^140.0.1",
     "mysql2": "^3.14.3",
     "node-fetch": "^3.3.2",
     "nodemailer": "^6.9.14",
