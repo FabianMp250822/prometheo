@@ -4,6 +4,7 @@ import { AuthProvider } from '@/context/auth-provider';
 import './globals.css';
 import { PensionerProvider } from '@/context/pensioner-provider';
 import { RecaptchaProvider } from '@/context/recaptcha-provider';
+import { FirebaseAppCheckProvider } from '@/context/firebase-app-check-provider';
 
 export const metadata: Metadata = {
   title: 'DAJUSTICIA | Abogados Expertos en Pensiones - Aumenta tu Pensión',
@@ -40,14 +41,16 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Belleza&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased">
-        <AuthProvider>
-          <RecaptchaProvider>
-            <PensionerProvider>
-              {children}
-              <Toaster />
-            </PensionerProvider>
-          </RecaptchaProvider>
-        </AuthProvider>
+        <RecaptchaProvider>
+          <FirebaseAppCheckProvider>
+            <AuthProvider>
+              <PensionerProvider>
+                {children}
+                <Toaster />
+              </PensionerProvider>
+            </AuthProvider>
+          </FirebaseAppCheckProvider>
+        </RecaptchaProvider>
       </body>
     </html>
   );

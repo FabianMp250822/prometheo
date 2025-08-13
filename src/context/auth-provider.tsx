@@ -4,7 +4,6 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 import { app } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
-import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 
 interface AuthContextType {
   user: User | null;
@@ -13,29 +12,12 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// This function ensures we only initialize App Check once.
-let appCheckInitialized = false;
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const auth = getAuth(app);
 
   useEffect(() => {
-    // Initialize App Check only on the client and only once.
-    if (typeof window !== 'undefined' && !appCheckInitialized) {
-        try {
-            initializeAppCheck(app, {
-                provider: new ReCaptchaV3Provider(process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!),
-                isTokenAutoRefreshEnabled: true
-            });
-            appCheckInitialized = true;
-            console.log("Firebase App Check initialized successfully.");
-        } catch (error) {
-            console.error("Error initializing Firebase App Check:", error);
-        }
-    }
-
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
