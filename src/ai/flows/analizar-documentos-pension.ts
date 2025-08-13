@@ -1,9 +1,9 @@
 
 'use server';
 /**
- * @fileOverview Extracts structured pension and legal data from a set of documents.
+ * @fileOverview Processes pension documents to generate a detailed pension readjustment calculation table.
  *
- * - analizarDocumentosPension - A function that analyzes documents and extracts pension data.
+ * - analizarDocumentosPension - A function that analyzes documents and returns a detailed settlement calculation.
  * - AnalizarDocumentosPensionInput - The input type for the function.
  * - AnalizarDocumentosPensionOutput - The return type for the function.
  */
@@ -16,61 +16,24 @@ const AnalizarDocumentosPensionInputSchema = z.object({
 });
 export type AnalizarDocumentosPensionInput = z.infer<typeof AnalizarDocumentosPensionInputSchema>;
 
-const AnalisisOutputSchema = z.object({
-  datosGenerales: z.object({
-    nombreCompleto: z.string().describe('Nombre completo del beneficiario.'),
-    numeroIdentificacion: z.string().describe('Número de identificación del beneficiario.'),
-    fechaNacimiento: z.string().describe('Fecha de nacimiento (DD/MM/AAAA).'),
-    empresaDemandada: z.string().describe('Empresa o entidad demandada.'),
-    entidadPensiones: z.string().describe('Entidad administradora de pensiones (Colpensiones/FONECA/etc.).'),
-    fechaVinculacion: z.string().describe('Fecha de vinculación laboral (DD/MM/AAAA).'),
-    fechaRetiro: z.string().describe('Fecha de retiro laboral (DD/MM/AAAA).'),
-    tiempoTotalServicio: z.string().describe('Tiempo total de servicio (años, meses, días).'),
-  }).describe('Datos generales del beneficiario.'),
-
-  datosSentencia: z.object({
-    numeroRadicado: z.string().describe('Número de radicado del proceso.'),
-    fechaSentencia: z.string().describe('Fecha de la sentencia (DD/MM/AAAA).'),
-    instancia: z.string().describe('Instancia judicial (primera, segunda, casación).'),
-    montoPensionReconocido: z.number().describe('Monto de la mesada pensional inicial reconocida.'),
-    fechaReconocimientoPensional: z.string().describe('Fecha de reconocimiento pensional (DD/MM/AAAA).'),
-    retroactivoReconocido: z.number().describe('Valor del retroactivo reconocido en la sentencia.'),
-    observacionesEspeciales: z.string().describe('Observaciones clave de la sentencia.'),
-  }).describe('Datos de la sentencia principal.'),
-
-  liquidacionesMesadas: z.array(z.object({
-    periodo: z.string().describe('Año o período de la liquidación.'),
-    valorHistoricoMesada: z.number().describe('Valor histórico de la mesada en ese periodo.'),
-    porcentajeReajuste: z.string().describe('Porcentaje de reajuste aplicado (ej. "IPC 3.5%" o "SMLMV 15%").'),
-    equivalenciaSMLMV: z.number().describe('A cuántos SMLMV equivalía la mesada.'),
-    numeroPagos: z.number().describe('Número de mesadas pagadas en el periodo (usualmente 13 o 14).'),
-    valorCompartibleColpensiones: z.number().optional().describe('Valor de la mesada compartida con Colpensiones, si aplica.'),
-    valorACargoEmpresa: z.number().optional().describe('Valor de la mesada a cargo de la empresa, si aplica.'),
-  })).describe('Tabla de liquidación de mesadas anuales.'),
-
-  calculoDiferencias: z.object({
-    mesadaActualReconocida: z.number().describe('Mesada actual que la empresa reconoce y paga.'),
-    mesadaReajustadaCorrecta: z.number().describe('Mesada que debería estar pagándose según el cálculo correcto.'),
-    diferenciaMensual: z.number().describe('Diferencia mensual entre lo pagado y lo que se debió pagar.'),
-    totalDiferenciasRetroactivas: z.number().describe('Suma total de las diferencias adeudadas.'),
-    abonosPagados: z.number().optional().describe('Total de abonos o pagos parciales ya realizados sobre la deuda.'),
-    saldoPorPagar: z.number().describe('Saldo final pendiente de pago.'),
-  }).describe('Cálculo de las diferencias adeudadas.'),
-
-  proyeccion: z.object({
-    mesadaFuturaReconocida: z.number().describe('Proyección de la mesada futura según la entidad.'),
-    mesadaFuturaCalculada: z.number().describe('Proyección de la mesada futura según el cálculo correcto.'),
-    diferenciaProyectadaAnual: z.number().describe('Diferencia anual estimada a futuro.'),
-  }).describe('Proyección del impacto a futuro.'),
-
-  observacionesTecnicas: z.object({
-    fuenteLegalCalculo: z.string().describe('Base legal para el cálculo (sentencia, ley, convención).'),
-    formulasAplicadas: z.string().describe('Descripción de las fórmulas matemáticas utilizadas.'),
-    erroresDetectados: z.string().describe('Errores específicos encontrados en los cálculos oficiales.'),
-  }).describe('Observaciones técnicas del análisis.'),
+const LiquidacionAnualSchema = z.object({
+  año: z.number().describe('El año del cálculo.'),
+  smmlv: z.string().describe('Salario Mínimo Mensual Legal Vigente para ese año.'),
+  tope5smmlv: z.string().describe('El valor correspondiente a 5 SMLMV para ese año.'),
+  mesadaACargoEmpresa: z.string().describe('La mesada pensional que estaba a cargo de la empresa.'),
+  porcentajeAplicado: z.string().describe('El porcentaje de reajuste aplicado (IPC o 15%).'),
+  mesadaReajustada: z.string().describe('La mesada después de aplicar el reajuste.'),
+  mesadaCancelada: z.string().describe('La mesada que efectivamente se pagó.'),
+  diferencia: z.string().describe('La diferencia entre la mesada reajustada y la cancelada.'),
+  numeroMesadas: z.number().describe('El número de mesadas pagadas en el año.'),
+  valorAdeudado: z.string().describe('El valor total adeudado para ese año (diferencia * número de mesadas).'),
 });
 
-export type AnalizarDocumentosPensionOutput = z.infer<typeof AnalisisOutputSchema>;
+const AnalizarDocumentosPensionOutputSchema = z.object({
+  liquidaciones: z.array(LiquidacionAnualSchema).describe("Un array con la liquidación detallada año por año."),
+});
+
+export type AnalizarDocumentosPensionOutput = z.infer<typeof AnalizarDocumentosPensionOutputSchema>;
 
 export async function analizarDocumentosPension(input: AnalizarDocumentosPensionInput): Promise<AnalizarDocumentosPensionOutput> {
   return analizarDocumentosPensionFlow(input);
@@ -80,33 +43,78 @@ const prompt = ai.definePrompt({
   name: 'analizarDocumentosPensionPrompt',
   input: { schema: AnalizarDocumentosPensionInputSchema },
   output: { schema: AnalisisOutputSchema },
-  model: 'googleai/gemini-1.5-flash',
+  model: 'googleai/gemini-1.5-pro',
   prompt: `
-    You are an expert AI assistant specialized in Colombian pension law. Your task is to meticulously analyze the provided legal and financial documents (up to 5) related to a pension case. Extract the specified information with the highest accuracy possible and structure it into the required JSON format.
+    ## ROL Y OBJETIVO
+    Eres un sistema experto en la liquidación de pensiones bajo la Ley 4ª de 1976 en Colombia. Tu objetivo es procesar los documentos pensionales proporcionados, aplicar los criterios jurídicos y financieros especificados, y generar una tabla de liquidación anual detallada. Debes actuar con la máxima precisión, como lo haría un actuario judicial.
 
-    The documents are provided below:
+    ## DOCUMENTOS A ANALIZAR
     {{#each documentos}}
-    - Document {{@index}}: {{media url=this}}
+    - Documento {{@index}}: {{media url=this}}
     {{/each}}
 
-    **Analysis Instructions:**
+    ## REGLAS Y PROCEDIMIENTOS DE CÁLCULO
+    A continuación, se detallan las reglas, definiciones y datos que DEBES usar para el análisis. Sigue estos procedimientos estrictamente.
 
-    1.  **Datos Generales del Beneficiario:** Identify the main person, their ID, date of birth, the company they are in a legal process with, the pension administrator, and their employment dates. Calculate the total service time.
-    2.  **Datos de la Sentencia:** Find the most relevant court sentence. Extract the case number, date, judicial instance, the initial pension amount granted, the date it was granted from, any retroactive amounts, and any special remarks.
-    3.  **Datos para Liquidación de Mesadas:** Create a year-by-year or period-by-period breakdown. For each period, find the pension amount paid, the adjustment percentage applied, and calculate its equivalence in SMLMV. Note the number of payments in that period. If it's a shared pension, specify the amounts for Colpensiones and the company.
-    4.  **Datos para Cálculo de Diferencias:** Based on your analysis, determine the difference between what the pensioner is currently receiving and what they *should* be receiving. Calculate the total retroactive amount owed, subtract any payments made, and provide the final balance.
-    5.  **Datos para Proyección:** Project the future values of the pension, both as currently paid and as it should be, and calculate the annual difference.
-    6.  **Observaciones Técnicas:** Summarize the legal basis for your calculations, the formulas used, and any specific errors you found in the official calculations.
+    ### 1. Precedentes Judiciales para el Reajuste
+    Debes considerar los siguientes métodos. Extrae los datos necesarios de los documentos para aplicar el más pertinente.
+    - **Precedente 39783 de 2013 (Método Escolástica):**
+      - Identifica la mesada a cargo exclusivo de la empresa.
+      - Si esta mesada **no supera los 5 SMLMV** del año a liquidar, aplica un reajuste del 15%.
+      - Si una compartición con Colpensiones reduce la mesada a cargo de la empresa por debajo del tope de 5 SMLMV, el derecho al 15% se recupera.
+    - **Precedente 4555 de 2020:**
+      - Suma la mesada a cargo de la empresa más la mesada del ISS/Colpensiones para determinar el porcentaje aplicable (IPC o 15% si la suma no supera los 5 SMLMV).
+      - Aplica el porcentaje resultante **únicamente sobre la parte de la mesada a cargo de la empresa**.
+      - El 15% se aplica sucesivamente cada año mientras la parte de la empresa no supere los 5 SMLMV.
+    - **Unidad Prestacional (Método Actuario Judicial):**
+      - Trata la mesada como una unidad integrada (empresa + ISS) para determinar el porcentaje.
+      - Si la mesada integrada con el reajuste del 15% no supera el tope, se usa el 15%. De lo contrario, se usa el IPC.
+      - Al valor total reajustado, réstale lo que paga el ISS para obtener la parte que le corresponde a la empresa.
 
-    Provide the output *only* in the specified JSON format. Do not add any extra commentary. Be precise and thorough. If a value cannot be found, use a sensible default like 0 for numbers or an empty string.
+    ### 2. Tabla de Referencia (IPC y SMLMV)
+    Utiliza OBLIGATORIAMENTE esta tabla para tus cálculos. No inventes ni extrapoles valores.
+    | Año  | IPC (%) | SMMLV      | Tope 5 SMMLV |
+    |------|---------|------------|--------------|
+    | 1999 | 16.70   | 236,460    | 1,182,300    |
+    | 2000 | 9.23    | 260,100    | 1,300,500    |
+    | 2001 | 8.75    | 286,000    | 1,430,000    |
+    | 2002 | 7.65    | 309,000    | 1,545,000    |
+    | 2003 | 6.99    | 332,000    | 1,660,000    |
+    | 2004 | 6.49    | 358,000    | 1,790,000    |
+    | 2005 | 5.50    | 381,500    | 1,907,500    |
+    | 2006 | 4.85    | 408,000    | 2,040,000    |
+    | 2007 | 4.48    | 433,700    | 2,168,500    |
+    | 2008 | 5.69    | 461,500    | 2,307,500    |
+    | 2009 | 7.67    | 496,900    | 2,484,500    |
+    | 2010 | 2.00    | 515,000    | 2,575,000    |
+    | 2011 | 3.17    | 535,600    | 2,678,000    |
+    | 2012 | 3.73    | 566,000    | 2,830,000    |
+    | 2013 | 2.44    | 589,500    | 2,947,500    |
+    | 2014 | 1.94    | 616,000    | 3,080,000    |
+    | 2015 | 3.66    | 638,546    | 3,192,728    |
+
+    ### 3. Proceso de Cálculo Anual
+    Para cada año relevante que encuentres en los documentos, desde el inicio de la pensión:
+    1.  **Extrae la "Mesada Cancelada"**: Este es el monto que la empresa efectivamente pagó en ese año. Lo encuentras en los comprobantes de pago o historia de pagos.
+    2.  **Calcula la "Mesada Reajustada"**:
+        - Obtén la mesada del año anterior.
+        - Determina el porcentaje de ajuste a aplicar (15% o IPC) según el precedente y el tope de 5 SMLMV.
+        - Calcula el nuevo valor: `MesadaReajustada = MesadaAñoAnterior * (1 + %Ajuste)`.
+    3.  **Calcula la "Diferencia"**: `Diferencia = MesadaReajustada - MesadaCancelada`.
+    4.  **Determina el "Número de Mesadas"**: Usualmente 13 o 14, identifícalo en los documentos.
+    5.  **Calcula el "Valor Adeudado"**: `ValorAdeudado = Diferencia * NúmeroDeMesadas`.
+
+    ## FORMATO DE SALIDA
+    Tu respuesta DEBE ser un único objeto JSON que se ajuste al esquema de salida. El objeto debe contener una clave "liquidaciones", que es un array. Cada elemento del array representa un año y debe contener las siguientes claves: 'año', 'smmlv', 'tope5smmlv', 'mesadaACargoEmpresa', 'porcentajeAplicado', 'mesadaReajustada', 'mesadaCancelada', 'diferencia', 'numeroMesadas', 'valorAdeudado'. Formatea todos los valores monetarios como strings sin símbolos de moneda y usando punto como separador decimal si es necesario.
 `,
 });
+
 
 const analizarDocumentosPensionFlow = ai.defineFlow(
   {
     name: 'analizarDocumentosPensionFlow',
     inputSchema: AnalizarDocumentosPensionInputSchema,
-    outputSchema: AnalisisOutputSchema,
+    outputSchema: AnalizarDocumentosPensionOutputSchema,
   },
   async (input) => {
     const { output } = await prompt(input);
@@ -116,3 +124,5 @@ const analizarDocumentosPensionFlow = ai.defineFlow(
     return output;
   }
 );
+
+    

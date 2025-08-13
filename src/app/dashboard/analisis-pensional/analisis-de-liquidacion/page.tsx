@@ -9,45 +9,44 @@ import { FileUp, Loader2, Sparkles, AlertTriangle, FileText, CheckCircle, Save }
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { type AnalizarDocumentosPensionOutput, analizarDocumentosPension } from '@/ai/flows/analizar-documentos-pension';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { formatCurrency } from '@/lib/helpers';
 
-const MAX_FILES = 5;
 
-const ResultTable = ({ data }: { data: any }) => {
-    if (!data) return null;
+const ResultTable = ({ data }: { data: AnalizarDocumentosPensionOutput }) => {
+    if (!data || !data.liquidaciones || data.liquidaciones.length === 0) return null;
     return (
-        <div className="space-y-4 text-sm">
-            {Object.entries(data).map(([sectionKey, sectionValue]) => (
-                <div key={sectionKey}>
-                    <h3 className="font-semibold text-lg mb-2 capitalize">{sectionKey.replace(/([A-Z])/g, ' $1')}</h3>
-                     {Array.isArray(sectionValue) ? (
-                        <div className="overflow-x-auto">
-                           <table className="w-full text-left border-collapse">
-                               <thead>
-                                   <tr className="bg-muted/50">
-                                       {Object.keys(sectionValue[0] || {}).map(key => <th key={key} className="p-2 border">{key}</th>)}
-                                   </tr>
-                               </thead>
-                               <tbody>
-                                   {sectionValue.map((row, index) => (
-                                       <tr key={index}>
-                                           {Object.values(row).map((val: any, i) => <td key={i} className="p-2 border">{typeof val === 'number' ? val.toLocaleString('es-CO') : val}</td>)}
-                                       </tr>
-                                   ))}
-                               </tbody>
-                           </table>
-                        </div>
-                    ) : typeof sectionValue === 'object' && sectionValue !== null ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                           {Object.entries(sectionValue).map(([key, value]) => (
-                               <div key={key} className="flex flex-col p-2 border rounded-md">
-                                   <span className="text-xs text-muted-foreground">{key}</span>
-                                   <span className="font-medium">{typeof value === 'number' ? value.toLocaleString('es-CO') : String(value)}</span>
-                               </div>
-                           ))}
-                        </div>
-                    ) : null}
-                </div>
-            ))}
+        <div className="overflow-x-auto">
+           <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead>Año</TableHead>
+                        <TableHead>SMLMV</TableHead>
+                        <TableHead>Mesada Empresa</TableHead>
+                        <TableHead>% Aplicado</TableHead>
+                        <TableHead>Mesada Reajustada</TableHead>
+                        <TableHead>Mesada Cancelada</TableHead>
+                        <TableHead>Diferencia</TableHead>
+                        <TableHead># Mesadas</TableHead>
+                        <TableHead>Valor Adeudado</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {data.liquidaciones.map((row, index) => (
+                        <TableRow key={index}>
+                            <TableCell>{row.año}</TableCell>
+                            <TableCell>{formatCurrency(parseFloat(row.smmlv))}</TableCell>
+                            <TableCell>{formatCurrency(parseFloat(row.mesadaACargoEmpresa))}</TableCell>
+                            <TableCell>{row.porcentajeAplicado}</TableCell>
+                            <TableCell>{formatCurrency(parseFloat(row.mesadaReajustada))}</TableCell>
+                            <TableCell>{formatCurrency(parseFloat(row.mesadaCancelada))}</TableCell>
+                            <TableCell className="text-red-600">{formatCurrency(parseFloat(row.diferencia))}</TableCell>
+                            <TableCell>{row.numeroMesadas}</TableCell>
+                            <TableCell className="font-bold text-primary">{formatCurrency(parseFloat(row.valorAdeudado))}</TableCell>
+                        </TableRow>
+                    ))}
+                </TableBody>
+           </Table>
         </div>
     );
 };
@@ -115,7 +114,7 @@ export default function AnalisisLiquidacionPage() {
                         Análisis de Liquidación con IA
                     </CardTitle>
                     <CardDescription>
-                        Suba hasta 5 documentos (sentencias, resoluciones, etc.) para que la IA extraiga los datos clave para la liquidación.
+                        Suba hasta 5 documentos (sentencias, resoluciones, etc.) para que la IA genere la tabla de liquidación.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -157,7 +156,7 @@ export default function AnalisisLiquidacionPage() {
                     <CardHeader className="flex flex-row justify-between items-start">
                         <div>
                             <CardTitle className="flex items-center gap-2"><CheckCircle className="h-6 w-6 text-green-600" /> Resultados del Análisis</CardTitle>
-                            <CardDescription>Revise los datos extraídos por la IA.</CardDescription>
+                            <CardDescription>Tabla de liquidación generada por la IA.</CardDescription>
                         </div>
                     </CardHeader>
                     <CardContent>
@@ -168,3 +167,5 @@ export default function AnalisisLiquidacionPage() {
         </div>
     );
 }
+
+    
