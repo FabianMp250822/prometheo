@@ -51,6 +51,7 @@ const ResultTable = ({ data }: { data: AnalizarDocumentosPensionOutput }) => {
     );
 };
 
+const MAX_FILES = 5;
 
 export default function AnalisisLiquidacionPage() {
     const { toast } = useToast();
