@@ -56,7 +56,8 @@ const MAX_FILES = 5;
 export default function AnalisisLiquidacionPage() {
     const { toast } = useToast();
     const [files, setFiles] = useState<File[]>([]);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [processingStatus, setProcessingStatus] = useState('');
     const [analysisResult, setAnalysisResult] = useState<AnalizarDocumentosPensionOutput | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -72,7 +73,7 @@ export default function AnalisisLiquidacionPage() {
         maxFiles: MAX_FILES,
     });
 
-    const handleFileConversion = (file: File): Promise<string> => {
+    const fileToDataURI = (file: File): Promise<string> => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
@@ -87,13 +88,17 @@ export default function AnalisisLiquidacionPage() {
             return;
         }
         
-        setIsAnalyzing(true);
+        setIsProcessing(true);
         setError(null);
         setAnalysisResult(null);
 
         try {
-            const dataUris = await Promise.all(files.map(handleFileConversion));
+            setProcessingStatus('Convirtiendo archivos...');
+            const dataUris = await Promise.all(files.map(fileToDataURI));
+
+            setProcessingStatus('Analizando documentos con IA...');
             const result = await analizarDocumentosPension({ documentos: dataUris });
+
             setAnalysisResult(result);
             toast({ title: 'Análisis Completado', description: 'La IA ha procesado los documentos exitosamente.' });
         } catch (err: any) {
@@ -101,11 +106,11 @@ export default function AnalisisLiquidacionPage() {
             setError('Ocurrió un error al analizar los documentos. Revise la consola para más detalles.');
             toast({ variant: 'destructive', title: 'Error de Análisis', description: err.message || 'No se pudo completar la operación.' });
         } finally {
-            setIsAnalyzing(false);
+            setIsProcessing(false);
+            setProcessingStatus('');
         }
     };
     
-
     return (
         <div className="p-4 md:p-8 space-y-6">
             <Card>
@@ -137,9 +142,18 @@ export default function AnalisisLiquidacionPage() {
                             </ul>
                         </div>
                     )}
-                    <Button onClick={handleAnalyze} disabled={isAnalyzing || files.length === 0} className="mt-4">
-                        {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                        Analizar Documentos
+                    <Button onClick={handleAnalyze} disabled={isProcessing || files.length === 0} className="mt-4">
+                        {isProcessing ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                {processingStatus}
+                            </>
+                        ) : (
+                            <>
+                                <Sparkles className="mr-2 h-4 w-4" />
+                                Analizar Documentos
+                            </>
+                        )}
                     </Button>
                 </CardContent>
             </Card>
@@ -168,5 +182,3 @@ export default function AnalisisLiquidacionPage() {
         </div>
     );
 }
-
-    
