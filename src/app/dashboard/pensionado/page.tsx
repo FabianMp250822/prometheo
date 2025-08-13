@@ -73,7 +73,7 @@ export default function PensionadoPage() {
         setIsLoading(true);
         setError(null);
         setProfileData(null);
-        setAnalysis(null); // Reset analysis on new pensioner
+        
         try {
             const clientQuery = query(collection(db, "nuevosclientes"), where("cedula", "==", document), limit(1));
             const clientSnapshot = await getDocs(clientQuery);
@@ -92,7 +92,11 @@ export default function PensionadoPage() {
                 const pensionerData = pensionerDocSnap.data();
                 if (pensionerData.analisisIA) {
                     setAnalysis(pensionerData.analisisIA);
+                } else {
+                    setAnalysis(null);
                 }
+            } else {
+                 setAnalysis(null);
             }
             
             const paymentsQuery = query(collection(db, 'pensionados', pensionerId, 'pagos'));
@@ -200,17 +204,16 @@ export default function PensionadoPage() {
 
         } catch (err: any) {
             console.error("Error during analysis:", err);
-            const errorMessage = "Ocurrió un error al generar el análisis. Si el problema persiste, contacte a soporte.";
+            let errorMessage = "Ocurrió un error al generar el análisis. Si el problema persiste, contacte a soporte.";
             if (typeof err.message === 'string' && err.message.includes('503')) {
-                setAnalysisError("El servicio de IA está sobrecargado. Por favor, inténtelo de nuevo en unos minutos.");
-            } else {
-                setAnalysisError(errorMessage);
+                errorMessage = "El servicio de IA está sobrecargado. Por favor, inténtelo de nuevo en unos minutos.";
             }
-            toast({ variant: 'destructive', title: 'Error de Análisis', description: analysisError || err.message });
+            setAnalysisError(errorMessage);
+            toast({ variant: 'destructive', title: 'Error de Análisis', description: errorMessage });
         } finally {
             setIsAnalyzing(false);
         }
-    }, [profileData, selectedPensioner, toast, analysis, analysisError]);
+    }, [profileData, selectedPensioner, toast, analysis]);
 
 
     useEffect(() => {
