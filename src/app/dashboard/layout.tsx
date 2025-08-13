@@ -110,7 +110,7 @@ export default function DashboardLayout({
         <SidebarHeader>
           <div className="flex items-center justify-center p-2">
             <Image 
-              src="https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2Flogo-removebg-preview.png?alt=media&token=9a935e08-66dd-4edc-83f8-31320b0b2680"
+              src="https://firebasestorage.googleapis.com/v0/b/pensionados-d82b2.appspot.com/o/logos%2FGemini_Generated_Image_2xte6v2xte6v2xte-removebg-preview.png?alt=media&token=9cf1c2b7-ace1-4bbd-93fb-a5f9526d23f7"
               alt="Dajusticia Logo"
               width={150}
               height={40}
