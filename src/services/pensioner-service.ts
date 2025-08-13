@@ -1,7 +1,9 @@
 
+
 import { collection, query, getDocs, where, documentId, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { ProcesoCancelado, Payment } from '@/lib/data';
+import type { ProcesoCancelado, Payment, Pensioner, LegalProcess, Parris1, Causante, DajusticiaClient, DajusticiaPayment, ProviredNotification, PagosHistoricoRecord, PensionerProfileData } from '@/lib/data';
+import { parseEmployeeName, parsePeriodoPago } from './helpers';
 
 const PROCESOS_CANCELADOS_COLLECTION = "procesoscancelados";
 
@@ -123,5 +125,71 @@ export async function getProcesosCanceladosConPensionados(): Promise<ProcesoCanc
     } catch (error: any) {
         console.error("Error fetching data:", error);
         throw new Error(`Failed to fetch processed sentences with pensioner details: ${error.message}`);
+    }
+}
+
+
+/**
+ * Fetches all relevant data for a single pensioner to build a complete profile.
+ * @param pensionerId The ID of the pensioner document.
+ * @param document The document number of the pensioner.
+ * @returns A promise that resolves to the complete pensioner profile data.
+ */
+export async function getFullPensionerData(pensionerId: string, document: string): Promise<Partial<PensionerProfileData>> {
+    try {
+        const [
+            paymentsSnapshot,
+            historicalDoc,
+            processesSnapshot,
+            parris1Doc,
+            causanteSnapshot,
+            clientSnapshot,
+            notificationsSnapshot
+        ] = await Promise.all([
+            getDocs(query(collection(db, 'pensionados', pensionerId, 'pagos'))),
+            getDoc(doc(db, 'pagosHistorico', document)),
+            getDocs(query(collection(db, 'procesos'), where("identidad_clientes", "==", document))),
+            getDoc(doc(db, "parris1", document)),
+            getDocs(query(collection(db, "causante"), where("cedula_causante", "==", document))),
+            getDocs(query(collection(db, "nuevosclientes"), where("cedula", "==", document), limit(1))),
+            getDocs(query(collection(db, 'provired_notifications'), where('demandante_lower', '==', document.toLowerCase()), orderBy('fechaPublicacion', 'desc'), limit(1)))
+        ]);
+
+        let payments = paymentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
+        payments.sort((a, b) => {
+            const dateA = parsePeriodoPago(a.periodoPago)?.endDate || new Date(0);
+            const dateB = parsePeriodoPago(b.periodoPago)?.endDate || new Date(0);
+            return dateB.getTime() - dateA.getTime();
+        });
+        
+        const historicalPayments = historicalDoc.exists() && Array.isArray(historicalDoc.data().records) ? historicalDoc.data().records as PagosHistoricoRecord[] : [];
+        const legalProcesses = processesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LegalProcess));
+        const parris1Data = parris1Doc.exists() ? { id: parris1Doc.id, ...parris1Doc.data() } as Parris1 : null;
+        const causanteData = !causanteSnapshot.empty ? { id: causanteSnapshot.docs[0].id, ...causanteSnapshot.docs[0].data() } as Causante : null;
+        const lastNotification = !notificationsSnapshot.empty ? { id: notificationsSnapshot.docs[0].id, ...notificationsSnapshot.docs[0].data() } as ProviredNotification : null;
+
+        let dajusticiaClientData: DajusticiaClient | null = null;
+        let dajusticiaPayments: DajusticiaPayment[] = [];
+        if (!clientSnapshot.empty) {
+            const clientDoc = clientSnapshot.docs[0];
+            dajusticiaClientData = { id: clientDoc.id, ...clientDoc.data() } as DajusticiaClient;
+            const clientPaymentsSnapshot = await getDocs(query(collection(db, "nuevosclientes", clientDoc.id, "pagos")));
+            dajusticiaPayments = clientPaymentsSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as DajusticiaPayment));
+        }
+
+        return {
+            payments,
+            legalProcesses,
+            parris1Data,
+            causanteData,
+            historicalPayments,
+            dajusticiaClientData,
+            dajusticiaPayments,
+            lastNotification,
+        };
+
+    } catch (error) {
+        console.error(`Error fetching full data for pensioner ${document}:`, error);
+        throw error;
     }
 }
