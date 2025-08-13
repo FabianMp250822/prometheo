@@ -42,7 +42,7 @@ export async function analizarDocumentosPension(input: AnalizarDocumentosPension
 const prompt = ai.definePrompt({
   name: 'analizarDocumentosPensionPrompt',
   input: { schema: AnalizarDocumentosPensionInputSchema },
-  output: { schema: AnalisisOutputSchema },
+  output: { schema: AnalizarDocumentosPensionOutputSchema },
   model: 'googleai/gemini-1.5-pro',
   prompt: `
     ## ROL Y OBJETIVO
@@ -95,14 +95,14 @@ const prompt = ai.definePrompt({
 
     ### 3. Proceso de Cálculo Anual
     Para cada año relevante que encuentres en los documentos, desde el inicio de la pensión:
-    1.  **Extrae la "Mesada Cancelada"**: Este es el monto que la empresa efectivamente pagó en ese año. Lo encuentras en los comprobantes de pago o historia de pagos.
-    2.  **Calcula la "Mesada Reajustada"**:
+    1.  **Extrae la 'Mesada Cancelada'**: Este es el monto que la empresa efectivamente pagó en ese año. Lo encuentras en los comprobantes de pago o historia de pagos.
+    2.  **Calcula la 'Mesada Reajustada'**:
         - Obtén la mesada del año anterior.
         - Determina el porcentaje de ajuste a aplicar (15% o IPC) según el precedente y el tope de 5 SMLMV.
-        - Calcula el nuevo valor: `MesadaReajustada = MesadaAñoAnterior * (1 + %Ajuste)`.
-    3.  **Calcula la "Diferencia"**: `Diferencia = MesadaReajustada - MesadaCancelada`.
-    4.  **Determina el "Número de Mesadas"**: Usualmente 13 o 14, identifícalo en los documentos.
-    5.  **Calcula el "Valor Adeudado"**: `ValorAdeudado = Diferencia * NúmeroDeMesadas`.
+        - Calcula el nuevo valor: 'MesadaReajustada = MesadaAñoAnterior * (1 + %Ajuste)'.
+    3.  **Calcula la 'Diferencia'**: 'Diferencia = MesadaReajustada - MesadaCancelada'.
+    4.  **Determina el 'Número de Mesadas'**: Usualmente 13 o 14, identifícalo en los documentos.
+    5.  **Calcula el 'Valor Adeudado'**: 'ValorAdeudado = Diferencia * NúmeroDeMesadas'.
 
     ## FORMATO DE SALIDA
     Tu respuesta DEBE ser un único objeto JSON que se ajuste al esquema de salida. El objeto debe contener una clave "liquidaciones", que es un array. Cada elemento del array representa un año y debe contener las siguientes claves: 'año', 'smmlv', 'tope5smmlv', 'mesadaACargoEmpresa', 'porcentajeAplicado', 'mesadaReajustada', 'mesadaCancelada', 'diferencia', 'numeroMesadas', 'valorAdeudado'. Formatea todos los valores monetarios como strings sin símbolos de moneda y usando punto como separador decimal si es necesario.
@@ -124,5 +124,3 @@ const analizarDocumentosPensionFlow = ai.defineFlow(
     return output;
   }
 );
-
-    
