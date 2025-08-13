@@ -9,7 +9,7 @@ import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknot
 import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parsePaymentDetailName, formatFirebaseTimestamp, parsePeriodoPago, parseDepartmentName } from '@/lib/helpers';
 import type { Payment, Parris1, LegalProcess, Causante, PagosHistoricoRecord, PensionerProfileData, DajusticiaClient, DajusticiaPayment, ProviredNotification, CausanteRecord } from '@/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { collection, doc, getDoc, getDocs, query, where, limit, orderBy, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, limit, orderBy, setDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
@@ -46,12 +46,6 @@ interface SentencePayment {
     amount: number;
 }
 
-interface CachedAnalysis {
-    summary: string;
-    createdAt: any;
-}
-
-
 export default function PensionadoPage() {
     const { user } = useAuth();
     const { selectedPensioner } = usePensioner();
@@ -79,7 +73,7 @@ export default function PensionadoPage() {
         setIsLoading(true);
         setError(null);
         setProfileData(null);
-        setAnalysis(null);
+        setAnalysis(null); // Reset analysis on new pensioner
         try {
             const clientQuery = query(collection(db, "nuevosclientes"), where("cedula", "==", document), limit(1));
             const clientSnapshot = await getDocs(clientQuery);
@@ -87,9 +81,20 @@ export default function PensionadoPage() {
             setIsDajusticiaClient(isClient);
             
             if (userRole !== 'Administrador' && !isClient) {
+                setIsLoading(false);
                 return;
             }
 
+            // Fetch pensioner document to check for cached analysis
+            const pensionerDocRef = doc(db, 'pensionados', pensionerId);
+            const pensionerDocSnap = await getDoc(pensionerDocRef);
+            if (pensionerDocSnap.exists()) {
+                const pensionerData = pensionerDocSnap.data();
+                if (pensionerData.analisisIA) {
+                    setAnalysis(pensionerData.analisisIA);
+                }
+            }
+            
             const paymentsQuery = query(collection(db, 'pensionados', pensionerId, 'pagos'));
             const paymentsSnapshot = await getDocs(paymentsQuery);
             let payments = paymentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
@@ -166,23 +171,15 @@ export default function PensionadoPage() {
         if (!profileData || !selectedPensioner) return;
 
         setIsAnalyzing(true);
-        setAnalysis(null);
         setAnalysisError(null);
+        
+        if (!forceRefresh && analysis) {
+            toast({ title: "Análisis Cargado", description: "Se está mostrando un análisis guardado previamente." });
+            setIsAnalyzing(false);
+            return;
+        }
 
         try {
-            const cacheRef = doc(db, 'analisisPensionados', selectedPensioner.documento);
-            
-            if (!forceRefresh) {
-                const cacheSnap = await getDoc(cacheRef);
-                if (cacheSnap.exists()) {
-                    const cachedData = cacheSnap.data() as CachedAnalysis;
-                    setAnalysis(cachedData.summary);
-                    toast({ title: "Análisis Cargado", description: "Se recuperó un análisis guardado previamente." });
-                    setIsAnalyzing(false);
-                    return;
-                }
-            }
-
             toast({ title: "Generando Análisis con IA", description: "Esto puede tardar un momento..." });
             const result = await analizarPerfilPensionado({
                 perfilCompletoPensionado: JSON.stringify({pensioner: selectedPensioner, ...profileData}, null, 2)
@@ -194,29 +191,35 @@ export default function PensionadoPage() {
             
             setAnalysis(result.summary);
             
-            await setDoc(cacheRef, {
-                summary: result.summary,
-                createdAt: serverTimestamp()
-            }, { merge: true });
+            // Save result to pensioner's document
+            const pensionerDocRef = doc(db, 'pensionados', selectedPensioner.id);
+            await updateDoc(pensionerDocRef, {
+                analisisIA: result.summary,
+                analisisFecha: serverTimestamp(),
+            });
 
         } catch (err: any) {
             console.error("Error during analysis:", err);
+            const errorMessage = "Ocurrió un error al generar el análisis. Si el problema persiste, contacte a soporte.";
             if (typeof err.message === 'string' && err.message.includes('503')) {
-                setAnalysisError("El servicio de IA está sobrecargado en este momento. Por favor, inténtelo de nuevo en unos minutos.");
+                setAnalysisError("El servicio de IA está sobrecargado. Por favor, inténtelo de nuevo en unos minutos.");
             } else {
-                setAnalysisError("Ocurrió un error al generar el análisis. Por favor, intente de nuevo.");
+                setAnalysisError(errorMessage);
             }
             toast({ variant: 'destructive', title: 'Error de Análisis', description: analysisError || err.message });
         } finally {
             setIsAnalyzing(false);
         }
-    }, [profileData, selectedPensioner, toast, analysisError]);
+    }, [profileData, selectedPensioner, toast, analysis, analysisError]);
+
 
     useEffect(() => {
         if (selectedPensioner && userRole) {
             fetchAllData(selectedPensioner.id, selectedPensioner.documento, selectedPensioner.empleado);
         } else if (!selectedPensioner) {
             setIsLoading(false);
+            setAnalysis(null);
+            setProfileData(null);
         }
     }, [selectedPensioner, userRole, fetchAllData]);
 
@@ -768,7 +771,3 @@ export default function PensionadoPage() {
         </div>
     );
 }
-
-    
-
-    

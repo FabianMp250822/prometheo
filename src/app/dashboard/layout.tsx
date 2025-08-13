@@ -247,31 +247,6 @@ export default function DashboardLayout({
                <SidebarMenuItem>
                   <Collapsible>
                     <CollapsibleTrigger asChild>
-                       <SidebarMenuButton tooltip="Análisis Pensional" className="w-full justify-between">
-                         <div className="flex items-center gap-2">
-                          <FlaskConical />
-                          <span className="group-data-[collapsible=icon]:hidden">Análisis Pensional</span>
-                        </div>
-                        <ChevronDown className="h-4 w-4 group-data-[collapsible=icon]:hidden group-data-[state=open]:rotate-180 transition-transform" />
-                      </SidebarMenuButton>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                       <SidebarMenuSub>
-                          <SidebarMenuSubItem>
-                             <SidebarMenuSubButton asChild>
-                              <Link href="/dashboard/analisis-pensional/analisis-de-liquidacion">
-                                <TestTubeDiagonal />
-                                <span>Análisis de Liquidación</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                       </SidebarMenuSub>
-                    </CollapsibleContent>
-                  </Collapsible>
-              </SidebarMenuItem>
-               <SidebarMenuItem>
-                  <Collapsible>
-                    <CollapsibleTrigger asChild>
                        <SidebarMenuButton tooltip="Pagos y Sentencias" className="w-full justify-between">
                          <div className="flex items-center gap-2">
                           <Banknote />
