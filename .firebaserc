@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "pensionados-d82b2"
-  }
+    "default": "pensionados-d82b2",
+    "prometheo": "prometeo-ffd3w"
+  },
+  "targets": {},
+  "etags": {}
 }
