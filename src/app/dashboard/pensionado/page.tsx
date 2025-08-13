@@ -5,17 +5,19 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight, Briefcase, FileDown, TrendingDown, BellRing, Info, Handshake, Target, MinusSquare, BarChart3 } from 'lucide-react';
+import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight, Briefcase, FileDown, TrendingDown, BellRing, Info, Handshake, Target, MinusSquare, BarChart3, Sparkles } from 'lucide-react';
 import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parsePaymentDetailName, formatFirebaseTimestamp, parsePeriodoPago, parseDepartmentName } from '@/lib/helpers';
 import type { Payment, Parris1, LegalProcess, Causante, PagosHistoricoRecord, PensionerProfileData, DajusticiaClient, DajusticiaPayment, ProviredNotification, CausanteRecord } from '@/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { collection, doc, getDoc, getDocs, query, where, limit, orderBy } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, limit, orderBy, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useAuth } from '@/context/auth-provider';
 import { getLifeExpectancyInfo } from '@/lib/life-expectancy';
 import { datosConsolidados, datosIPC } from '../liquidaciones/anexo-ley-4/page';
+import { analizarPerfilPensionado } from '@/ai/flows/analizar-perfil-pensionado';
+import { useToast } from '@/hooks/use-toast';
 
 
 function InfoField({ icon, label, value }: { icon: React.ReactNode, label: string, value: React.ReactNode }) {
@@ -44,6 +46,11 @@ interface SentencePayment {
     amount: number;
 }
 
+interface CachedAnalysis {
+    summary: string;
+    createdAt: any;
+}
+
 
 export default function PensionadoPage() {
     const { user } = useAuth();
@@ -53,6 +60,12 @@ export default function PensionadoPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [userRole, setUserRole] = useState('');
+    
+    // AI Analysis State
+    const { toast } = useToast();
+    const [analysis, setAnalysis] = useState<string | null>(null);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analysisError, setAnalysisError] = useState<string | null>(null);
 
     useEffect(() => {
         if (user) {
@@ -67,18 +80,17 @@ export default function PensionadoPage() {
         setIsLoading(true);
         setError(null);
         setProfileData(null);
+        setAnalysis(null); // Reset analysis on new pensioner
         try {
             const clientQuery = query(collection(db, "nuevosclientes"), where("cedula", "==", document), limit(1));
             const clientSnapshot = await getDocs(clientQuery);
             const isClient = !clientSnapshot.empty;
             setIsDajusticiaClient(isClient);
             
-            // If the user is not an admin and not a client, stop here.
             if (userRole !== 'Administrador' && !isClient) {
                 return;
             }
 
-            // Fetch all other data for admins or for clients
             const paymentsQuery = query(collection(db, 'pensionados', pensionerId, 'pagos'));
             const paymentsSnapshot = await getDocs(paymentsQuery);
             let payments = paymentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Payment));
@@ -137,7 +149,7 @@ export default function PensionadoPage() {
                 parris1Data,
                 causanteData,
                 historicalPayment,
-                historicalPayments, // Pass the full array
+                historicalPayments, 
                 dajusticiaClientData,
                 dajusticiaPayments,
                 lastNotification,
@@ -150,20 +162,57 @@ export default function PensionadoPage() {
             setIsLoading(false);
         }
     }, [userRole]);
+    
+    const handleAnalysis = useCallback(async (forceRefresh = false) => {
+        if (!profileData) return;
+
+        setIsAnalyzing(true);
+        setAnalysis(null);
+        setAnalysisError(null);
+
+        try {
+            const cacheRef = doc(db, 'analisisPensionados', selectedPensioner!.documento);
+            
+            if (!forceRefresh) {
+                const cacheSnap = await getDoc(cacheRef);
+                if (cacheSnap.exists()) {
+                    const cachedData = cacheSnap.data() as CachedAnalysis;
+                    setAnalysis(cachedData.summary);
+                    toast({ title: "Análisis Cargado", description: "Se recuperó un análisis guardado previamente." });
+                    setIsAnalyzing(false);
+                    return;
+                }
+            }
+
+            toast({ title: "Generando Análisis con IA", description: "Esto puede tardar un momento..." });
+            const result = await analizarPerfilPensionado({
+                perfilCompletoPensionado: JSON.stringify({pensioner: selectedPensioner, ...profileData}, null, 2)
+            });
+
+            if (!result.summary) {
+                throw new Error("La IA no generó un resumen válido.");
+            }
+            
+            setAnalysis(result.summary);
+            
+            await setDoc(cacheRef, {
+                summary: result.summary,
+                createdAt: serverTimestamp()
+            }, { merge: true });
+
+        } catch (err: any) {
+            console.error("Error during analysis:", err);
+            setAnalysisError("Ocurrió un error al generar el análisis. Por favor, intente de nuevo.");
+            toast({ variant: 'destructive', title: 'Error de Análisis', description: err.message || 'No se pudo completar la operación.' });
+        } finally {
+            setIsAnalyzing(false);
+        }
+    }, [profileData, selectedPensioner, toast]);
 
     useEffect(() => {
-        let targetPensioner: {id: string, documento: string, empleado: string} | null = null;
-        if (selectedPensioner?.id) {
-            targetPensioner = {
-                id: selectedPensioner.id,
-                documento: selectedPensioner.documento,
-                empleado: selectedPensioner.empleado
-            };
-        }
-        
-        if (targetPensioner && userRole) { // Ensure role is determined before fetching
-            fetchAllData(targetPensioner.id, targetPensioner.documento, targetPensioner.empleado);
-        } else if (!targetPensioner) {
+        if (selectedPensioner && userRole) {
+            fetchAllData(selectedPensioner.id, selectedPensioner.documento, selectedPensioner.empleado);
+        } else if (!selectedPensioner) {
             setIsLoading(false);
         }
     }, [selectedPensioner, userRole, fetchAllData]);
@@ -378,6 +427,43 @@ export default function PensionadoPage() {
 
             {!isLoading && !error && (
                 <>
+                    <Card>
+                        <CardHeader>
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <CardTitle className="text-xl flex items-center gap-2"><Sparkles className="h-5 w-5 text-accent"/> Análisis con IA</CardTitle>
+                                    <CardDescription>Resumen ejecutivo y puntos clave del perfil.</CardDescription>
+                                </div>
+                                <Button onClick={() => handleAnalysis(true)} disabled={isAnalyzing || !profileData} variant="outline" size="sm">
+                                    <RefreshCw className="mr-2 h-4 w-4" /> Forzar Re-Análisis
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            {!analysis && !isAnalyzing && !analysisError && (
+                                <div className="flex flex-col items-center justify-center text-center p-6 border-2 border-dashed rounded-lg">
+                                    <p className="text-muted-foreground mb-4">Obtenga un resumen y análisis completo de este perfil.</p>
+                                    <Button onClick={() => handleAnalysis(false)} disabled={isAnalyzing || !profileData}>
+                                        {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                        Analizar Perfil con IA
+                                    </Button>
+                                </div>
+                            )}
+                            {isAnalyzing && (
+                                <div className="flex items-center gap-2 text-muted-foreground p-4 border rounded-md">
+                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                    <span>Analizando perfil completo. Esto puede tardar unos segundos...</span>
+                                </div>
+                            )}
+                            {analysisError && <Alert variant="destructive"><AlertTitle>Error de Análisis</AlertTitle><AlertDescription>{analysisError}</AlertDescription></Alert>}
+                            {analysis && (
+                                <div className="prose prose-sm max-w-none p-4 border rounded-lg bg-background">
+                                    <div dangerouslySetInnerHTML={{ __html: analysis.replace(/\n/g, '<br />') }} />
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
                     {demographicInfo && (
                         <Card>
                             <CardHeader>
