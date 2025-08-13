@@ -5,16 +5,18 @@ import React, { useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useDropzone } from 'react-dropzone';
-import { FileUp, Loader2, Sparkles, AlertTriangle, FileText, CheckCircle, Save } from 'lucide-react';
+import { FileUp, Loader2, Sparkles, AlertTriangle, CheckCircle, Eye, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { type AnalizarDocumentosPensionOutput } from '@/ai/flows/analizar-documentos-pension';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency } from '@/lib/helpers';
+import InformeLiquidacion from '@/components/InformeLiquidacion'; 
 
 
 const ResultTable = ({ data }: { data: AnalizarDocumentosPensionOutput }) => {
     if (!data || !data.liquidaciones || data.liquidaciones.length === 0) return null;
+    
     return (
         <div className="overflow-x-auto">
            <Table>
@@ -60,6 +62,7 @@ export default function AnalisisLiquidacionPage() {
     const [processingStatus, setProcessingStatus] = useState('');
     const [analysisResult, setAnalysisResult] = useState<AnalizarDocumentosPensionOutput | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [showFullReport, setShowFullReport] = useState(false);
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         if (acceptedFiles.length > 0) {
@@ -91,6 +94,7 @@ export default function AnalisisLiquidacionPage() {
         setIsProcessing(true);
         setError(null);
         setAnalysisResult(null);
+        setShowFullReport(false);
 
         try {
             setProcessingStatus('Convirtiendo archivos...');
@@ -113,7 +117,10 @@ export default function AnalisisLiquidacionPage() {
             const result = await response.json();
 
             setAnalysisResult(result);
-            toast({ title: 'Análisis Completado', description: 'La IA ha procesado los documentos exitosamente.' });
+            toast({ 
+                title: 'Análisis Completado', 
+                description: 'La IA ha procesado los documentos y generado el informe completo.' 
+            });
         } catch (err: any) {
             console.error("Error during analysis:", err);
             setError(err.message || 'Ocurrió un error al analizar los documentos.');
@@ -122,6 +129,10 @@ export default function AnalisisLiquidacionPage() {
             setIsProcessing(false);
             setProcessingStatus('');
         }
+    };
+
+    const removeFile = (indexToRemove: number) => {
+        setFiles(prev => prev.filter((_, index) => index !== indexToRemove));
     };
     
     return (
@@ -133,7 +144,7 @@ export default function AnalisisLiquidacionPage() {
                         Análisis de Liquidación con IA
                     </CardTitle>
                     <CardDescription>
-                        Suba hasta 5 documentos (sentencias, resoluciones, etc.) para que la IA genere la tabla de liquidación.
+                        Suba hasta 5 documentos (sentencias, resoluciones, etc.) para que la IA genere la tabla de liquidación y un informe completo.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -149,10 +160,22 @@ export default function AnalisisLiquidacionPage() {
                     </div>
                     {files.length > 0 && (
                         <div className="mt-4">
-                            <h4 className="font-semibold">Archivos Seleccionados:</h4>
-                            <ul className="list-disc pl-5 text-sm text-muted-foreground">
-                                {files.map((file, i) => <li key={i}>{file.name}</li>)}
-                            </ul>
+                            <h4 className="font-semibold mb-2">Archivos Seleccionados:</h4>
+                            <div className="space-y-2">
+                                {files.map((file, i) => (
+                                    <div key={i} className="flex justify-between items-center bg-gray-50 p-2 rounded">
+                                        <span className="text-sm text-muted-foreground">{file.name}</span>
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            onClick={() => removeFile(i)}
+                                            className="text-red-500 hover:text-red-700"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
                     <Button onClick={handleAnalyze} disabled={isProcessing || files.length === 0} className="mt-4">
@@ -180,19 +203,78 @@ export default function AnalisisLiquidacionPage() {
             )}
 
             {analysisResult && (
-                <Card>
-                    <CardHeader className="flex flex-row justify-between items-start">
-                        <div>
-                            <CardTitle className="flex items-center gap-2"><CheckCircle className="h-6 w-6 text-green-600" /> Resultados del Análisis</CardTitle>
-                            <CardDescription>Tabla de liquidación generada por la IA.</CardDescription>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <ResultTable data={analysisResult} />
-                    </CardContent>
-                </Card>
+                <>
+                    {/* Resumen Ejecutivo */}
+                    <Card>
+                        <CardHeader className="flex flex-row justify-between items-start">
+                            <div>
+                                <CardTitle className="flex items-center gap-2">
+                                    <CheckCircle className="h-6 w-6 text-green-600" /> 
+                                    Resultados del Análisis
+                                </CardTitle>
+                                <CardDescription>
+                                    Análisis para {analysisResult.datosCliente.nombreCompleto}
+                                </CardDescription>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button 
+                                    onClick={() => setShowFullReport(!showFullReport)} 
+                                    variant={showFullReport ? "default" : "outline"}
+                                >
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    {showFullReport ? "Vista Resumida" : "Informe Completo"}
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            {!showFullReport ? (
+                                <>
+                                    {/* Vista resumida con información clave */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                        <div className="bg-blue-50 p-4 rounded-lg">
+                                            <h3 className="font-semibold text-blue-700">Empresa Demandada</h3>
+                                            <p className="text-sm">{analysisResult.datosCliente.empresaDemandada}</p>
+                                        </div>
+                                        <div className="bg-green-50 p-4 rounded-lg">
+                                            <h3 className="font-semibold text-green-700">Mesada Correcta</h3>
+                                            <p className="text-lg font-bold">
+                                                {formatCurrency(parseFloat(analysisResult.datosCliente.mesadaCorrecta))}
+                                            </p>
+                                        </div>
+                                        <div className="bg-red-50 p-4 rounded-lg">
+                                            <h3 className="font-semibold text-red-700">Déficit Mensual</h3>
+                                            <p className="text-lg font-bold">
+                                                {formatCurrency(parseFloat(analysisResult.calculosFinancieros.deficitMesadaActual))}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Tabla de liquidación */}
+                                    <ResultTable data={analysisResult} />
+
+                                    {/* Resumen financiero */}
+                                    <div className="mt-6 bg-gray-50 p-4 rounded-lg">
+                                        <h3 className="font-semibold mb-3">Resumen Financiero</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <p className="text-sm text-gray-600">Total Pagado por Empresa:</p>
+                                                <p className="font-bold">{formatCurrency(parseFloat(analysisResult.calculosFinancieros.totalPagadoEmpresa))}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm text-gray-600">Saldo Pendiente:</p>
+                                                <p className="font-bold text-red-600">{formatCurrency(parseFloat(analysisResult.calculosFinancieros.saldoPendiente))}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                /* Informe completo */
+                                <InformeLiquidacion data={analysisResult} />
+                            )}
+                        </CardContent>
+                    </Card>
+                </>
             )}
         </div>
     );
 }
-

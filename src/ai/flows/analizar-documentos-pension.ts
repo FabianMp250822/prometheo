@@ -1,10 +1,6 @@
 'use server';
 /**
- * @fileOverview Processes pension documents to generate a detailed pension readjustment calculation table.
- *
- * - analizarDocumentosPension - A function that analyzes documents and returns a detailed settlement calculation.
- * - AnalizarDocumentosPensionInput - The input type for the function.
- * - AnalizarDocumentosPensionOutput - The return type for the function.
+ * @fileOverview Processes pension documents to generate a detailed pension readjustment calculation table and comprehensive report.
  */
 
 import { ai } from '@/ai/genkit';
@@ -28,8 +24,40 @@ const LiquidacionAnualSchema = z.object({
   valorAdeudado: z.string().describe('El valor total adeudado para ese año (diferencia * número de mesadas).'),
 });
 
+const DatosClienteSchema = z.object({
+  nombreCompleto: z.string().describe('Nombre completo del pensionado'),
+  numeroIdentificacion: z.string().optional().describe('Número de identificación del pensionado'),
+  empresaDemandada: z.string().describe('Nombre de la empresa demandada'),
+  fechaInicialPension: z.string().describe('Fecha de inicio de la pensión'),
+  mesadaActual: z.string().describe('Mesada actual que se está pagando'),
+  mesadaCorrecta: z.string().describe('Mesada correcta que debería pagarse'),
+});
+
+const ResumenJuridicoSchema = z.object({
+  juzgadoPrimeraInstancia: z.string().optional().describe('Juzgado de primera instancia'),
+  tribunalSegundaInstancia: z.string().optional().describe('Tribunal de segunda instancia'),
+  corteCasacion: z.string().optional().describe('Corte Suprema o de Casación'),
+  numeroSentencia: z.string().optional().describe('Número de la sentencia definitiva'),
+  fechaSentencia: z.string().optional().describe('Fecha de la sentencia definitiva'),
+  conversionColectiva: z.string().optional().describe('Convención colectiva aplicable'),
+  precedenteAplicado: z.string().describe('Precedente jurídico aplicado (ej: 39783 de 2013, 4555 de 2020)'),
+  errorIdentificado: z.string().optional().describe('Error identificado en la liquidación de la empresa'),
+});
+
+const CalculosFinancierosSchema = z.object({
+  totalRetroactivosCorte: z.string().describe('Total de retroactivos según la Corte'),
+  totalPagadoEmpresa: z.string().describe('Total pagado por la empresa/fiduciaria'),
+  saldoPendiente: z.string().describe('Saldo pendiente por pagar'),
+  deficitMesadaActual: z.string().describe('Déficit en la mesada actual'),
+  fechaLiquidacion: z.string().describe('Fecha hasta la cual se liquida'),
+});
+
 const AnalizarDocumentosPensionOutputSchema = z.object({
+  datosCliente: DatosClienteSchema.describe("Información personal y básica del cliente"),
+  resumenJuridico: ResumenJuridicoSchema.describe("Resumen del proceso judicial y precedentes"),
+  calculosFinancieros: CalculosFinancierosSchema.describe("Resumen de cálculos financieros principales"),
   liquidaciones: z.array(LiquidacionAnualSchema).describe("Un array con la liquidación detallada año por año."),
+  observaciones: z.string().optional().describe("Observaciones adicionales sobre el caso"),
 });
 
 export type AnalizarDocumentosPensionOutput = z.infer<typeof AnalizarDocumentosPensionOutputSchema>;
@@ -45,12 +73,39 @@ const prompt = ai.definePrompt({
   model: 'googleai/gemini-1.5-flash',
   prompt: `
     ## ROL Y OBJETIVO
-    Eres un sistema experto en la liquidación de pensiones bajo la Ley 4ª de 1976 en Colombia. Tu objetivo es procesar los documentos pensionales proporcionados, aplicar los criterios jurídicos y financieros especificados, y generar una tabla de liquidación anual detallada. Debes actuar con la máxima precisión, como lo haría un actuario judicial.
+    Eres un sistema experto en la liquidación de pensiones bajo la Ley 4ª de 1976 en Colombia. Tu objetivo es procesar los documentos pensionales proporcionados, extraer toda la información relevante del caso, aplicar los criterios jurídicos y financieros especificados, y generar tanto una tabla de liquidación detallada como un informe completo del análisis.
 
     ## DOCUMENTOS A ANALIZAR
     {{#each documentos}}
     - Documento {{@index}}: {{media url=this}}
     {{/each}}
+
+    ## EXTRACCIÓN DE INFORMACIÓN REQUERIDA
+    
+    ### 1. Datos del Cliente
+    Extrae de los documentos:
+    - Nombre completo del pensionado
+    - Número de identificación (si está disponible)
+    - Empresa demandada
+    - Fecha de inicio de la pensión
+    - Mesada actual pagada
+    - Mesada correcta calculada
+
+    ### 2. Información Jurídica
+    Identifica y extrae:
+    - Juzgados y tribunales que conocieron el caso
+    - Número y fecha de sentencias
+    - Convención colectiva aplicable
+    - Precedente jurídico que se debe aplicar
+    - Errores identificados en liquidaciones previas
+
+    ### 3. Información Financiera
+    Calcula y extrae:
+    - Total de retroactivos según sentencias
+    - Total efectivamente pagado por la empresa
+    - Saldo pendiente
+    - Déficit en mesada actual
+    - Fecha de corte de la liquidación
 
     ## REGLAS Y PROCEDIMIENTOS DE CÁLCULO
     A continuación, se detallan las reglas, definiciones y datos que DEBES usar para el análisis. Sigue estos procedimientos estrictamente.
@@ -91,6 +146,16 @@ const prompt = ai.definePrompt({
     | 2013 | 2.44    | 589,500    | 2,947,500    |
     | 2014 | 1.94    | 616,000    | 3,080,000    |
     | 2015 | 3.66    | 638,546    | 3,192,728    |
+    | 2016 | 5.75    | 689,454    | 3,447,270    |
+    | 2017 | 4.09    | 737,717    | 3,688,585    |
+    | 2018 | 3.18    | 781,242    | 3,906,210    |
+    | 2019 | 3.80    | 828,116    | 4,140,580    |
+    | 2020 | 1.61    | 877,803    | 4,389,015    |
+    | 2021 | 5.62    | 908,526    | 4,542,630    |
+    | 2022 | 13.12   | 1,000,000  | 5,000,000    |
+    | 2023 | 13.25   | 1,160,000  | 5,800,000    |
+    | 2024 | 9.28    | 1,300,000  | 6,500,000    |
+    | 2025 | 8.50    | 1,423,500  | 7,117,500    |
 
     ### 3. Proceso de Cálculo Anual
     Para cada año relevante que encuentres en los documentos, desde el inicio de la pensión:
@@ -104,10 +169,11 @@ const prompt = ai.definePrompt({
     5.  **Calcula el 'Valor Adeudado'**: 'ValorAdeudado = Diferencia * NúmeroDeMesadas'.
 
     ## FORMATO DE SALIDA
-    Tu respuesta DEBE ser un único objeto JSON que se ajuste al esquema de salida. El objeto debe contener una clave "liquidaciones", que es un array. Cada elemento del array representa un año y debe contener las siguientes claves: 'año', 'smmlv', 'tope5smmlv', 'mesadaACargoEmpresa', 'porcentajeAplicado', 'mesadaReajustada', 'mesadaCancelada', 'diferencia', 'numeroMesadas', 'valorAdeudado'. Formatea todos los valores monetarios como strings sin símbolos de moneda y usando punto como separador decimal si es necesario.
+    Tu respuesta DEBE ser un único objeto JSON que contenga toda la información extraída y calculada, incluyendo datos del cliente, resumen jurídico, cálculos financieros y la tabla de liquidaciones detallada. Formatea todos los valores monetarios como strings sin símbolos de moneda y usando punto como separador decimal si es necesario.
+
+    Presta especial atención a identificar errores en liquidaciones previas (como aplicar IPC cuando debería ser 15%) y documenta estas observaciones claramente.
 `,
 });
-
 
 const analizarDocumentosPensionFlow = ai.defineFlow(
   {
