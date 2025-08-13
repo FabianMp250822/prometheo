@@ -61,7 +61,6 @@ export default function PensionadoPage() {
     const [error, setError] = useState<string | null>(null);
     const [userRole, setUserRole] = useState('');
     
-    // AI Analysis State
     const { toast } = useToast();
     const [analysis, setAnalysis] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -80,7 +79,7 @@ export default function PensionadoPage() {
         setIsLoading(true);
         setError(null);
         setProfileData(null);
-        setAnalysis(null); // Reset analysis on new pensioner
+        setAnalysis(null);
         try {
             const clientQuery = query(collection(db, "nuevosclientes"), where("cedula", "==", document), limit(1));
             const clientSnapshot = await getDocs(clientQuery);
@@ -164,14 +163,14 @@ export default function PensionadoPage() {
     }, [userRole]);
     
     const handleAnalysis = useCallback(async (forceRefresh = false) => {
-        if (!profileData) return;
+        if (!profileData || !selectedPensioner) return;
 
         setIsAnalyzing(true);
         setAnalysis(null);
         setAnalysisError(null);
 
         try {
-            const cacheRef = doc(db, 'analisisPensionados', selectedPensioner!.documento);
+            const cacheRef = doc(db, 'analisisPensionados', selectedPensioner.documento);
             
             if (!forceRefresh) {
                 const cacheSnap = await getDoc(cacheRef);
@@ -202,12 +201,16 @@ export default function PensionadoPage() {
 
         } catch (err: any) {
             console.error("Error during analysis:", err);
-            setAnalysisError("Ocurrió un error al generar el análisis. Por favor, intente de nuevo.");
-            toast({ variant: 'destructive', title: 'Error de Análisis', description: err.message || 'No se pudo completar la operación.' });
+            if (typeof err.message === 'string' && err.message.includes('503')) {
+                setAnalysisError("El servicio de IA está sobrecargado en este momento. Por favor, inténtelo de nuevo en unos minutos.");
+            } else {
+                setAnalysisError("Ocurrió un error al generar el análisis. Por favor, intente de nuevo.");
+            }
+            toast({ variant: 'destructive', title: 'Error de Análisis', description: analysisError || err.message });
         } finally {
             setIsAnalyzing(false);
         }
-    }, [profileData, selectedPensioner, toast]);
+    }, [profileData, selectedPensioner, toast, analysisError]);
 
     useEffect(() => {
         if (selectedPensioner && userRole) {
@@ -765,5 +768,7 @@ export default function PensionadoPage() {
         </div>
     );
 }
+
+    
 
     
