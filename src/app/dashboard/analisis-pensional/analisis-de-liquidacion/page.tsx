@@ -8,7 +8,7 @@ import { useDropzone } from 'react-dropzone';
 import { FileUp, Loader2, Sparkles, AlertTriangle, FileText, CheckCircle, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { type AnalizarDocumentosPensionOutput, analizarDocumentosPension } from '@/ai/flows/analizar-documentos-pension';
+import { type AnalizarDocumentosPensionOutput } from '@/ai/flows/analizar-documentos-pension';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency } from '@/lib/helpers';
 
@@ -95,15 +95,28 @@ export default function AnalisisLiquidacionPage() {
         try {
             setProcessingStatus('Convirtiendo archivos...');
             const dataUris = await Promise.all(files.map(fileToDataURI));
+            
+            setProcessingStatus('Enviando para análisis...');
+             const response = await fetch('/api/analizar-documentos', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ documentos: dataUris }),
+            });
 
-            setProcessingStatus('Analizando documentos con IA...');
-            const result = await analizarDocumentosPension({ documentos: dataUris });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Error del servidor: ${response.status}`);
+            }
+
+            const result = await response.json();
 
             setAnalysisResult(result);
             toast({ title: 'Análisis Completado', description: 'La IA ha procesado los documentos exitosamente.' });
         } catch (err: any) {
             console.error("Error during analysis:", err);
-            setError('Ocurrió un error al analizar los documentos. Revise la consola para más detalles.');
+            setError(err.message || 'Ocurrió un error al analizar los documentos.');
             toast({ variant: 'destructive', title: 'Error de Análisis', description: err.message || 'No se pudo completar la operación.' });
         } finally {
             setIsProcessing(false);
@@ -146,7 +159,7 @@ export default function AnalisisLiquidacionPage() {
                         {isProcessing ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                {processingStatus}
+                                {processingStatus || 'Analizando...'}
                             </>
                         ) : (
                             <>
@@ -182,3 +195,4 @@ export default function AnalisisLiquidacionPage() {
         </div>
     );
 }
+
