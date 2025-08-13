@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,7 +25,7 @@ const InformeLiquidacion: React.FC<InformeLiquidacionProps> = ({ data }) => {
 
   return (
     <div className="max-w-4xl mx-auto p-6 bg-white print:shadow-none">
-      {/* Header with actions */}
+      {/* Header con acciones */}
       <div className="flex justify-between items-center mb-6 print:hidden">
         <h1 className="text-2xl font-bold text-gray-900">Informe de Liquidación de Pensión</h1>
         <div className="flex gap-2">
@@ -41,7 +40,7 @@ const InformeLiquidacion: React.FC<InformeLiquidacionProps> = ({ data }) => {
         </div>
       </div>
 
-      {/* Report Header */}
+      {/* Encabezado del informe */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
           ANÁLISIS Y CONCLUSIONES LIQUIDACIÓN DE {data.datosCliente.nombreCompleto.toUpperCase()}
@@ -55,7 +54,7 @@ const InformeLiquidacion: React.FC<InformeLiquidacionProps> = ({ data }) => {
         </p>
       </div>
 
-      {/* Client Information */}
+      {/* Información del Cliente */}
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="text-lg text-blue-700">INFORMACIÓN DEL BENEFICIARIO</CardTitle>
@@ -77,8 +76,78 @@ const InformeLiquidacion: React.FC<InformeLiquidacionProps> = ({ data }) => {
           </div>
         </CardContent>
       </Card>
+      
+      {/* Compartición de la Pensión */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-lg text-blue-700">COMPARTICIÓN DE LA PENSIÓN</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-blue-50 p-4 rounded">
+              <h4 className="font-semibold text-blue-700">FONECA/Empresa</h4>
+              <p><strong>Porcentaje:</strong> {data.comparticion.porcentajeFoneca}</p>
+              <p><strong>Valor Mensual:</strong> {formatCurrency(parseFloat(data.comparticion.valorFoneca))}</p>
+            </div>
+            <div className="bg-green-50 p-4 rounded">
+              <h4 className="font-semibold text-green-700">Colpensiones</h4>
+              <p><strong>Porcentaje:</strong> {data.comparticion.porcentajeColpensiones}</p>
+              <p><strong>Valor Mensual:</strong> {formatCurrency(parseFloat(data.comparticion.valorColpensiones))}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Evolución de la Mesada */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-lg text-blue-700">EVOLUCIÓN DE LA MESADA</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p><strong>Mesada Inicial:</strong> {formatCurrency(parseFloat(data.evolucionMesada.mesadaInicial))}</p>
+              <p><strong>Mesada Final Reajustada:</strong> {formatCurrency(parseFloat(data.evolucionMesada.mesadaFinalReajustada))}</p>
+              <p><strong>Mesada Actual Pagada:</strong> {formatCurrency(parseFloat(data.evolucionMesada.mesadaActualPagada))}</p>
+            </div>
+            <div>
+              <p><strong>Mesada Reconocida Fiduprevisora:</strong> {formatCurrency(parseFloat(data.evolucionMesada.mesadaReconocidaFiduprevisora))}</p>
+              <p><strong>Diferencia de Mesada:</strong> <span className="text-red-600 font-bold">{formatCurrency(parseFloat(data.evolucionMesada.diferenciaMesada))}</span></p>
+              <p><strong>Período de Análisis:</strong> {data.evolucionMesada.periodoAnalisis}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* Comparación de Métodos */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-lg text-blue-700">COMPARACIÓN DE MÉTODOS DE LIQUIDACIÓN</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-yellow-50 p-4 rounded">
+                <h4 className="font-semibold text-yellow-700">Método Aplicado en Sentencia</h4>
+                <p className="text-sm mb-2">{data.comparacionMetodos.metodoAplicadoCorte}</p>
+                <p><strong>Resultado:</strong> {formatCurrency(parseFloat(data.comparacionMetodos.resultadoMetodoCorte))}</p>
+              </div>
+              <div className="bg-purple-50 p-4 rounded">
+                <h4 className="font-semibold text-purple-700">Unidad Prestacional v4-71</h4>
+                <p className="text-sm mb-2">{data.comparacionMetodos.metodoUnidadPrestacional}</p>
+                <p><strong>Resultado:</strong> {formatCurrency(parseFloat(data.comparacionMetodos.resultadoUnidadPrestacional))}</p>
+              </div>
+            </div>
+            <div className="bg-green-50 border-l-4 border-green-400 p-4">
+              <h4 className="font-semibold text-green-700">Método Más Favorable</h4>
+              <p className="mb-2">{data.comparacionMetodos.metodoMasFavorable}</p>
+              <p><strong>Diferencia entre métodos:</strong> <span className="text-green-600 font-bold">{formatCurrency(parseFloat(data.comparacionMetodos.diferencciaEntreMetodos))}</span></p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Legal Summary */}
+      {/* Resumen Jurídico */}
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="text-lg text-blue-700">ANTECEDENTES PROCESALES</CardTitle>
@@ -114,7 +183,7 @@ const InformeLiquidacion: React.FC<InformeLiquidacionProps> = ({ data }) => {
         </CardContent>
       </Card>
 
-      {/* Liquidation Table */}
+      {/* Tabla de Liquidación */}
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="text-lg text-blue-700">LIQUIDACIÓN DETALLADA</CardTitle>
@@ -159,7 +228,7 @@ const InformeLiquidacion: React.FC<InformeLiquidacionProps> = ({ data }) => {
         </CardContent>
       </Card>
 
-      {/* Financial Summary */}
+      {/* Resumen Financiero */}
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="text-lg text-blue-700">RESUMEN FINANCIERO</CardTitle>
@@ -198,7 +267,7 @@ const InformeLiquidacion: React.FC<InformeLiquidacionProps> = ({ data }) => {
         </CardContent>
       </Card>
 
-      {/* Conclusions */}
+      {/* Conclusiones */}
       <Card className="mb-6">
         <CardHeader>
           <CardTitle className="text-lg text-blue-700">CONCLUSIONES</CardTitle>
@@ -215,13 +284,6 @@ const InformeLiquidacion: React.FC<InformeLiquidacionProps> = ({ data }) => {
                 <strong>Error Principal:</strong> {data.resumenJuridico.errorIdentificado}
               </p>
             )}
-
-            <p>
-              El déficit total identificado asciende a <strong>{formatCurrency(totalAdeudado)}</strong>, 
-              que corresponde a las diferencias acumuladas por la incorrecta aplicación de los porcentajes 
-              de reajuste en los períodos liquidados.
-            </p>
-
             <div className="bg-blue-50 border-l-4 border-blue-400 p-4">
               <p className="text-blue-800">
                 <strong>Recomendación:</strong> Se sugiere proceder con el saneamiento de la pensión 
@@ -246,7 +308,7 @@ const InformeLiquidacion: React.FC<InformeLiquidacionProps> = ({ data }) => {
         <p>Fecha de generación: {new Date().toLocaleString('es-CO')}</p>
       </div>
 
-      {/* Print Styles */}
+      {/* Estilos para impresión */}
       <style jsx>{`
         @media print {
           @page {

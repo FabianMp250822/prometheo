@@ -44,6 +44,31 @@ const ResumenJuridicoSchema = z.object({
   errorIdentificado: z.string().optional().describe('Error identificado en la liquidación de la empresa'),
 });
 
+const ComparticionSchema = z.object({
+  porcentajeFoneca: z.string().describe('Porcentaje a cargo de FONECA/Empresa'),
+  porcentajeColpensiones: z.string().describe('Porcentaje a cargo de Colpensiones/ISS'),
+  valorFoneca: z.string().describe('Valor mensual a cargo de FONECA'),
+  valorColpensiones: z.string().describe('Valor mensual a cargo de Colpensiones'),
+});
+
+const EvolucionMesadaSchema = z.object({
+  mesadaInicial: z.string().describe('Mesada inicial al momento del reconocimiento'),
+  mesadaFinalReajustada: z.string().describe('Mesada final después de todos los reajustes aplicados'),
+  mesadaActualPagada: z.string().describe('Mesada que actualmente está pagando la empresa'),
+  mesadaReconocidaFiduprevisora: z.string().describe('Mesada reconocida por Fiduprevisora en documento privado'),
+  diferenciaMesada: z.string().describe('Diferencia entre mesada correcta y mesada pagada'),
+  periodoAnalisis: z.string().describe('Período de análisis (desde - hasta)'),
+});
+
+const ComparacionMetodosSchema = z.object({
+  metodoAplicadoCorte: z.string().describe('Método aplicado en la decisión final de la Corte'),
+  resultadoMetodoCorte: z.string().describe('Resultado financiero del método de la Corte'),
+  metodoUnidadPrestacional: z.string().describe('Descripción del método de Unidad Prestacional'),
+  resultadoUnidadPrestacional: z.string().describe('Resultado financiero del método Unidad Prestacional'),
+  metodoMasFavorable: z.string().describe('Cuál método resulta más favorable y por qué'),
+  diferencciaEntreMetodos: z.string().describe('Diferencia monetaria entre ambos métodos'),
+});
+
 const CalculosFinancierosSchema = z.object({
   totalRetroactivosCorte: z.string().describe('Total de retroactivos según la Corte'),
   totalPagadoEmpresa: z.string().describe('Total pagado por la empresa/fiduciaria'),
@@ -55,6 +80,9 @@ const CalculosFinancierosSchema = z.object({
 const AnalizarDocumentosPensionOutputSchema = z.object({
   datosCliente: DatosClienteSchema.describe("Información personal y básica del cliente"),
   resumenJuridico: ResumenJuridicoSchema.describe("Resumen del proceso judicial y precedentes"),
+  comparticion: ComparticionSchema.describe("Información sobre la compartición entre FONECA y Colpensiones"),
+  evolucionMesada: EvolucionMesadaSchema.describe("Evolución de la mesada desde inicio hasta la fecha"),
+  comparacionMetodos: ComparacionMetodosSchema.describe("Comparación entre método aplicado y unidad prestacional"),
   calculosFinancieros: CalculosFinancierosSchema.describe("Resumen de cálculos financieros principales"),
   liquidaciones: z.array(LiquidacionAnualSchema).describe("Un array con la liquidación detallada año por año."),
   observaciones: z.string().optional().describe("Observaciones adicionales sobre el caso"),
@@ -80,37 +108,10 @@ const prompt = ai.definePrompt({
     - Documento {{@index}}: {{media url=this}}
     {{/each}}
 
-    ## EXTRACCIÓN DE INFORMACIÓN REQUERIDA
-    
-    ### 1. Datos del Cliente
-    Extrae de los documentos:
-    - Nombre completo del pensionado
-    - Número de identificación (si está disponible)
-    - Empresa demandada
-    - Fecha de inicio de la pensión
-    - Mesada actual pagada
-    - Mesada correcta calculada
+    ## TAREA 1: EXTRACCIÓN Y CÁLCULO DE LA TABLA DE LIQUIDACIÓN
+    Analiza los documentos y realiza los siguientes cálculos para cada año relevante desde el inicio de la pensión. Esta será la base para el objeto 'liquidaciones' en el JSON.
 
-    ### 2. Información Jurídica
-    Identifica y extrae:
-    - Juzgados y tribunales que conocieron el caso
-    - Número y fecha de sentencias
-    - Convención colectiva aplicable
-    - Precedente jurídico que se debe aplicar
-    - Errores identificados en liquidaciones previas
-
-    ### 3. Información Financiera
-    Calcula y extrae:
-    - Total de retroactivos según sentencias
-    - Total efectivamente pagado por la empresa
-    - Saldo pendiente
-    - Déficit en mesada actual
-    - Fecha de corte de la liquidación
-
-    ## REGLAS Y PROCEDIMIENTOS DE CÁLCULO
-    A continuación, se detallan las reglas, definiciones y datos que DEBES usar para el análisis. Sigue estos procedimientos estrictamente.
-
-    ### 1. Precedentes Judiciales para el Reajuste
+    ### 1.1 Precedentes Judiciales para el Reajuste
     Debes considerar los siguientes métodos. Extrae los datos necesarios de los documentos para aplicar el más pertinente.
     - **Precedente 39783 de 2013 (Método Escolástica):**
       - Identifica la mesada a cargo exclusivo de la empresa.
@@ -120,12 +121,8 @@ const prompt = ai.definePrompt({
       - Suma la mesada a cargo de la empresa más la mesada del ISS/Colpensiones para determinar el porcentaje aplicable (IPC o 15% si la suma no supera los 5 SMLMV).
       - Aplica el porcentaje resultante **únicamente sobre la parte de la mesada a cargo de la empresa**.
       - El 15% se aplica sucesivamente cada año mientras la parte de la empresa no supere los 5 SMLMV.
-    - **Unidad Prestacional (Método Actuario Judicial):**
-      - Trata la mesada como una unidad integrada (empresa + ISS) para determinar el porcentaje.
-      - Si la mesada integrada con el reajuste del 15% no supera el tope, se usa el 15%. De lo contrario, se usa el IPC.
-      - Al valor total reajustado, réstale lo que paga el ISS para obtener la parte que le corresponde a la empresa.
 
-    ### 2. Tabla de Referencia (IPC y SMLMV)
+    ### 1.2 Tabla de Referencia OBLIGATORIA (IPC y SMLMV)
     Utiliza OBLIGATORIAMENTE esta tabla para tus cálculos. No inventes ni extrapoles valores.
     | Año  | IPC (%) | SMMLV      | Tope 5 SMMLV |
     |------|---------|------------|--------------|
@@ -157,7 +154,7 @@ const prompt = ai.definePrompt({
     | 2024 | 9.28    | 1,300,000  | 6,500,000    |
     | 2025 | 8.50    | 1,423,500  | 7,117,500    |
 
-    ### 3. Proceso de Cálculo Anual
+    ### 1.3 Proceso de Cálculo Anual
     Para cada año relevante que encuentres en los documentos, desde el inicio de la pensión:
     1.  **Extrae la 'Mesada Cancelada'**: Este es el monto que la empresa efectivamente pagó en ese año. Lo encuentras en los comprobantes de pago o historia de pagos.
     2.  **Calcula la 'Mesada Reajustada'**:
@@ -168,10 +165,39 @@ const prompt = ai.definePrompt({
     4.  **Determina el 'Número de Mesadas'**: Usualmente 13 o 14, identifícalo en los documentos.
     5.  **Calcula el 'Valor Adeudado'**: 'ValorAdeudado = Diferencia * NúmeroDeMesadas'.
 
-    ## FORMATO DE SALIDA
-    Tu respuesta DEBE ser un único objeto JSON que contenga toda la información extraída y calculada, incluyendo datos del cliente, resumen jurídico, cálculos financieros y la tabla de liquidaciones detallada. Formatea todos los valores monetarios como strings sin símbolos de moneda y usando punto como separador decimal si es necesario.
+    ## TAREA 2: EXTRACCIÓN DE DATOS Y ANÁLISIS ADICIONAL
+    Además de la tabla de liquidación, extrae y calcula los siguientes datos para responder a las preguntas clave.
 
-    Presta especial atención a identificar errores en liquidaciones previas (como aplicar IPC cuando debería ser 15%) y documenta estas observaciones claramente.
+    ### 2.1 Información General y Jurídica
+    - Extrae todos los campos para 'datosCliente' y 'resumenJuridico' a partir de la información de los documentos.
+
+    ### 2.2 Evolución y Diferencias de Mesada
+    - **Mesada Inicial:** La primera mesada que recibió el pensionado.
+    - **Mesada Final Reajustada:** El último valor calculado en la columna 'Mesada Reajustada' de la tabla de liquidación.
+    - **Mesada Actual Pagada:** La última mesada que los documentos demuestren que fue pagada.
+    - **Mesada Reconocida Fiduprevisora:** Busca si hay algún documento privado de Fiduprevisora con un monto específico.
+    - **Diferencia de Mesada:** Calcula 'Mesada Final Reajustada' - 'Mesada Actual Pagada'.
+    - **Período de Análisis:** El rango de años de la tabla de liquidación (ej: 1999 - 2024).
+
+    ### 2.3 Cálculo de Compartición
+    - Identifica la primera mesada en que la pensión fue compartida.
+    - Calcula qué porcentaje de la mesada total en ese momento correspondía a Foneca/Empresa y qué porcentaje a Colpensiones. Rellena los campos 'porcentajeFoneca' y 'porcentajeColpensiones'.
+    - Rellena 'valorFoneca' y 'valorColpensiones' con los valores de ese momento.
+
+    ### 2.4 Comparación de Métodos de Liquidación
+    - **Método Aplicado en la Corte:** El que usaste para la TAREA 1. Su resultado es el 'Valor Adeudado Total' de esa tabla.
+    - **Método de Unidad Prestacional (versión 4-71):** Realiza un segundo cálculo completo usando este método:
+        - Trata la mesada como una unidad integrada (empresa + ISS) para determinar el % de ajuste.
+        - Si con 15% no se supera el tope, se usa ese valor; si lo supera, se usa el IPC.
+        - Al valor total reajustado, réstale lo que paga el ISS para obtener la parte que le corresponde a la empresa.
+    - Compara los 'Valor Adeudado Total' de ambos métodos y determina cuál es más favorable.
+    - Calcula la diferencia monetaria entre ambos.
+
+    ### 2.5 Resumen Financiero
+    - Calcula y extrae todos los campos para 'calculosFinancieros'. El 'Saldo Pendiente' es la resta entre retroactivos reconocidos y pagos efectuados.
+
+    ## FORMATO DE SALIDA
+    Tu respuesta DEBE ser un único objeto JSON que contenga toda la información extraída y calculada, siguiendo el esquema de salida. Formatea todos los valores monetarios como strings sin símbolos de moneda y usando punto como separador decimal si es necesario.
 `,
 });
 
