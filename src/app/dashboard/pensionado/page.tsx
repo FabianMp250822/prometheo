@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
@@ -445,342 +446,323 @@ export default function PensionadoPage() {
 
                 {!isLoading && !error && (
                     <>
-                        <Card>
-                            <CardHeader>
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <CardTitle className="text-xl flex items-center gap-2"><Sparkles className="h-5 w-5 text-accent"/> Análisis con IA</CardTitle>
-                                        <CardDescription>Resumen ejecutivo y puntos clave del perfil.</CardDescription>
-                                    </div>
-                                    <Button onClick={() => handleAnalysis(true)} disabled={isAnalyzing || !profileData} variant="outline" size="sm">
-                                        <RefreshCw className="mr-2 h-4 w-4" /> Forzar Re-Análisis
-                                    </Button>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                {!analysis && !isAnalyzing && !analysisError && (
-                                    <div className="flex flex-col items-center justify-center text-center p-6 border-2 border-dashed rounded-lg">
-                                        <p className="text-muted-foreground mb-4">Obtenga un resumen y análisis completo de este perfil.</p>
-                                        <Button onClick={() => handleAnalysis(false)} disabled={isAnalyzing || !profileData}>
-                                            {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                                            Analizar Perfil con IA
-                                        </Button>
-                                    </div>
-                                )}
-                                {isAnalyzing && (
-                                    <div className="flex items-center gap-2 text-muted-foreground p-4 border rounded-md">
-                                        <Loader2 className="h-5 w-5 animate-spin" />
-                                        <span>Analizando perfil completo. Esto puede tardar unos segundos...</span>
-                                    </div>
-                                )}
-                                {analysisError && <Alert variant="destructive"><AlertTitle>Error de Análisis</AlertTitle><AlertDescription>{analysisError}</AlertDescription></Alert>}
-                                {analysis && (
-                                    <div className="prose prose-sm max-w-none p-4 border rounded-lg bg-background">
-                                        <div dangerouslySetInnerHTML={{ __html: analysis.replace(/\n/g, '<br />') }} />
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
+                        <React.Fragment key="analysis-card">
+                          <Card>
+                              <CardHeader>
+                                  <div className="flex justify-between items-start">
+                                      <div>
+                                          <CardTitle className="text-xl flex items-center gap-2"><Sparkles className="h-5 w-5 text-accent"/> Análisis con IA</CardTitle>
+                                          <CardDescription>Resumen ejecutivo y puntos clave del perfil.</CardDescription>
+                                      </div>
+                                      <Button onClick={() => handleAnalysis(true)} disabled={isAnalyzing || !profileData} variant="outline" size="sm">
+                                          <RefreshCw className="mr-2 h-4 w-4" /> Forzar Re-Análisis
+                                      </Button>
+                                  </div>
+                              </CardHeader>
+                              <CardContent>
+                                  {!analysis && !isAnalyzing && !analysisError && (
+                                      <div className="flex flex-col items-center justify-center text-center p-6 border-2 border-dashed rounded-lg">
+                                          <p className="text-muted-foreground mb-4">Obtenga un resumen y análisis completo de este perfil.</p>
+                                          <Button onClick={() => handleAnalysis(false)} disabled={isAnalyzing || !profileData}>
+                                              {isAnalyzing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                                              Analizar Perfil con IA
+                                          </Button>
+                                      </div>
+                                  )}
+                                  {isAnalyzing && (
+                                      <div className="flex items-center gap-2 text-muted-foreground p-4 border rounded-md">
+                                          <Loader2 className="h-5 w-5 animate-spin" />
+                                          <span>Analizando perfil completo. Esto puede tardar unos segundos...</span>
+                                      </div>
+                                  )}
+                                  {analysisError && <Alert variant="destructive"><AlertTitle>Error de Análisis</AlertTitle><AlertDescription>{analysisError}</AlertDescription></Alert>}
+                                  {analysis && (
+                                      <div className="prose prose-sm max-w-none p-4 border rounded-lg bg-background">
+                                          <div dangerouslySetInnerHTML={{ __html: analysis.replace(/\n/g, '<br />') }} />
+                                      </div>
+                                  )}
+                              </CardContent>
+                          </Card>
+                        </React.Fragment>
 
                         {demographicInfo && (
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="text-xl flex items-center gap-2">
-                                        <Target className="h-5 w-5" /> Datos Demográficos Clave
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="grid md:grid-cols-2 gap-4 text-sm">
-                                    <InfoField icon={<Calendar />} label="Edad Actual" value={`${demographicInfo.age} años`} />
-                                    <InfoField icon={<TrendingUp />} label="Expectativa de Vida Restante" value={demographicInfo.expectancy ? `${demographicInfo.expectancy} años` : 'Dato no disponible'} />
-                                </CardContent>
-                            </Card>
+                            <React.Fragment key="demographic-card">
+                              <Card>
+                                  <CardHeader>
+                                      <CardTitle className="text-xl flex items-center gap-2">
+                                          <Target className="h-5 w-5" /> Datos Demográficos Clave
+                                      </CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="grid md:grid-cols-2 gap-4 text-sm">
+                                      <InfoField icon={<Calendar />} label="Edad Actual" value={`${demographicInfo.age} años`} />
+                                      <InfoField icon={<TrendingUp />} label="Expectativa de Vida Restante" value={demographicInfo.expectancy ? `${demographicInfo.expectancy} años` : 'Dato no disponible'} />
+                                  </CardContent>
+                              </Card>
+                            </React.Fragment>
                         )}
-
+                        
                          {adquisitivoData && (
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="text-xl flex items-center gap-2"><BarChart3 className="h-5 w-5"/>Resumen de Poder Adquisitivo</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="grid md:grid-cols-3 gap-4 text-sm">
-                                        <InfoField icon={<Calendar />} label="Primera Mesada" value={`${formatCurrency(adquisitivoData.primeraMesada.valor)} (${adquisitivoData.primeraMesada.fecha})`} />
-                                        <InfoField icon={<Calendar />} label="Última Mesada" value={`${formatCurrency(adquisitivoData.ultimaMesada.valor)} (${adquisitivoData.ultimaMesada.fecha})`} />
-                                        <InfoField icon={<MinusSquare className="text-destructive"/>} label="Pérdida de SMLMV" value={<span className="font-bold text-destructive">{adquisitivoData.smlmvLoss}</span>} />
-                                    </div>
-                                    {adquisitivoData.sharingInfo && (
-                                         <div>
-                                            <h4 className="font-semibold text-foreground mb-2">Resumen de Compartición Pensional</h4>
-                                             <div className="border rounded-lg overflow-hidden">
-                                                <Table>
-                                                    <TableBody>
-                                                        <TableRow>
-                                                            <TableCell className="font-semibold bg-muted/50">FECHA DE COMPARTICIÓN</TableCell>
-                                                            <TableCell className='text-center'>{adquisitivoData.sharingInfo.sharingDate}</TableCell>
-                                                        </TableRow>
-                                                        <TableRow>
-                                                            <TableCell className="font-semibold bg-muted/50">MESADA PLENA ANTES DE COMPARTIR</TableCell>
-                                                            <TableCell className='text-center font-medium'>{formatCurrency(adquisitivoData.sharingInfo.mesadaAntes)}</TableCell>
-                                                        </TableRow>
-                                                         <TableRow className="bg-muted/30">
-                                                            <TableCell colSpan={2} className="text-center font-bold text-muted-foreground text-xs">DISTRIBUCIÓN POST-COMPARTICIÓN</TableCell>
-                                                         </TableRow>
-                                                         <TableRow>
-                                                            <TableCell className="font-semibold">A CARGO DE COLPENSIONES</TableCell>
-                                                            <TableCell className='text-center'>{adquisitivoData.sharingInfo.porcentajeColpensiones.toFixed(2)}% ({formatCurrency(adquisitivoData.sharingInfo.aCargoColpensiones)})</TableCell>
-                                                         </TableRow>
-                                                         <TableRow>
-                                                            <TableCell className="font-semibold">MAYOR VALOR A CARGO DE LA EMPRESA</TableCell>
-                                                            <TableCell className='text-center'>{adquisitivoData.sharingInfo.porcentajeEmpresa.toFixed(2)}% ({formatCurrency(adquisitivoData.sharingInfo.aCargoEmpresa)})</TableCell>
-                                                         </TableRow>
-                                                    </TableBody>
-                                                </Table>
-                                            </div>
-                                         </div>
-                                    )}
-                                </CardContent>
-                            </Card>
+                            <React.Fragment key="adquisitivo-card">
+                              <Card>
+                                  <CardHeader>
+                                      <CardTitle className="text-xl flex items-center gap-2"><BarChart3 className="h-5 w-5"/>Resumen de Poder Adquisitivo</CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="space-y-4">
+                                      <div className="grid md:grid-cols-3 gap-4 text-sm">
+                                          <InfoField icon={<Calendar />} label="Primera Mesada" value={`${formatCurrency(adquisitivoData.primeraMesada.valor)} (${adquisitivoData.primeraMesada.fecha})`} />
+                                          <InfoField icon={<Calendar />} label="Última Mesada" value={`${formatCurrency(adquisitivoData.ultimaMesada.valor)} (${adquisitivoData.ultimaMesada.fecha})`} />
+                                          <InfoField icon={<MinusSquare className="text-destructive"/>} label="Pérdida de SMLMV" value={<span className="font-bold text-destructive">{adquisitivoData.smlmvLoss}</span>} />
+                                      </div>
+                                      {adquisitivoData.sharingInfo && (
+                                          <div>
+                                              <h4 className="font-semibold text-foreground mb-2">Resumen de Compartición Pensional</h4>
+                                               <div className="border rounded-lg overflow-hidden">
+                                                  <Table>
+                                                      <TableBody>
+                                                          <TableRow>
+                                                              <TableCell className="font-semibold bg-muted/50">FECHA DE COMPARTICIÓN</TableCell>
+                                                              <TableCell className='text-center'>{adquisitivoData.sharingInfo.sharingDate}</TableCell>
+                                                          </TableRow>
+                                                          <TableRow>
+                                                              <TableCell className="font-semibold bg-muted/50">MESADA PLENA ANTES DE COMPARTIR</TableCell>
+                                                              <TableCell className='text-center font-medium'>{formatCurrency(adquisitivoData.sharingInfo.mesadaAntes)}</TableCell>
+                                                          </TableRow>
+                                                           <TableRow className="bg-muted/30">
+                                                              <TableCell colSpan={2} className="text-center font-bold text-muted-foreground text-xs">DISTRIBUCIÓN POST-COMPARTICIÓN</TableCell>
+                                                           </TableRow>
+                                                           <TableRow>
+                                                              <TableCell className="font-semibold">A CARGO DE COLPENSIONES</TableCell>
+                                                              <TableCell className='text-center'>{adquisitivoData.sharingInfo.porcentajeColpensiones.toFixed(2)}% ({formatCurrency(adquisitivoData.sharingInfo.aCargoColpensiones)})</TableCell>
+                                                           </TableRow>
+                                                           <TableRow>
+                                                              <TableCell className="font-semibold">MAYOR VALOR A CARGO DE LA EMPRESA</TableCell>
+                                                              <TableCell className='text-center'>{adquisitivoData.sharingInfo.porcentajeEmpresa.toFixed(2)}% ({formatCurrency(adquisitivoData.sharingInfo.aCargoEmpresa)})</TableCell>
+                                                           </TableRow>
+                                                      </TableBody>
+                                                  </Table>
+                                              </div>
+                                          </div>
+                                      )}
+                                  </CardContent>
+                              </Card>
+                            </React.Fragment>
                         )}
 
                         {lastNotification && (
-                            <Card>
-                                 <CardHeader>
-                                    <CardTitle className="text-xl flex items-center gap-2">
-                                        <BellRing className="h-5 w-5" /> Última Actuación
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                                    <InfoField icon={<FileText />} label="Descripción" value={lastNotification.descripcion} />
-                                    <InfoField icon={<Calendar />} label="Fecha Publicación" value={formatFirebaseTimestamp(lastNotification.fechaPublicacion)} />
-                                    <InfoField icon={<Gavel />} label="Proceso" value={lastNotification.proceso} />
-                                    <InfoField icon={<Hash />} label="Radicación" value={lastNotification.radicacion} />
-                                </CardContent>
-                            </Card>
+                             <React.Fragment key="notification-card">
+                              <Card>
+                                   <CardHeader>
+                                      <CardTitle className="text-xl flex items-center gap-2">
+                                          <BellRing className="h-5 w-5" /> Última Actuación
+                                      </CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                                      <InfoField icon={<FileText />} label="Descripción" value={lastNotification.descripcion} />
+                                      <InfoField icon={<Calendar />} label="Fecha Publicación" value={formatFirebaseTimestamp(lastNotification.fechaPublicacion)} />
+                                      <InfoField icon={<Gavel />} label="Proceso" value={lastNotification.proceso} />
+                                      <InfoField icon={<Hash />} label="Radicación" value={lastNotification.radicacion} />
+                                  </CardContent>
+                              </Card>
+                            </React.Fragment>
                         )}
 
                         {dajusticiaClientData && (
-                            <Card className="border-accent">
-                                <CardHeader>
-                                    <CardTitle className="text-xl flex items-center gap-2 text-accent">
-                                        <Briefcase className="h-5 w-5" /> Cliente DAJUSTICIA
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 text-sm">
-                                    <InfoField icon={<Users />} label="Grupo" value={dajusticiaClientData.grupo} />
-                                    <InfoField icon={<Banknote />} label="Salario a Cancelar" value={formatCurrency(dajusticiaClientData.salario)} />
-                                    <InfoField icon={<Calendar />} label="Plazo" value={`${dajusticiaClientData.plazoMeses} meses`} />
-                                    <InfoField icon={<Sigma />} label="Cuota Mensual" value={formatCurrency(parseFloat(dajusticiaClientData.cuotaMensual))} />
-                                    {dajusticiaAccountSummary && (
-                                        <>
-                                            <InfoField icon={<TrendingUp className="text-green-600" />} label="Total Pagado" value={<span className="text-green-600 font-bold">{formatCurrency(dajusticiaAccountSummary.totalPagado)}</span>} />
-                                            <InfoField icon={<TrendingDown className="text-red-600" />} label="Saldo Pendiente" value={<span className="text-red-600 font-bold">{formatCurrency(dajusticiaAccountSummary.saldoPendiente)}</span>} />
-                                        </>
-                                    )}
-                                </CardContent>
-                            </Card>
+                             <React.Fragment key="dajusticia-card">
+                              <Card className="border-accent">
+                                  <CardHeader>
+                                      <CardTitle className="text-xl flex items-center gap-2 text-accent">
+                                          <Briefcase className="h-5 w-5" /> Cliente DAJUSTICIA
+                                      </CardTitle>
+                                  </CardHeader>
+                                  <CardContent className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 text-sm">
+                                      <InfoField icon={<Users />} label="Grupo" value={dajusticiaClientData.grupo} />
+                                      <InfoField icon={<Banknote />} label="Salario a Cancelar" value={formatCurrency(dajusticiaClientData.salario)} />
+                                      <InfoField icon={<Calendar />} label="Plazo" value={`${dajusticiaClientData.plazoMeses} meses`} />
+                                      <InfoField icon={<Sigma />} label="Cuota Mensual" value={formatCurrency(parseFloat(dajusticiaClientData.cuotaMensual))} />
+                                      {dajusticiaAccountSummary && (
+                                          <>
+                                              <InfoField icon={<TrendingUp className="text-green-600" />} label="Total Pagado" value={<span className="text-green-600 font-bold">{formatCurrency(dajusticiaAccountSummary.totalPagado)}</span>} />
+                                              <InfoField icon={<TrendingDown className="text-red-600" />} label="Saldo Pendiente" value={<span className="text-red-600 font-bold">{formatCurrency(dajusticiaAccountSummary.saldoPendiente)}</span>} />
+                                          </>
+                                      )}
+                                  </CardContent>
+                              </Card>
+                            </React.Fragment>
                         )}
                         
-                         <InfoField icon={<Handshake className="text-primary" />} label="Abogado Asignado" value="Dr. Robinson Rada Gonzalez" />
+                         <React.Fragment key="abogado-info">
+                          <InfoField icon={<Handshake className="text-primary" />} label="Abogado Asignado" value="Dr. Robinson Rada Gonzalez" />
+                        </React.Fragment>
 
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-xl flex items-center gap-2">
-                                    <BookKey className="h-5 w-5" /> Datos de Pensión COLPENSIONES
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                {parris1Data ? (
-                                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                                        <InfoField icon={<Calendar />} label="Fecha Adquisición" value={formatFirebaseTimestamp(parris1Data.fe_adquiere)} />
-                                        <InfoField icon={<Calendar />} label="Fecha Causación" value={formatFirebaseTimestamp(parris1Data.fe_causa)} />
-                                        <InfoField icon={<Calendar />} label="Fecha Ingreso" value={formatFirebaseTimestamp(parris1Data.fe_ingreso)} />
-                                        <InfoField icon={<Calendar />} label="Fecha Nacimiento" value={formatFirebaseTimestamp(parris1Data.fe_nacido)} />
-                                        <InfoField icon={<Calendar />} label="Fecha Vinculación" value={formatFirebaseTimestamp(parris1Data.fe_vinculado)} />
-                                        <InfoField icon={<History />} label="Semanas" value={parris1Data.semanas} />
-                                        <InfoField icon={<FileText />} label="Resolución" value={`${parris1Data.res_nro} (${parris1Data.res_ano})`} />
-                                        <InfoField icon={<Banknote />} label="Mesada" value={formatCurrency(parris1Data.mesada)} />
-                                        <InfoField icon={<Building />} label="Ciudad ISS" value={parris1Data.ciudad_iss} />
-                                        <InfoField icon={<MapPin />} label="Dirección ISS" value={parris1Data.dir_iss} />
-                                        <InfoField icon={<Phone />} label="Teléfono ISS" value={parris1Data.telefono_iss} />
-                                        <InfoField icon={<Users />} label="Régimen" value={parris1Data.regimen} />
-                                        <InfoField icon={<Sigma />} label="Riesgo" value={parris1Data.riesgo} />
-                                        <InfoField icon={<TrendingUp />} label="Seguro" value={parris1Data.seguro} />
-                                        <InfoField icon={<StickyNote />} label="Tranci" value={parris1Data.tranci ? 'Sí' : 'No'} />
-                                    </div>
-                                ) : (
-                                    <p className="text-muted-foreground text-center py-4">
-                                        No se encontraron datos de pensión en COLPENSIONES para este usuario.
-                                    </p>
-                                )}
-                            </CardContent>
-                        </Card>
+                        <React.Fragment key="colpensiones-card">
+                          <Card>
+                              <CardHeader>
+                                  <CardTitle className="text-xl flex items-center gap-2">
+                                      <BookKey className="h-5 w-5" /> Datos de Pensión COLPENSIONES
+                                  </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                  {parris1Data ? (
+                                      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                                          <InfoField icon={<Calendar />} label="Fecha Adquisición" value={formatFirebaseTimestamp(parris1Data.fe_adquiere)} />
+                                          <InfoField icon={<Calendar />} label="Fecha Causación" value={formatFirebaseTimestamp(parris1Data.fe_causa)} />
+                                          <InfoField icon={<Calendar />} label="Fecha Ingreso" value={formatFirebaseTimestamp(parris1Data.fe_ingreso)} />
+                                          <InfoField icon={<Calendar />} label="Fecha Nacimiento" value={formatFirebaseTimestamp(parris1Data.fe_nacido)} />
+                                          <InfoField icon={<Calendar />} label="Fecha Vinculación" value={formatFirebaseTimestamp(parris1Data.fe_vinculado)} />
+                                          <InfoField icon={<History />} label="Semanas" value={parris1Data.semanas} />
+                                          <InfoField icon={<FileText />} label="Resolución" value={`${parris1Data.res_nro} (${parris1Data.res_ano})`} />
+                                          <InfoField icon={<Banknote />} label="Mesada" value={formatCurrency(parris1Data.mesada)} />
+                                          <InfoField icon={<Building />} label="Ciudad ISS" value={parris1Data.ciudad_iss} />
+                                          <InfoField icon={<MapPin />} label="Dirección ISS" value={parris1Data.dir_iss} />
+                                          <InfoField icon={<Phone />} label="Teléfono ISS" value={parris1Data.telefono_iss} />
+                                          <InfoField icon={<Users />} label="Régimen" value={parris1Data.regimen} />
+                                          <InfoField icon={<Sigma />} label="Riesgo" value={parris1Data.riesgo} />
+                                          <InfoField icon={<TrendingUp />} label="Seguro" value={parris1Data.seguro} />
+                                          <InfoField icon={<StickyNote />} label="Tranci" value={parris1Data.tranci ? 'Sí' : 'No'} />
+                                      </div>
+                                  ) : (
+                                      <p className="text-muted-foreground text-center py-4">
+                                          No se encontraron datos de pensión en COLPENSIONES para este usuario.
+                                      </p>
+                                  )}
+                              </CardContent>
+                          </Card>
+                        </React.Fragment>
 
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-xl flex items-center gap-2">
-                                    <ChevronsRight className="h-5 w-5" /> Historial del Causante
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                {causanteData && causanteData.records.length > 0 ? (
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Periodo</TableHead>
-                                                <TableHead>Tipo Aumento</TableHead>
-                                                <TableHead className="text-right">Valor Empresa</TableHead>
-                                                <TableHead className="text-right">Valor ISS</TableHead>
-                                                <TableHead>Observación</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {causanteData.records.map((record, index) => (
-                                                <TableRow key={index}>
-                                                    <TableCell>{`${formatFirebaseTimestamp(record.fecha_desde, 'dd/MM/yy')} - ${formatFirebaseTimestamp(record.fecha_hasta, 'dd/MM/yy')}`}</TableCell>
-                                                    <TableCell>{record.tipo_aum}</TableCell>
-                                                    <TableCell className="text-right">{formatCurrency(record.valor_empresa || 0)}</TableCell>
-                                                    <TableCell className="text-right">{formatCurrency(record.valor_iss || 0)}</TableCell>
-                                                    <TableCell>{record.observacion || 'N/A'}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                ) : (
-                                    <p className="text-muted-foreground text-center py-4">
-                                        No se encontró información del causante.
-                                    </p>
-                                )}
-                            </CardContent>
-                        </Card>
-
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="text-xl flex items-center gap-2">
-                                    <Gavel className="h-5 w-5" /> Procesos Legales Asociados
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                {legalProcesses && legalProcesses.length > 0 ? (
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Radicado</TableHead>
-                                                <TableHead>Clase de Proceso</TableHead>
-                                                <TableHead>Estado</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {legalProcesses.map((p) => (
-                                                <TableRow key={p.id}>
-                                                    <TableCell className="font-medium">{p.num_radicado_ini || 'N/A'}</TableCell>
-                                                    <TableCell>{p.clase_proceso || 'N/A'}</TableCell>
-                                                    <TableCell>{p.estado || 'N/A'}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                ) : (
-                                    <p className="text-muted-foreground text-center py-4">
-                                        No se encontraron procesos legales asociados actualmente.
-                                    </p>
-                                )}
-                            </CardContent>
-                        </Card>
+                        <React.Fragment key="legal-processes-card">
+                          <Card>
+                              <CardHeader>
+                                  <CardTitle className="text-xl flex items-center gap-2">
+                                      <Gavel className="h-5 w-5" /> Procesos Legales Asociados
+                                  </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                  {legalProcesses && legalProcesses.length > 0 ? (
+                                      <Table>
+                                          <TableHeader>
+                                              <TableRow>
+                                                  <TableHead>Radicado</TableHead>
+                                                  <TableHead>Clase de Proceso</TableHead>
+                                                  <TableHead>Estado</TableHead>
+                                              </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                              {legalProcesses.map((p) => (
+                                                  <TableRow key={p.id}>
+                                                      <TableCell className="font-medium">{p.num_radicado_ini || 'N/A'}</TableCell>
+                                                      <TableCell>{p.clase_proceso || 'N/A'}</TableCell>
+                                                      <TableCell>{p.estado || 'N/A'}</TableCell>
+                                                  </TableRow>
+                                              ))}
+                                          </TableBody>
+                                      </Table>
+                                  ) : (
+                                      <p className="text-muted-foreground text-center py-4">
+                                          No se encontraron procesos legales asociados actualmente.
+                                      </p>
+                                  )}
+                              </CardContent>
+                          </Card>
+                        </React.Fragment>
 
                         {sentencePayments.length > 0 && (
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="text-xl flex items-center gap-2">
-                                        <FileText className="h-5 w-5" /> Resumen de Pagos por Sentencia
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Concepto</TableHead>
-                                                <TableHead>Periodo de Pago</TableHead>
-                                                <TableHead className="text-right">Valor</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {sentencePayments.map((p, index) => (
-                                                <TableRow key={index}>
-                                                    <TableCell className="font-medium">{p.concept}</TableCell>
-                                                    <TableCell>{formatPeriodoToMonthYear(p.periodoPago)}</TableCell>
-                                                    <TableCell className="text-right font-semibold text-primary">{formatCurrency(p.amount)}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </Table>
-                            </CardContent>
-                        </Card>
-                    )}
+                            <React.Fragment key="sentence-payments-card">
+                              <Card>
+                                  <CardHeader>
+                                      <CardTitle className="text-xl flex items-center gap-2">
+                                          <FileText className="h-5 w-5" /> Resumen de Pagos por Sentencia
+                                      </CardTitle>
+                                  </CardHeader>
+                                  <CardContent>
+                                      <Table>
+                                          <TableHeader>
+                                              <TableRow>
+                                                  <TableHead>Concepto</TableHead>
+                                                  <TableHead>Periodo de Pago</TableHead>
+                                                  <TableHead className="text-right">Valor</TableHead>
+                                              </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                              {sentencePayments.map((p, index) => (
+                                                  <TableRow key={index}>
+                                                      <TableCell className="font-medium">{p.concept}</TableCell>
+                                                      <TableCell>{formatPeriodoToMonthYear(p.periodoPago)}</TableCell>
+                                                      <TableCell className="text-right font-semibold text-primary">{formatCurrency(p.amount)}</TableCell>
+                                                  </TableRow>
+                                              ))}
+                                          </TableBody>
+                                      </Table>
+                                  </CardContent>
+                              </Card>
+                            </React.Fragment>
+                        )}
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-xl flex items-center gap-2">
-                                <History className="h-5 w-5" /> Historial de Pagos
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                             {payments && payments.length > 0 ? (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Periodo</TableHead>
-                                            <TableHead>Concepto</TableHead>
-                                            <TableHead className="text-right">Valor</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {payments.slice(0, 2).map(payment => {
-                                            const mesada = payment.detalles.find(d => 
-                                                d.nombre === 'Mesada Pensional' || 
-                                                d.codigo === 'MESAD' ||
-                                                d.codigo === 'MESAD14'
-                                            );
-                                            const concepto = mesada?.codigo === 'MESAD14' ? 'Mesada Adicional' : 'Mesada Pensional';
-                                            return (
-                                                <TableRow key={payment.id}>
-                                                    <TableCell>{payment.periodoPago}</TableCell>
-                                                    <TableCell>{concepto}</TableCell>
-                                                    <TableCell className="text-right font-medium text-green-600">
-                                                        {mesada ? formatCurrency(mesada.ingresos) : 'N/A'}
-                                                    </TableCell>
-                                                </TableRow>
-                                            )
-                                        })}
-                                    </TableBody>
-                                </Table>
-                            ) : historicalPayment ? (
-                                 <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Año</TableHead>
-                                            <TableHead className="text-right">Valor Anterior</TableHead>
-                                            <TableHead className="text-right">Valor Actual</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        <TableRow>
-                                            <TableCell>{historicalPayment.ANO_RET || 'N/A'}</TableCell>
-                                            <TableCell className="text-right text-muted-foreground">
-                                                {formatCurrency(parseFloat(historicalPayment.VALOR_ANT?.replace(',', '.') || '0'))}
-                                            </TableCell>
-                                            <TableCell className="text-right font-medium text-green-600">
-                                                {formatCurrency(parseFloat(historicalPayment.VALOR_ACT?.replace(',', '.') || '0'))}
-                                            </TableCell>
-                                        </TableRow>
-                                    </TableBody>
-                                </Table>
-                            ) : (
-                                <p className="text-muted-foreground text-center py-4">No se encontraron registros de pagos para este pensionado.</p>
-                            )}
-                        </CardContent>
-                    </Card>
-                </>
-            )}
+                        <React.Fragment key="payment-history-card">
+                          <Card>
+                              <CardHeader>
+                                  <CardTitle className="text-xl flex items-center gap-2">
+                                      <History className="h-5 w-5" /> Historial de Pagos
+                                  </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                   {payments && payments.length > 0 ? (
+                                      <Table>
+                                          <TableHeader>
+                                              <TableRow>
+                                                  <TableHead>Periodo</TableHead>
+                                                  <TableHead>Concepto</TableHead>
+                                                  <TableHead className="text-right">Valor</TableHead>
+                                              </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                              {payments.slice(0, 2).map(payment => {
+                                                  const mesada = payment.detalles.find(d => 
+                                                      d.nombre === 'Mesada Pensional' || 
+                                                      d.codigo === 'MESAD' ||
+                                                      d.codigo === 'MESAD14'
+                                                  );
+                                                  const concepto = mesada?.codigo === 'MESAD14' ? 'Mesada Adicional' : 'Mesada Pensional';
+                                                  return (
+                                                      <TableRow key={payment.id}>
+                                                          <TableCell>{payment.periodoPago}</TableCell>
+                                                          <TableCell>{concepto}</TableCell>
+                                                          <TableCell className="text-right font-medium text-green-600">
+                                                              {mesada ? formatCurrency(mesada.ingresos) : 'N/A'}
+                                                          </TableCell>
+                                                      </TableRow>
+                                                  )
+                                              })}
+                                          </TableBody>
+                                      </Table>
+                                  ) : historicalPayment ? (
+                                       <Table>
+                                          <TableHeader>
+                                              <TableRow>
+                                                  <TableHead>Año</TableHead>
+                                                  <TableHead className="text-right">Valor Anterior</TableHead>
+                                                  <TableHead className="text-right">Valor Actual</TableHead>
+                                              </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                              <TableRow>
+                                                  <TableCell>{historicalPayment.ANO_RET || 'N/A'}</TableCell>
+                                                  <TableCell className="text-right text-muted-foreground">
+                                                      {formatCurrency(parseFloat(historicalPayment.VALOR_ANT?.replace(',', '.') || '0'))}
+                                                  </TableCell>
+                                                  <TableCell className="text-right font-medium text-green-600">
+                                                      {formatCurrency(parseFloat(historicalPayment.VALOR_ACT?.replace(',', '.') || '0'))}
+                                                  </TableCell>
+                                              </TableRow>
+                                          </TableBody>
+                                      </Table>
+                                  ) : (
+                                      <p className="text-muted-foreground text-center py-4">No se encontraron registros de pagos para este pensionado.</p>
+                                  )}
+                              </CardContent>
+                          </Card>
+                        </React.Fragment>
+                    </>
+                )}
             </div>
             {selectedPensioner && (
               <SoportesDriveModal
@@ -793,4 +775,3 @@ export default function PensionadoPage() {
         </>
     );
 }
-
