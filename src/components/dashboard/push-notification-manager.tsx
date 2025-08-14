@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { BellPlus } from 'lucide-react';
-import { Button } from '../ui/button';
+import { Button } from '@/components/ui/button';
 
 const functions = getFunctions();
 const savePushSubscriptionCallable = httpsCallable(functions, 'savePushSubscription');

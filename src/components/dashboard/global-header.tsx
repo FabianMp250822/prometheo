@@ -11,7 +11,7 @@ import { ChevronsUpDown, User, Search, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { SidebarTrigger, useSidebar } from '../ui/sidebar';
+import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar';
 
 function useDebounce<T>(value: T, delay: number): T {
     const [debouncedValue, setDebouncedValue] = useState<T>(value);

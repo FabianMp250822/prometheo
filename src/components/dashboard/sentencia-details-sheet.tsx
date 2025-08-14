@@ -10,8 +10,8 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ProcesoCancelado, Payment } from '@/lib/data';
 import { formatCurrency, parseEmployeeName, parsePaymentDetailName } from '@/lib/helpers';
-import { Badge } from '../ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileText, Calendar, Info, Hash, User, Banknote } from 'lucide-react';
 
 interface SentenciaDetailsSheetProps {
