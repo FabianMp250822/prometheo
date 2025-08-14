@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { usePensioner } from '@/context/pensioner-provider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight, Briefcase, FileDown, TrendingDown, BellRing, Info, Handshake, Target, MinusSquare, BarChart3, Sparkles, RefreshCw, FolderOpen } from 'lucide-react';
+import { UserSquare, ServerCrash, History, Landmark, Hash, Tag, Loader2, Banknote, FileText, Gavel, BookKey, Calendar, Building, MapPin, Phone, StickyNote, Sigma, TrendingUp, Users, ChevronsRight, Briefcase, FileDown, TrendingDown, BellRing, Info, Handshake, Target, MinusSquare, BarChart3, Sparkles, RefreshCw, FolderOpen, Pencil, Save, XCircle } from 'lucide-react';
 import { formatCurrency, formatPeriodoToMonthYear, parseEmployeeName, parsePaymentDetailName, formatFirebaseTimestamp, parsePeriodoPago, parseDepartmentName } from '@/lib/helpers';
 import type { Payment, Parris1, LegalProcess, Causante, PagosHistoricoRecord, PensionerProfileData, DajusticiaClient, DajusticiaPayment, ProviredNotification, CausanteRecord } from '@/lib/data';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -21,15 +21,25 @@ import { analizarPerfilPensionado } from '@/ai/flows/analizar-perfil-pensionado'
 import { useToast } from '@/hooks/use-toast';
 import { SoportesDriveModal } from '@/components/dashboard/soportes-drive-modal';
 import { PensionMapCard } from '@/components/dashboard/pension-map-card';
+import { Input } from '@/components/ui/input';
 
 
-function InfoField({ icon, label, value }: { icon: React.ReactNode, label: string, value: React.ReactNode }) {
+function InfoField({ icon, label, value, isEditing = false, name, onChange }: { icon: React.ReactNode, label: string, value: React.ReactNode, isEditing?: boolean, name?: string, onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void }) {
     return (
         <div className="flex items-center gap-3">
             <div className="text-muted-foreground">{icon}</div>
-            <div>
+            <div className="w-full">
                 <p className="text-sm text-muted-foreground">{label}</p>
-                <p className="font-medium">{value || 'N/A'}</p>
+                 {isEditing ? (
+                    <Input
+                        name={name}
+                        value={value as string || ''}
+                        onChange={onChange}
+                        className="mt-1 h-8 text-sm bg-background"
+                    />
+                ) : (
+                    <p className="font-medium">{value || 'N/A'}</p>
+                )}
             </div>
         </div>
     );
@@ -63,6 +73,10 @@ export default function PensionadoPage() {
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisError, setAnalysisError] = useState<string | null>(null);
     const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
+
+    const [isEditingParris1, setIsEditingParris1] = useState(false);
+    const [editedParris1Data, setEditedParris1Data] = useState<Parris1 | null>(null);
+    const [isSavingParris1, setIsSavingParris1] = useState(false);
 
     useEffect(() => {
         if (user) {
@@ -166,6 +180,7 @@ export default function PensionadoPage() {
                 dajusticiaPayments,
                 lastNotification,
             });
+            setEditedParris1Data(parris1Data);
 
         } catch (e) {
             console.error(e);
@@ -174,6 +189,56 @@ export default function PensionadoPage() {
             setIsLoading(false);
         }
     }, [userRole]);
+
+    const handleEditParris1 = () => {
+        setIsEditingParris1(true);
+        // Ensure edited data is initialized with profile data
+        if (profileData?.parris1Data) {
+            setEditedParris1Data(profileData.parris1Data);
+        } else {
+             setEditedParris1Data({} as Parris1); // Start with empty object if no data
+        }
+    };
+    
+    const handleCancelEditParris1 = () => {
+        setIsEditingParris1(false);
+        setEditedParris1Data(profileData?.parris1Data || null);
+    };
+
+    const handleParris1InputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value, type } = e.target;
+        setEditedParris1Data(prev => ({
+            ...prev!,
+            [name]: type === 'number' ? Number(value) : value,
+        }));
+    };
+
+    const handleSaveParris1 = async () => {
+        if (!selectedPensioner || !editedParris1Data) return;
+        setIsSavingParris1(true);
+        try {
+            const docRef = doc(db, 'parris1', selectedPensioner.documento);
+            // Convert any string numbers to actual numbers before saving
+            const dataToSave = {
+                ...editedParris1Data,
+                semanas: Number(editedParris1Data.semanas) || 0,
+                res_ano: Number(editedParris1Data.res_ano) || 0,
+                mesada: Number(editedParris1Data.mesada) || 0,
+                telefono_iss: Number(editedParris1Data.telefono_iss) || 0,
+                regimen: Number(editedParris1Data.regimen) || 0,
+                seguro: Number(editedParris1Data.seguro) || 0
+            };
+            await setDoc(docRef, dataToSave, { merge: true });
+            toast({ title: "Guardado", description: "Los datos de COLPENSIONES han sido actualizados." });
+            // Update local state after saving
+            setProfileData(prev => ({...prev!, parris1Data: dataToSave}));
+            setIsEditingParris1(false);
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: "Error", description: `No se pudo guardar: ${error.message}` });
+        } finally {
+            setIsSavingParris1(false);
+        }
+    };
     
     const handleAnalysis = useCallback(async (forceRefresh = false) => {
         if (!profileData || !selectedPensioner) return;
@@ -597,29 +662,46 @@ export default function PensionadoPage() {
 
                         <React.Fragment key="colpensiones-card">
                             <Card>
-                                <CardHeader>
+                                <CardHeader className='flex-row items-center justify-between'>
                                     <CardTitle className="text-xl flex items-center gap-2">
                                         <BookKey className="h-5 w-5" /> Datos de Pensión COLPENSIONES
                                     </CardTitle>
+                                     {isEditingParris1 ? (
+                                        <div className="flex gap-2">
+                                            <Button size="sm" onClick={handleSaveParris1} disabled={isSavingParris1}>
+                                                {isSavingParris1 ? <Loader2 className='mr-2 h-4 w-4 animate-spin' /> : <Save className='mr-2 h-4 w-4' />}
+                                                Guardar
+                                            </Button>
+                                            <Button size="sm" variant="ghost" onClick={handleCancelEditParris1} disabled={isSavingParris1}>
+                                                <XCircle className='mr-2 h-4 w-4'/>
+                                                Cancelar
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <Button size="sm" variant="outline" onClick={handleEditParris1}>
+                                            <Pencil className="mr-2 h-4 w-4" />
+                                            Actualizar Datos
+                                        </Button>
+                                    )}
                                 </CardHeader>
                                 <CardContent>
-                                    {parris1Data ? (
+                                    {parris1Data || isEditingParris1 ? (
                                         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                                            <InfoField icon={<Calendar />} label="Fecha Adquisición" value={formatFirebaseTimestamp(parris1Data.fe_adquiere)} />
-                                            <InfoField icon={<Calendar />} label="Fecha Causación" value={formatFirebaseTimestamp(parris1Data.fe_causa)} />
-                                            <InfoField icon={<Calendar />} label="Fecha Ingreso" value={formatFirebaseTimestamp(parris1Data.fe_ingreso)} />
-                                            <InfoField icon={<Calendar />} label="Fecha Nacimiento" value={formatFirebaseTimestamp(parris1Data.fe_nacido)} />
-                                            <InfoField icon={<Calendar />} label="Fecha Vinculación" value={formatFirebaseTimestamp(parris1Data.fe_vinculado)} />
-                                            <InfoField icon={<History />} label="Semanas" value={parris1Data.semanas} />
-                                            <InfoField icon={<FileText />} label="Resolución" value={`${parris1Data.res_nro} (${parris1Data.res_ano})`} />
-                                            <InfoField icon={<Banknote />} label="Mesada" value={formatCurrency(parris1Data.mesada)} />
-                                            <InfoField icon={<Building />} label="Ciudad ISS" value={parris1Data.ciudad_iss} />
-                                            <InfoField icon={<MapPin />} label="Dirección ISS" value={parris1Data.dir_iss} />
-                                            <InfoField icon={<Phone />} label="Teléfono ISS" value={parris1Data.telefono_iss} />
-                                            <InfoField icon={<Users />} label="Régimen" value={parris1Data.regimen} />
-                                            <InfoField icon={<Sigma />} label="Riesgo" value={parris1Data.riesgo} />
-                                            <InfoField icon={<TrendingUp />} label="Seguro" value={parris1Data.seguro} />
-                                            <InfoField icon={<StickyNote />} label="Tranci" value={parris1Data.tranci ? 'Sí' : 'No'} />
+                                            <InfoField icon={<Calendar />} label="Fecha Adquisición" value={isEditingParris1 ? editedParris1Data?.fe_adquiere : formatFirebaseTimestamp(parris1Data?.fe_adquiere)} isEditing={isEditingParris1} name="fe_adquiere" onChange={handleParris1InputChange} />
+                                            <InfoField icon={<Calendar />} label="Fecha Causación" value={isEditingParris1 ? editedParris1Data?.fe_causa : formatFirebaseTimestamp(parris1Data?.fe_causa)} isEditing={isEditingParris1} name="fe_causa" onChange={handleParris1InputChange} />
+                                            <InfoField icon={<Calendar />} label="Fecha Ingreso" value={isEditingParris1 ? editedParris1Data?.fe_ingreso : formatFirebaseTimestamp(parris1Data?.fe_ingreso)} isEditing={isEditingParris1} name="fe_ingreso" onChange={handleParris1InputChange} />
+                                            <InfoField icon={<Calendar />} label="Fecha Nacimiento" value={isEditingParris1 ? editedParris1Data?.fe_nacido : formatFirebaseTimestamp(parris1Data?.fe_nacido)} isEditing={isEditingParris1} name="fe_nacido" onChange={handleParris1InputChange} />
+                                            <InfoField icon={<Calendar />} label="Fecha Vinculación" value={isEditingParris1 ? editedParris1Data?.fe_vinculado : formatFirebaseTimestamp(parris1Data?.fe_vinculado)} isEditing={isEditingParris1} name="fe_vinculado" onChange={handleParris1InputChange} />
+                                            <InfoField icon={<History />} label="Semanas" value={isEditingParris1 ? editedParris1Data?.semanas : parris1Data?.semanas} isEditing={isEditingParris1} name="semanas" onChange={handleParris1InputChange}/>
+                                            <InfoField icon={<FileText />} label="Resolución" value={parris1Data ? `${parris1Data.res_nro} (${parris1Data.res_ano})` : ''} />
+                                            <InfoField icon={<Banknote />} label="Mesada" value={isEditingParris1 ? editedParris1Data?.mesada : formatCurrency(parris1Data?.mesada || 0)} isEditing={isEditingParris1} name="mesada" onChange={handleParris1InputChange}/>
+                                            <InfoField icon={<Building />} label="Ciudad ISS" value={isEditingParris1 ? editedParris1Data?.ciudad_iss : parris1Data?.ciudad_iss} isEditing={isEditingParris1} name="ciudad_iss" onChange={handleParris1InputChange} />
+                                            <InfoField icon={<MapPin />} label="Dirección ISS" value={isEditingParris1 ? editedParris1Data?.dir_iss : parris1Data?.dir_iss} isEditing={isEditingParris1} name="dir_iss" onChange={handleParris1InputChange} />
+                                            <InfoField icon={<Phone />} label="Teléfono ISS" value={isEditingParris1 ? editedParris1Data?.telefono_iss : parris1Data?.telefono_iss} isEditing={isEditingParris1} name="telefono_iss" onChange={handleParris1InputChange}/>
+                                            <InfoField icon={<Users />} label="Régimen" value={isEditingParris1 ? editedParris1Data?.regimen : parris1Data?.regimen} isEditing={isEditingParris1} name="regimen" onChange={handleParris1InputChange}/>
+                                            <InfoField icon={<Sigma />} label="Riesgo" value={isEditingParris1 ? editedParris1Data?.riesgo : parris1Data?.riesgo} isEditing={isEditingParris1} name="riesgo" onChange={handleParris1InputChange}/>
+                                            <InfoField icon={<TrendingUp />} label="Seguro" value={isEditingParris1 ? editedParris1Data?.seguro : parris1Data?.seguro} isEditing={isEditingParris1} name="seguro" onChange={handleParris1InputChange}/>
+                                            <InfoField icon={<StickyNote />} label="Tranci" value={isEditingParris1 ? (editedParris1Data?.tranci ? 'Sí' : 'No') : (parris1Data?.tranci ? 'Sí' : 'No')} />
                                         </div>
                                     ) : (
                                         <p className="text-muted-foreground text-center py-4">
