@@ -1,9 +1,11 @@
 
+
 'use client';
 
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { MapPin, ExternalLink } from 'lucide-react';
+import { PensionMapFallback } from './pension-map-fallback';
 
 interface PensionMapCardProps {
     address: string | null | undefined;
@@ -24,8 +26,8 @@ export function PensionMapCard({ address, city }: PensionMapCardProps) {
             return null;
         }
         const query = encodeURIComponent(`${address}, ${city}, Colombia`);
-        // The key change is here: using the `q` parameter for location query instead of `center`.
-        return `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${query}&zoom=18`;
+        // Use the 'view' mode to get full map controls, including Street View Pegman.
+        return `https://www.google.com/maps/embed/v1/view?key=${apiKey}&center=${query}&zoom=18`;
     }, [address, city]);
 
     if (!address || !city) {
@@ -42,27 +44,9 @@ export function PensionMapCard({ address, city }: PensionMapCardProps) {
             </Card>
         );
     }
-
+    
     if (!embedUrl) {
-         return (
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-xl flex items-center gap-2">
-                        <MapPin className="h-5 w-5" /> Ubicación de Oficina ISS
-                    </CardTitle>
-                    <CardDescription>
-                       No se pudo construir la URL del mapa. Verifique la configuración de la API Key.
-                    </CardDescription>
-                </CardHeader>
-                 <CardContent>
-                    {googleMapsUrl && (
-                        <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
-                            Ver en Google Maps
-                        </a>
-                    )}
-                </CardContent>
-            </Card>
-        );
+      return <PensionMapFallback address={address} city={city} />;
     }
 
     return (
