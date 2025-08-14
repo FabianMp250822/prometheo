@@ -29,7 +29,6 @@ const prompt = ai.definePrompt({
   name: 'analizarPerfilPensionadoPrompt',
   input: { schema: AnalizarPerfilPensionadoInputSchema },
   output: { schema: AnalizarPerfilPensionadoOutputSchema },
-  model: 'googleai/gemini-1.5-flash',
   prompt: `
     You are an expert legal and financial analyst specializing in Colombian pension cases for the firm DAJUSTICIA.
     Your task is to analyze the provided JSON data of a pensioner and generate a concise, insightful executive summary in HTML format.

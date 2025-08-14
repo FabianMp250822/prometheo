@@ -38,7 +38,6 @@ const prompt = ai.definePrompt({
   name: 'generateLegalDocumentPrompt',
   input: {schema: GenerateLegalDocumentInputSchema},
   output: {schema: GenerateLegalDocumentOutputSchema},
-  model: 'googleai/gemini-1.5-flash',
   prompt: `
     You are an expert AI lawyer specializing in generating legal document templates.
     Your task is to create a template for a "{{documentType}}" valid under the laws of {{country}}.

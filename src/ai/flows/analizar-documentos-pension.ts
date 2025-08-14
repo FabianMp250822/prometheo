@@ -98,7 +98,6 @@ const prompt = ai.definePrompt({
   name: 'analizarDocumentosPensionPrompt',
   input: { schema: AnalizarDocumentosPensionInputSchema },
   output: { schema: AnalizarDocumentosPensionOutputSchema },
-  model: 'googleai/gemini-1.5-flash',
   prompt: `
     ## ROL Y OBJETIVO
     Eres un sistema experto en la liquidación de pensiones bajo la Ley 4ª de 1976 en Colombia. Tu objetivo es procesar los documentos pensionales proporcionados, extraer toda la información relevante del caso, aplicar los criterios jurídicos y financieros especificados, y generar tanto una tabla de liquidación detallada como un informe completo del análisis.
