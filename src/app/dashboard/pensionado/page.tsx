@@ -20,6 +20,7 @@ import { datosConsolidados, datosIPC } from '../liquidaciones/anexo-ley-4/page';
 import { analizarPerfilPensionado } from '@/ai/flows/analizar-perfil-pensionado';
 import { useToast } from '@/hooks/use-toast';
 import { SoportesDriveModal } from '@/components/dashboard/soportes-drive-modal';
+import { PensionMapCard } from '@/components/dashboard/pension-map-card';
 
 
 function InfoField({ icon, label, value }: { icon: React.ReactNode, label: string, value: React.ReactNode }) {
@@ -595,39 +596,48 @@ export default function PensionadoPage() {
                         </React.Fragment>
 
                         <React.Fragment key="colpensiones-card">
-                          <Card>
-                              <CardHeader>
-                                  <CardTitle className="text-xl flex items-center gap-2">
-                                      <BookKey className="h-5 w-5" /> Datos de Pensión COLPENSIONES
-                                  </CardTitle>
-                              </CardHeader>
-                              <CardContent>
-                                  {parris1Data ? (
-                                      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                                          <InfoField icon={<Calendar />} label="Fecha Adquisición" value={formatFirebaseTimestamp(parris1Data.fe_adquiere)} />
-                                          <InfoField icon={<Calendar />} label="Fecha Causación" value={formatFirebaseTimestamp(parris1Data.fe_causa)} />
-                                          <InfoField icon={<Calendar />} label="Fecha Ingreso" value={formatFirebaseTimestamp(parris1Data.fe_ingreso)} />
-                                          <InfoField icon={<Calendar />} label="Fecha Nacimiento" value={formatFirebaseTimestamp(parris1Data.fe_nacido)} />
-                                          <InfoField icon={<Calendar />} label="Fecha Vinculación" value={formatFirebaseTimestamp(parris1Data.fe_vinculado)} />
-                                          <InfoField icon={<History />} label="Semanas" value={parris1Data.semanas} />
-                                          <InfoField icon={<FileText />} label="Resolución" value={`${parris1Data.res_nro} (${parris1Data.res_ano})`} />
-                                          <InfoField icon={<Banknote />} label="Mesada" value={formatCurrency(parris1Data.mesada)} />
-                                          <InfoField icon={<Building />} label="Ciudad ISS" value={parris1Data.ciudad_iss} />
-                                          <InfoField icon={<MapPin />} label="Dirección ISS" value={parris1Data.dir_iss} />
-                                          <InfoField icon={<Phone />} label="Teléfono ISS" value={parris1Data.telefono_iss} />
-                                          <InfoField icon={<Users />} label="Régimen" value={parris1Data.regimen} />
-                                          <InfoField icon={<Sigma />} label="Riesgo" value={parris1Data.riesgo} />
-                                          <InfoField icon={<TrendingUp />} label="Seguro" value={parris1Data.seguro} />
-                                          <InfoField icon={<StickyNote />} label="Tranci" value={parris1Data.tranci ? 'Sí' : 'No'} />
-                                      </div>
-                                  ) : (
-                                      <p className="text-muted-foreground text-center py-4">
-                                          No se encontraron datos de pensión en COLPENSIONES para este usuario.
-                                      </p>
-                                  )}
-                              </CardContent>
-                          </Card>
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="text-xl flex items-center gap-2">
+                                        <BookKey className="h-5 w-5" /> Datos de Pensión COLPENSIONES
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    {parris1Data ? (
+                                        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                                            <InfoField icon={<Calendar />} label="Fecha Adquisición" value={formatFirebaseTimestamp(parris1Data.fe_adquiere)} />
+                                            <InfoField icon={<Calendar />} label="Fecha Causación" value={formatFirebaseTimestamp(parris1Data.fe_causa)} />
+                                            <InfoField icon={<Calendar />} label="Fecha Ingreso" value={formatFirebaseTimestamp(parris1Data.fe_ingreso)} />
+                                            <InfoField icon={<Calendar />} label="Fecha Nacimiento" value={formatFirebaseTimestamp(parris1Data.fe_nacido)} />
+                                            <InfoField icon={<Calendar />} label="Fecha Vinculación" value={formatFirebaseTimestamp(parris1Data.fe_vinculado)} />
+                                            <InfoField icon={<History />} label="Semanas" value={parris1Data.semanas} />
+                                            <InfoField icon={<FileText />} label="Resolución" value={`${parris1Data.res_nro} (${parris1Data.res_ano})`} />
+                                            <InfoField icon={<Banknote />} label="Mesada" value={formatCurrency(parris1Data.mesada)} />
+                                            <InfoField icon={<Building />} label="Ciudad ISS" value={parris1Data.ciudad_iss} />
+                                            <InfoField icon={<MapPin />} label="Dirección ISS" value={parris1Data.dir_iss} />
+                                            <InfoField icon={<Phone />} label="Teléfono ISS" value={parris1Data.telefono_iss} />
+                                            <InfoField icon={<Users />} label="Régimen" value={parris1Data.regimen} />
+                                            <InfoField icon={<Sigma />} label="Riesgo" value={parris1Data.riesgo} />
+                                            <InfoField icon={<TrendingUp />} label="Seguro" value={parris1Data.seguro} />
+                                            <InfoField icon={<StickyNote />} label="Tranci" value={parris1Data.tranci ? 'Sí' : 'No'} />
+                                        </div>
+                                    ) : (
+                                        <p className="text-muted-foreground text-center py-4">
+                                            No se encontraron datos de pensión en COLPENSIONES para este usuario.
+                                        </p>
+                                    )}
+                                </CardContent>
+                            </Card>
                         </React.Fragment>
+
+                        {parris1Data?.dir_iss && (
+                            <React.Fragment key="map-card">
+                                <PensionMapCard 
+                                    address={parris1Data.dir_iss}
+                                    city={parris1Data.ciudad_iss}
+                                />
+                            </React.Fragment>
+                        )}
 
                         <React.Fragment key="legal-processes-card">
                           <Card>
