@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -26,7 +27,7 @@ export function PensionMapFallback({ address, city }: PensionMapFallbackProps) {
             <CardContent>
                 <div className="space-y-4">
                     <p className="text-sm text-muted-foreground">
-                        El mapa integrado no está disponible actualmente. Puedes ver la ubicación en Google Maps.
+                        No se pudo cargar el mapa integrado. Es posible que la dirección no sea válida o que haya un problema de configuración.
                     </p>
                     <Button 
                         onClick={() => window.open(googleMapsUrl, '_blank')} 
@@ -34,7 +35,7 @@ export function PensionMapFallback({ address, city }: PensionMapFallbackProps) {
                         variant="outline"
                     >
                         <ExternalLink className="mr-2 h-4 w-4" />
-                        Abrir en Google Maps
+                        Intentar abrir en Google Maps
                     </Button>
                 </div>
             </CardContent>

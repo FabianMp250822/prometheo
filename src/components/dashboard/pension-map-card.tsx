@@ -4,6 +4,8 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { MapPin } from 'lucide-react';
+import { PensionMapFallback } from './pension-map-fallback';
+
 
 interface PensionMapCardProps {
     address: string | null | undefined;
@@ -16,19 +18,22 @@ export function PensionMapCard({ address, city }: PensionMapCardProps) {
             return null;
         }
         
-        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyAvu0J_XAdr_9N733GWP53LEr3enU8LEpQ';
+        const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
         if (!apiKey) {
-            console.error("Google Maps API key is missing.");
+            console.error("Google Maps API key is not defined.");
             return null;
         }
         
-        const query = encodeURIComponent(`${address}, ${city}, Colombia`);
-        
-        // This URL uses the standard Google Maps view, which includes the Street View Pegman control.
+        const fullAddress = `${address}, ${city}, Colombia`;
+        // Ensure the address is properly encoded for a URL
+        const query = encodeURIComponent(fullAddress);
+        if(!query) return null;
+
         return `https://www.google.com/maps/embed/v1/view?key=${apiKey}&center=${query}&zoom=18&maptype=roadmap`;
 
     }, [address, city]);
-
+    
+    // If the address or city is missing, show a clear message.
     if (!address || !city) {
         return (
             <Card>
@@ -37,26 +42,16 @@ export function PensionMapCard({ address, city }: PensionMapCardProps) {
                         <MapPin className="h-5 w-5" /> Ubicación de Oficina ISS
                     </CardTitle>
                     <CardDescription>
-                        No hay información de dirección disponible.
+                        No hay información de dirección disponible para mostrar en el mapa.
                     </CardDescription>
                 </CardHeader>
             </Card>
         );
     }
-
+    
+    // If the map URL could not be constructed, show the fallback.
     if (!mapSrc) {
-        return (
-             <Card>
-                <CardHeader>
-                    <CardTitle className="text-xl flex items-center gap-2">
-                        <MapPin className="h-5 w-5" /> Ubicación de Oficina ISS
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-destructive">Clave de API de Google Maps no configurada.</p>
-                </CardContent>
-            </Card>
-        );
+        return <PensionMapFallback address={address} city={city} />;
     }
 
     return (
