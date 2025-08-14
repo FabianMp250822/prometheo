@@ -11,8 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Search, Loader2 } from 'lucide-react';
 import { isBefore, isAfter, isValid, parse } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { parseEmployeeName, parseDepartmentName } from '@/lib/helpers';
-import { Pensioner } from '@/lib/data';
+import { parseEmployeeName, parseDepartmentName, parsePeriodoPago, formatCurrency } from '@/lib/helpers';
+import { Pensioner, Payment } from '@/lib/data';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,6 +47,14 @@ const parseSpanishDate = (dateStr: string): Date | null => {
     return null;
 };
 
+// Interface para los datos extendidos con pagos
+interface PensionerWithPayments extends Pensioner {
+    lastTwoPayments: {
+        penultimo?: { periodo: string; valor: number };
+        ultimo?: { periodo: string; valor: number };
+    };
+}
+
 
 export default function BusquedasPage() {
     const { toast } = useToast();
@@ -55,7 +63,7 @@ export default function BusquedasPage() {
     
     const [uniqueDependencias, setUniqueDependencias] = useState<string[]>([]);
     const [selectedDependencia, setSelectedDependencia] = useState('');
-    const [retirementResults, setRetirementResults] = useState<Pensioner[]>([]);
+    const [retirementResults, setRetirementResults] = useState<PensionerWithPayments[]>([]);
     const [isLoadingRetirement, setIsLoadingRetirement] = useState(false);
     
     const [jubilacionSearchType, setJubilacionSearchType] = useState<'antes' | 'despues' | 'rango'>('rango');
@@ -65,6 +73,74 @@ export default function BusquedasPage() {
     const [sheetPensioner, setSheetPensioner] = useState<Pensioner | null>(null);
 
     const [sortConfig, setSortConfig] = useState<{ key: keyof Pensioner | 'empleado' | 'fechaJubilacion'; direction: 'asc' | 'desc' } | null>(null);
+
+    // Función para obtener los últimos dos pagos de un pensionado
+    const getLastTwoPayments = async (pensionerId: string) => {
+        try {
+            const paymentsQuery = query(collection(db, 'pensionados', pensionerId, 'pagos'));
+            const querySnapshot = await getDocs(paymentsQuery);
+            
+            let paymentsData = querySnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+            } as Payment));
+
+            // Filtrar pagos únicos por período para evitar duplicados
+            const uniquePayments = new Map();
+            paymentsData.forEach(payment => {
+                const mesadaDetail = payment.detalles.find(d => 
+                    d.nombre?.includes('Mesada Pensional') || 
+                    d.codigo === 'MESAD' || 
+                    d.codigo === 'MESADA'
+                );
+                
+                // Solo incluir pagos que tengan mesada pensional con valor > 0
+                if (mesadaDetail && mesadaDetail.ingresos > 0) {
+                    const periodo = payment.periodoPago;
+                    // Si ya existe el período, mantener el que tenga mayor valor de mesada
+                    if (!uniquePayments.has(periodo) || 
+                        uniquePayments.get(periodo).mesadaValor < mesadaDetail.ingresos) {
+                        uniquePayments.set(periodo, {
+                            ...payment,
+                            mesadaValor: mesadaDetail.ingresos
+                        });
+                    }
+                }
+            });
+
+            // Convertir el Map a array y ordenar por fecha de pago (más reciente primero)
+            const filteredPayments = Array.from(uniquePayments.values()).sort((a, b) => {
+                const dateA = parsePeriodoPago(a.periodoPago)?.endDate || new Date(0);
+                const dateB = parsePeriodoPago(b.periodoPago)?.endDate || new Date(0);
+                return dateB.getTime() - dateA.getTime();
+            });
+
+            const lastTwoPayments: { penultimo?: { periodo: string; valor: number }; ultimo?: { periodo: string; valor: number } } = {};
+
+            // Obtener el último pago (más reciente)
+            if (filteredPayments.length > 0) {
+                const ultimoPago = filteredPayments[0];
+                lastTwoPayments.ultimo = {
+                    periodo: ultimoPago.periodoPago,
+                    valor: ultimoPago.mesadaValor
+                };
+            }
+
+            // Obtener el penúltimo pago (segundo más reciente)
+            if (filteredPayments.length > 1) {
+                const penultimoPago = filteredPayments[1];
+                lastTwoPayments.penultimo = {
+                    periodo: penultimoPago.periodoPago,
+                    valor: penultimoPago.mesadaValor
+                };
+            }
+
+            return lastTwoPayments;
+        } catch (error) {
+            console.error(`Error fetching payments for pensioner ${pensionerId}:`, error);
+            return {};
+        }
+    };
 
 
     useEffect(() => {
@@ -114,7 +190,7 @@ export default function BusquedasPage() {
             const querySnapshot = await getDocs(q);
             const allPensionersFromDep = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pensioner));
             
-            const results = allPensionersFromDep.filter(pensioner => {
+            const filteredPensioners = allPensionersFromDep.filter(pensioner => {
                 const dateSource = pensioner.fechaPensionado || pensioner.ano_jubilacion;
                 if (!dateSource) return false;
 
@@ -132,10 +208,21 @@ export default function BusquedasPage() {
                         return false;
                 }
             });
-            
-            setRetirementResults(results);
 
-            if (results.length === 0) {
+            // Obtener los últimos dos pagos para cada pensionado
+            const pensionersWithPayments: PensionerWithPayments[] = await Promise.all(
+                filteredPensioners.map(async (pensioner) => {
+                    const lastTwoPayments = await getLastTwoPayments(pensioner.id);
+                    return {
+                        ...pensioner,
+                        lastTwoPayments
+                    };
+                })
+            );
+            
+            setRetirementResults(pensionersWithPayments);
+
+            if (pensionersWithPayments.length === 0) {
                 toast({ title: 'Sin resultados', description: 'No se encontraron pensionados con esos criterios.' });
             }
 
@@ -145,7 +232,7 @@ export default function BusquedasPage() {
         } finally {
             setIsLoadingRetirement(false);
         }
-    }, [selectedDependencia, jubilacionSearchType, jubilacionDate1, jubilacionDate2, toast]);
+    }, [selectedDependencia, jubilacionSearchType, jubilacionDate1, jubilacionDate2, toast, getLastTwoPayments]);
     
     const sortedRetirementResults = useMemo(() => {
         let sortableItems = [...retirementResults];
@@ -201,35 +288,64 @@ export default function BusquedasPage() {
             return;
         }
 
-        const dataToExport = sortedRetirementResults.map((p, index) => ({
-            '#': index + 1,
-            'Nombre': parseEmployeeName(p.empleado),
-            'Documento': p.documento,
-            'Fecha Jubilación': p.fechaPensionado || p.ano_jubilacion,
-            'Dependencia': parseDepartmentName(p.dependencia1),
-        }));
+        const dataToExport = sortedRetirementResults.map((p, index) => {
+            const baseData = {
+                '#': index + 1,
+                'Nombre': parseEmployeeName(p.empleado),
+                'Documento': p.documento,
+                'Fecha Jubilación': p.fechaPensionado || p.ano_jubilacion,
+                'Dependencia': parseDepartmentName(p.dependencia1),
+                'Penúltimo Pago Periodo': p.lastTwoPayments.penultimo?.periodo || 'N/A',
+                'Penúltimo Pago Valor': p.lastTwoPayments.penultimo?.valor ? formatCurrency(p.lastTwoPayments.penultimo.valor) : 'N/A',
+                'Último Pago Periodo': p.lastTwoPayments.ultimo?.periodo || 'N/A',
+                'Último Pago Valor': p.lastTwoPayments.ultimo?.valor ? formatCurrency(p.lastTwoPayments.ultimo.valor) : 'N/A',
+            };
+
+            // Agregar columna de Mesada Pensional solo para BOLIVAR
+            if (selectedDependencia === 'BOLIVAR') {
+                return {
+                    ...baseData,
+                    'Mesada Pensional': (p.lastTwoPayments.penultimo && p.lastTwoPayments.ultimo) 
+                        ? formatCurrency(p.lastTwoPayments.penultimo.valor + p.lastTwoPayments.ultimo.valor)
+                        : 'N/A'
+                };
+            }
+
+            return baseData;
+        });
 
         const worksheet = XLSX.utils.json_to_sheet(dataToExport);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Jubilados');
 
-        worksheet['!cols'] = [
-            { wch: 5 },
-            { wch: 40 },
-            { wch: 15 },
-            { wch: 15 },
-            { wch: 30 },
+        // Configurar columnas dinámicamente basado en la dependencia
+        const baseColumns = [
+            { wch: 5 },   // #
+            { wch: 40 },  // Nombre
+            { wch: 15 },  // Documento
+            { wch: 15 },  // Fecha Jubilación
+            { wch: 30 },  // Dependencia
+            { wch: 20 },  // Penúltimo Pago Periodo
+            { wch: 20 },  // Penúltimo Pago Valor
+            { wch: 20 },  // Último Pago Periodo
+            { wch: 20 },  // Último Pago Valor
         ];
+
+        if (selectedDependencia === 'BOLIVAR') {
+            baseColumns.push({ wch: 25 }); // Mesada Pensional
+        }
+
+        worksheet['!cols'] = baseColumns;
 
         XLSX.writeFile(workbook, `Reporte_Jubilados_${formatDate(new Date(), 'yyyy-MM-dd')}.xlsx`);
     };
 
-    const handleViewHojaDeVida = (pensioner: Pensioner) => {
+    const handleViewHojaDeVida = (pensioner: PensionerWithPayments) => {
         setSelectedPensioner(pensioner);
         router.push('/dashboard/pensionado');
     };
 
-    const handleViewPayments = (pensioner: Pensioner) => {
+    const handleViewPayments = (pensioner: PensionerWithPayments) => {
         setSheetPensioner(pensioner);
     };
 
@@ -324,6 +440,11 @@ export default function BusquedasPage() {
                                                 Fecha Jubilación {getSortIcon('fechaJubilacion')}
                                             </Button>
                                         </TableHead>
+                                        <TableHead>Penúltimo Pago</TableHead>
+                                        <TableHead>Último Pago</TableHead>
+                                        {selectedDependencia === 'BOLIVAR' && (
+                                            <TableHead>Mesada Pensional</TableHead>
+                                        )}
                                         <TableHead className="text-right">Acciones</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -334,6 +455,40 @@ export default function BusquedasPage() {
                                             <TableCell>{parseEmployeeName(p.empleado)}</TableCell>
                                             <TableCell>{p.documento}</TableCell>
                                             <TableCell>{p.fechaPensionado || p.ano_jubilacion || 'N/A'}</TableCell>
+                                            <TableCell>
+                                                {p.lastTwoPayments.penultimo ? (
+                                                    <div className="text-sm">
+                                                        <div className="text-muted-foreground">{p.lastTwoPayments.penultimo.periodo}</div>
+                                                        <div className="font-medium text-primary">{formatCurrency(p.lastTwoPayments.penultimo.valor)}</div>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-muted-foreground">N/A</span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                {p.lastTwoPayments.ultimo ? (
+                                                    <div className="text-sm">
+                                                        <div className="text-muted-foreground">{p.lastTwoPayments.ultimo.periodo}</div>
+                                                        <div className="font-medium text-primary">{formatCurrency(p.lastTwoPayments.ultimo.valor)}</div>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-muted-foreground">N/A</span>
+                                                )}
+                                            </TableCell>
+                                            {selectedDependencia === 'BOLIVAR' && (
+                                                <TableCell>
+                                                    {p.lastTwoPayments.penultimo && p.lastTwoPayments.ultimo ? (
+                                                        <div className="text-sm">
+                                                            <div className="text-muted-foreground">Total</div>
+                                                            <div className="font-bold text-green-600">
+                                                                {formatCurrency(p.lastTwoPayments.penultimo.valor + p.lastTwoPayments.ultimo.valor)}
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-muted-foreground">N/A</span>
+                                                    )}
+                                                </TableCell>
+                                            )}
                                             <TableCell className="text-right space-x-2">
                                                 <Button variant="outline" size="sm" onClick={() => handleViewHojaDeVida(p)}>
                                                     <UserSquare className="h-3 w-3 mr-1" /> Hoja de Vida
