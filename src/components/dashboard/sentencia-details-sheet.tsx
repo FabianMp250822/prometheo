@@ -56,8 +56,12 @@ export function SentenciaDetailsSheet({ proceso, isOpen, onOpenChange }: Sentenc
                         <CardContent className="grid md:grid-cols-2 gap-4 text-sm">
                             <DetailItem icon={<User />} label="Pensionado" value={proceso.pensionerInfo ? parseEmployeeName(proceso.pensionerInfo.name) : 'N/A'} />
                             <DetailItem icon={<Hash />} label="Documento" value={proceso.pensionadoId} />
-                            <DetailItem icon={<Calendar />} label="Año Fiscal del Proceso" value={<Badge variant="secondary">{proceso.año}</Badge>} />
-                            <DetailItem icon={<Calendar />} label="Periodo de Pago" value={<Badge variant="outline">{proceso.periodoPago}</Badge>} />
+                            <div className="flex items-center gap-2">
+                               <DetailItem icon={<Calendar />} label="Año Fiscal del Proceso" value={<Badge variant="secondary">{proceso.año}</Badge>} />
+                            </div>
+                            <div className="flex items-center gap-2">
+                               <DetailItem icon={<Calendar />} label="Periodo de Pago" value={<Badge variant="outline">{proceso.periodoPago}</Badge>} />
+                            </div>
                         </CardContent>
                     </Card>
 

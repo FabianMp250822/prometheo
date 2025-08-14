@@ -4,8 +4,8 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { FileDown, FileText } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Loader2, BellOff, FileDown } from 'lucide-react';
+import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 
@@ -37,56 +37,69 @@ export function NotificationsByDemandanteModal({ isOpen, onClose, demandante }: 
     if (!demandante) return null;
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl h-[85vh] flex flex-col">
-                <DialogHeader>
-                    <DialogTitle>Actuaciones de: {demandante.demandante}</DialogTitle>
-                    <DialogDescription>
-                        <Badge variant="secondary">{demandante.notifications.length} actuaciones encontradas.</Badge>
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="flex-1 overflow-hidden border rounded-md">
-                    <ScrollArea className="h-full">
-                        <Table>
-                            <TableHeader className="sticky top-0 bg-background z-10">
-                                <TableRow>
-                                    <TableHead className="w-[50px]">#</TableHead>
-                                    <TableHead>Fecha</TableHead>
-                                    <TableHead>Proceso</TableHead>
-                                    <TableHead>Radicación</TableHead>
-                                    <TableHead>Descripción</TableHead>
-                                    <TableHead className="text-right">PDF</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {demandante.notifications.map((notif, index) => (
-                                    <TableRow key={notif.id}>
-                                        <TableCell>{index + 1}</TableCell>
-                                        <TableCell className="font-medium whitespace-nowrap">{notif.fechaPublicacion}</TableCell>
-                                        <TableCell>{notif.proceso}</TableCell>
-                                        <TableCell>{notif.radicacion}</TableCell>
-                                        <TableCell className="text-xs text-muted-foreground">{notif.descripcion}</TableCell>
-                                        <TableCell className="text-right">
-                                            {notif.rutaAuto ? (
-                                                <Button asChild variant="ghost" size="icon">
-                                                    <Link href={notif.rutaAuto} target="_blank" rel="noopener noreferrer">
-                                                        <FileDown className="h-4 w-4 text-primary" />
-                                                    </Link>
-                                                </Button>
-                                            ) : (
-                                                <FileText className="h-4 w-4 text-muted-foreground/50 mx-auto" />
-                                            )}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </ScrollArea>
-                </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={onClose}>Cerrar</Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <>
+            <Dialog open={isOpen} onOpenChange={onClose}>
+                <DialogContent className="max-w-5xl h-[85vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle>Actuaciones de: {demandante.demandante}</DialogTitle>
+                        <div className="flex items-center gap-2">
+                           <DialogDescription>
+                                Total de actuaciones encontradas:
+                           </DialogDescription>
+                           <Badge variant="secondary">{demandante.notifications.length}</Badge>
+                        </div>
+                    </DialogHeader>
+                    <div className="flex-1 overflow-hidden border rounded-md">
+                        <ScrollArea className="h-full">
+                            {isLoading ? (
+                                <div className="flex justify-center items-center h-full">
+                                    <Loader2 className="h-8 w-8 animate-spin" />
+                                </div>
+                            ) : notifications.length > 0 ? (
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Fecha Pub.</TableHead>
+                                            <TableHead>Demandante</TableHead>
+                                            <TableHead>Demandado</TableHead>
+                                            <TableHead>Descripción</TableHead>
+                                            <TableHead className="text-right">PDF</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {notifications.map((notif, index) => (
+                                            <TableRow key={index}>
+                                                <TableCell className="text-xs align-top">{notif.fechaPublicacion}</TableCell>
+                                                <TableCell className="font-medium align-top">{notif.demandante}</TableCell>
+                                                <TableCell className="align-top">{notif.demandado}</TableCell>
+                                                <TableCell className="text-xs text-muted-foreground align-top">{notif.descripcion}</TableCell>
+                                                <TableCell className="text-right align-top">
+                                                    {notif.rutaAuto && (
+                                                        <Button asChild variant="ghost" size="icon">
+                                                          <a href={notif.rutaAuto} target="_blank" rel="noopener noreferrer">
+                                                            <FileDown className="h-4 w-4 text-primary" />
+                                                          </a>
+                                                        </Button>
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+                                    <BellOff className="h-12 w-12 mb-4" />
+                                    <h3 className="text-lg font-semibold">Sin Notificaciones</h3>
+                                    <p>No se encontraron notificaciones para este despacho.</p>
+                                </div>
+                            )}
+                        </ScrollArea>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={onClose}>Cerrar</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }
