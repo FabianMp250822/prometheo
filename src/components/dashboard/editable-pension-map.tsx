@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MapPin, Save, Search, Edit3, X, Check } from 'lucide-react';
+import { MapPin, Save, Search, Edit3, X, Check, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -30,6 +30,12 @@ export function EditablePensionMap({
     const [tempCity, setTempCity] = useState(currentCity || '');
     const [searchQuery, setSearchQuery] = useState('');
 
+    // Actualizar estados internos cuando cambien los props
+    useEffect(() => {
+        setTempAddress(currentAddress || '');
+        setTempCity(currentCity || '');
+    }, [currentAddress, currentCity]);
+
     const currentEmbedUrl = React.useMemo(() => {
         if (!currentAddress || !currentCity) return null;
         const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -45,6 +51,12 @@ export function EditablePensionMap({
         const query = encodeURIComponent(`${searchQuery}, Colombia`);
         return `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${query}&zoom=15&maptype=roadmap&language=es&region=CO`;
     }, [searchQuery]);
+
+    // URL para abrir Google Maps directamente
+    const googleMapsUrl = React.useMemo(() => {
+        if (!currentAddress || !currentCity) return null;
+        return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${currentAddress}, ${currentCity}, Colombia`)}`;
+    }, [currentAddress, currentCity]);
 
     const handleSaveLocation = useCallback(async () => {
         if (!tempAddress.trim() || !tempCity.trim()) {
@@ -224,7 +236,7 @@ export function EditablePensionMap({
 
                 {/* Mapa actual */}
                 {currentEmbedUrl && (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                         <Label>{isEditing ? 'Ubicación actual' : 'Mapa de ubicación'}</Label>
                         <div className="aspect-video w-full rounded-md overflow-hidden border bg-muted">
                             <iframe
@@ -237,6 +249,18 @@ export function EditablePensionMap({
                                 title={`Mapa de ${currentAddress}, ${currentCity}`}
                             />
                         </div>
+                        {/* Botón para abrir en Google Maps */}
+                        {googleMapsUrl && (
+                            <Button
+                                variant="default"
+                                size="lg"
+                                onClick={() => window.open(googleMapsUrl, '_blank')}
+                                className="w-full"
+                            >
+                                <ExternalLink className="h-5 w-5 mr-2" />
+                                Ver en Google Maps
+                            </Button>
+                        )}
                     </div>
                 )}
 

@@ -432,7 +432,18 @@ export default function PensionadoPage({ params }: { params: { id: string } }) {
         const sharingYearRecord = calculatedData.find(d => d.pensionDeVejez > 0 && !d.isProjected);
         let sharingInfo = null;
         if (sharingYearRecord && causanteData.records.length > 0) {
-            const firstCausanteRecord = causanteData.records.filter(r => r.fecha_desde).sort((a,b) => formatFirebaseTimestamp(a.fecha_desde!, 't') - formatFirebaseTimestamp(b.fecha_desde!, 't'))[0];
+            const getTimestamp = (fecha: any) => {
+                if (!fecha) return 0;
+                try {
+                    if (typeof fecha === 'object' && fecha.toDate) {
+                        return fecha.toDate().getTime();
+                    }
+                    return new Date(fecha).getTime();
+                } catch {
+                    return 0;
+                }
+            };
+            const firstCausanteRecord = causanteData.records.filter(r => r.fecha_desde).sort((a,b) => getTimestamp(a.fecha_desde) - getTimestamp(b.fecha_desde))[0];
             const preSharingYearData = calculatedData.find(d => d.year === sharingYearRecord.year - 1);
             
             sharingInfo = {
@@ -738,11 +749,10 @@ export default function PensionadoPage({ params }: { params: { id: string } }) {
                         {(parris1Data?.dir_iss || userRole === 'admin') && (
                             <React.Fragment key="map-card">
                                 <EditablePensionMap 
-                                    pensionadoId={params.id}
-                                    initialAddress={currentAddress}
-                                    initialCity={currentCity}
+                                    pensionerId={params.id}
+                                    currentAddress={currentAddress}
+                                    currentCity={currentCity}
                                     onAddressUpdate={handleAddressUpdate}
-                                    isAdmin={userRole === 'admin'}
                                 />
                             </React.Fragment>
                         )}
