@@ -17,8 +17,8 @@ export function SimpleMapCard({ address, city }: SimpleMapCardProps) {
     // URL simple que siempre funciona
     const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${address}, ${city}, Colombia`)}`;
     
-    // URL para embed - versión simplificada
-    const embedUrl = `https://www.google.com/maps/embed/v1/place?key=AIzaSyAvu0J_XAdr_9N733GWP53LEr3enU8LEpQ&q=${encodeURIComponent(address + ', ' + city + ', Colombia')}&zoom=18`;
+    // URL para embed - versión simplificada con Street View habilitado
+    const embedUrl = `https://www.google.com/maps/embed/v1/place?key=AIzaSyAvu0J_XAdr_9N733GWP53LEr3enU8LEpQ&q=${encodeURIComponent(address + ', ' + city + ', Colombia')}&zoom=18&maptype=roadmap&language=es&region=CO`;
 
     return (
         <Card>
@@ -28,6 +28,10 @@ export function SimpleMapCard({ address, city }: SimpleMapCardProps) {
                 </CardTitle>
                 <CardDescription>
                     Dirección: {address}, {city}
+                    <br />
+                    <small className="text-muted-foreground">
+                        💡 Busca el icono de la persona (Pegman) para activar Street View
+                    </small>
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

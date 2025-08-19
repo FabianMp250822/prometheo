@@ -20,7 +20,7 @@ import { datosConsolidados, datosIPC } from '../liquidaciones/anexo-ley-4/page';
 import { analizarPerfilPensionado } from '@/ai/flows/analizar-perfil-pensionado';
 import { useToast } from '@/hooks/use-toast';
 import { SoportesDriveModal } from '@/components/dashboard/soportes-drive-modal';
-import { PensionMapCard } from '@/components/dashboard/pension-map-card';
+import { EditablePensionMap } from '@/components/dashboard/editable-pension-map';
 import { Input } from '@/components/ui/input';
 
 
@@ -59,7 +59,7 @@ interface SentencePayment {
     amount: number;
 }
 
-export default function PensionadoPage() {
+export default function PensionadoPage({ params }: { params: { id: string } }) {
     const { user } = useAuth();
     const { selectedPensioner } = usePensioner();
     const [profileData, setProfileData] = useState<PensionerProfileData | null>(null);
@@ -77,6 +77,10 @@ export default function PensionadoPage() {
     const [isEditingParris1, setIsEditingParris1] = useState(false);
     const [editedParris1Data, setEditedParris1Data] = useState<Parris1 | null>(null);
     const [isSavingParris1, setIsSavingParris1] = useState(false);
+    
+    // Estado para manejar la dirección actualizada
+    const [currentAddress, setCurrentAddress] = useState<string | null>(null);
+    const [currentCity, setCurrentCity] = useState<string | null>(null);
 
     useEffect(() => {
         if (user) {
@@ -181,6 +185,10 @@ export default function PensionadoPage() {
                 lastNotification,
             });
             setEditedParris1Data(parris1Data);
+            
+            // Inicializar dirección actual
+            setCurrentAddress(parris1Data?.dir_iss || null);
+            setCurrentCity(parris1Data?.ciudad_iss || null);
 
         } catch (e) {
             console.error(e);
@@ -203,6 +211,21 @@ export default function PensionadoPage() {
     const handleCancelEditParris1 = () => {
         setIsEditingParris1(false);
         setEditedParris1Data(profileData?.parris1Data || null);
+    };
+
+    // Function to handle address updates from the editable map
+    const handleAddressUpdate = (newAddress: string, newCity: string) => {
+        setCurrentAddress(newAddress);
+        setCurrentCity(newCity);
+        
+        // Also update the profileData to reflect the changes immediately
+        if (profileData) {
+            setProfileData(prev => prev ? {
+                ...prev,
+                direccion: newAddress,
+                ciudad: newCity
+            } : null);
+        }
     };
 
     const handleParris1InputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -712,11 +735,14 @@ export default function PensionadoPage() {
                             </Card>
                         </React.Fragment>
 
-                        {parris1Data?.dir_iss && (
+                        {(parris1Data?.dir_iss || userRole === 'admin') && (
                             <React.Fragment key="map-card">
-                                <PensionMapCard 
-                                    address={parris1Data.dir_iss}
-                                    city={parris1Data.ciudad_iss}
+                                <EditablePensionMap 
+                                    pensionadoId={params.id}
+                                    initialAddress={currentAddress}
+                                    initialCity={currentCity}
+                                    onAddressUpdate={handleAddressUpdate}
+                                    isAdmin={userRole === 'admin'}
                                 />
                             </React.Fragment>
                         )}

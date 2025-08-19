@@ -259,6 +259,14 @@ export default function DashboardLayout({
                       </SidebarMenuSubItem>
                       <SidebarMenuSubItem>
                         <SidebarMenuSubButton asChild>
+                          <Link href="/dashboard/liquidaciones/simulador">
+                            <FlaskConical />
+                            <span>Liquida FONECA</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton asChild>
                           <Link href="/dashboard/liquidaciones/certificado">
                             <Ribbon />
                             <span>Certificado</span>

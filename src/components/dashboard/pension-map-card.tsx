@@ -4,7 +4,8 @@
 
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { MapPin, ExternalLink } from 'lucide-react';
+import { MapPin, ExternalLink, Eye, Navigation } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { PensionMapFallback } from './pension-map-fallback';
 
 interface PensionMapCardProps {
@@ -18,6 +19,18 @@ export function PensionMapCard({ address, city }: PensionMapCardProps) {
         return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${address}, ${city}, Colombia`)}`;
     }, [address, city]);
 
+    const streetViewUrl = useMemo(() => {
+        if (!address || !city) return null;
+        const query = encodeURIComponent(`${address}, ${city}, Colombia`);
+        return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${query}`;
+    }, [address, city]);
+
+    const directionsUrl = useMemo(() => {
+        if (!address || !city) return null;
+        const destination = encodeURIComponent(`${address}, ${city}, Colombia`);
+        return `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
+    }, [address, city]);
+
     const embedUrl = useMemo(() => {
         if (!address || !city) return null;
         const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -26,8 +39,8 @@ export function PensionMapCard({ address, city }: PensionMapCardProps) {
             return null;
         }
         const query = encodeURIComponent(`${address}, ${city}, Colombia`);
-        // Use the 'view' mode to get full map controls, including Street View Pegman.
-        return `https://www.google.com/maps/embed/v1/view?key=${apiKey}&center=${query}&zoom=18`;
+        // Use 'place' mode with specific parameters to enable all controls including Street View
+        return `https://www.google.com/maps/embed/v1/place?key=${apiKey}&q=${query}&zoom=18&maptype=roadmap&language=es&region=CO`;
     }, [address, city]);
 
     if (!address || !city) {
@@ -56,7 +69,11 @@ export function PensionMapCard({ address, city }: PensionMapCardProps) {
                     <MapPin className="h-5 w-5" /> Ubicación de Oficina ISS
                 </CardTitle>
                 <CardDescription>
-                    Dirección: {address}, {city}.
+                    Dirección: {address}, {city}. 
+                    <br />
+                    <small className="text-muted-foreground">
+                        �️ Usa los botones debajo para ver Street View y obtener direcciones
+                    </small>
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -70,13 +87,42 @@ export function PensionMapCard({ address, city }: PensionMapCardProps) {
                         referrerPolicy="no-referrer-when-downgrade"
                         src={embedUrl}
                         title={`Mapa de ${address}, ${city}`}
+                        allow="geolocation; camera; microphone"
+                        sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
                     />
                 </div>
-                 <div className="mt-2 text-xs text-center">
-                    <a href={googleMapsUrl!} target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-primary flex items-center justify-center gap-1">
-                       <ExternalLink className="h-3 w-3" />
-                       Abrir en una nueva pestaña
-                    </a>
+                
+                {/* Botones de acción para Street View y direcciones */}
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(streetViewUrl!, '_blank')}
+                        className="flex items-center gap-2"
+                    >
+                        <Eye className="h-4 w-4" />
+                        Street View
+                    </Button>
+                    
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(directionsUrl!, '_blank')}
+                        className="flex items-center gap-2"
+                    >
+                        <Navigation className="h-4 w-4" />
+                        Direcciones
+                    </Button>
+                    
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(googleMapsUrl!, '_blank')}
+                        className="flex items-center gap-2"
+                    >
+                        <ExternalLink className="h-4 w-4" />
+                        Google Maps
+                    </Button>
                 </div>
             </CardContent>
         </Card>

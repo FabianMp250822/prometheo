@@ -49,6 +49,12 @@ const liquidationTypes = [
         icon: <FlaskConical className="h-8 w-8 text-primary" />,
         href: '/dashboard/liquidaciones/simulador'
     },
+    {
+        title: 'Liquida FONECA',
+        description: 'Simulador completo de liquidación pensional con metodología FONECA - Réplica de hoja Excel.',
+        icon: <FileText className="h-8 w-8 text-blue-600" />,
+        href: '/dashboard/liquidaciones/simulador'
+    },
 ];
 
 export default function LiquidadorPage() {
